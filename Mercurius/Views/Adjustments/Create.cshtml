@@ -1,0 +1,35 @@
+@model Mercurius.Repo.Models.Adjustment
+@{
+    ViewData["Title"] = "Add Adjustment";
+}
+
+<div class="card">
+    <div class="card-header border-0 pt-6">
+        <div class="card-title">
+            <h2>Add Adjustment</h2>
+        </div>
+    </div>
+    <div class="card-body">
+        <form asp-action="Create" method="post">
+            @Html.AntiForgeryToken()
+            <div class="row mb-3">
+                <div class="col-md-6">
+                    <label asp-for="AdjustmentDate" class="form-label">Date</label>
+                    <input asp-for="AdjustmentDate" class="form-control" type="date" />
+                </div>
+                <div class="col-md-6">
+                    <label asp-for="ReasonId" class="form-label">Reason</label>
+                    <input asp-for="ReasonId" class="form-control" type="number" />
+                </div>
+            </div>
+            <div class="row mb-3">
+                <div class="col-md-6">
+                    <label asp-for="Quantity" class="form-label">Quantity</label>
+                    <input asp-for="Quantity" class="form-control" type="number" step="0.01" />
+                </div>
+            </div>
+            <button type="submit" class="btn btn-primary">Save</button>
+            <a href="/Adjustments" class="btn btn-secondary">Cancel</a>
+        </form>
+    </div>
+</div>

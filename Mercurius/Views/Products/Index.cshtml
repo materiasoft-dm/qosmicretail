@@ -1,0 +1,405 @@
+@model IEnumerable<Mercurius.Repo.Models.Product>
+@{
+    Layout = "~/Views/Shared/_Layout.cshtml";
+    ViewData["Title"] = "Products";
+}
+
+<!-- PAGE TITLE -->
+<div id="kt_app_toolbar" class="app-toolbar py-3 py-lg-6">
+    <div id="kt_app_toolbar_container" class="app-container container-xxl d-flex flex-stack">   
+        <div class="page-title d-flex flex-column justify-content-center flex-wrap me-3">
+            <h1 class="page-heading d-flex text-dark fw-bold fs-3 flex-column justify-content-center my-0">Products</h1>
+            <ul class="breadcrumb breadcrumb-separatorless fw-semibold fs-7 my-0 pt-1">
+                <li class="breadcrumb-item text-muted">
+                    <a href="/" class="text-muted text-hover-primary">Home</a>
+                </li>
+                <li class="breadcrumb-item">
+                    <span class="bullet bg-gray-400 w-5px h-2px"></span>
+                </li>
+                <li class="breadcrumb-item text-muted">Products</li>
+            </ul>
+        </div>
+        
+        <div class="d-flex align-items-center gap-2 gap-lg-3">
+            @if (User.HasClaim(Mercurius.Common.Constants.MercuriusClaimTypes.AccessPages, Mercurius.Common.ModuleRegistry.Pages.PRODUCTS_CREATE))
+            {
+                <button type="button" class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#createProductModal">
+                    <i class="bi bi-plus-lg fs-4 me-1"></i>
+                    Add Product
+                </button>
+                <a href="/Products/Import" class="btn btn-light-primary">
+                    <span class="svg-icon svg-icon-2">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none">
+                            <path opacity="0.3" d="M19 22H5C4.4 22 4 21.6 4 21V3C4 2.4 4.4 2 5 2H14L20 8V21C20 21.6 19.6 22 19 22Z" fill="currentColor"/>
+                            <path d="M15 8H20L14 2V7C14 7.6 14.4 8 15 8Z" fill="currentColor"/>
+                        </svg>
+                    </span>
+                    Import Products
+                </a>
+            }
+        </div>
+    </div>
+</div>
+
+<div class="card">
+    <div class="card-header border-0 pt-6">
+        <div class="card-title">
+            <div class="d-flex align-items-center position-relative my-1">
+                <span class="svg-icon svg-icon-1 position-absolute ms-6">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none">
+                        <rect opacity="0.5" x="17.0365" y="15.1223" width="8.15546" height="2" rx="1" transform="rotate(45 17.0365 15.1223)" fill="currentColor"/>
+                        <path d="M11 19C6.55556 19 3 15.4444 3 11C3 6.55556 6.55556 3 11 3C15.4444 3 19 6.55556 19 11C19 15.4444 15.4444 19 11 19ZM11 5C7.53333 5 5 7.53333 5 11C5 14.4667 7.53333 17 11 17C14.4667 17 17 14.4667 17 11C17 7.53333 14.4667 5 11 5Z" fill="currentColor"/>
+                    </svg>
+                </span>
+                <input type="text" id="searchInput" class="form-control form-control-solid w-250px ps-15" placeholder="Search products..." />
+            </div>
+        </div>
+    </div>
+    <div class="card-body pt-0">
+        <div class="table-responsive">
+            @* Tbody intentionally empty — DataTables populates it via AJAX from /Products/DataTable. *@
+            <table id="productsTable" class="table table-hover table-rounded table-striped border gy-7 gs-7" style="width:100%">
+                <thead>
+                    <tr class="fw-bold fs-6 text-gray-800 border-bottom border-gray-200">
+                        <th>SKU</th>
+                        <th>Name</th>
+                        <th>Category</th>
+                        <th>Cost Price</th>
+                        <th>Sale Price</th>
+                        <th>Stock</th>
+                        <th>Status</th>
+                        <th class="text-end">Actions</th>
+                    </tr>
+                </thead>
+                <tbody></tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+@{
+    // Pass the delete permission to the client once so the action column renderer
+    // can decide whether to emit the Delete button. The server-side endpoint
+    // doesn't ship pre-built HTML, so the gate has to happen here.
+    var canDeleteProducts = User.HasClaim(
+        Mercurius.Common.Constants.MercuriusClaimTypes.AccessPages,
+        Mercurius.Common.ModuleRegistry.Pages.PRODUCTS_DELETE);
+}
+
+@if (User.HasClaim(Mercurius.Common.Constants.MercuriusClaimTypes.AccessPages, Mercurius.Common.ModuleRegistry.Pages.PRODUCTS_CREATE))
+{
+    <div class="modal fade" id="createProductModal" tabindex="-1" aria-labelledby="createProductModalLabel" aria-hidden="true">
+        <div class="modal-dialog modal-lg modal-dialog-centered modal-dialog-scrollable">
+            <div class="modal-content">
+                <form asp-action="Create" asp-controller="Products" method="post" class="js-ajax-form">
+                    @Html.AntiForgeryToken()
+                    <div class="modal-header">
+                        <h2 class="modal-title" id="createProductModalLabel">Add Product</h2>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                    </div>
+                    <div class="modal-body">
+                        <div asp-validation-summary="ModelOnly" class="text-danger"></div>
+                        <div class="row g-3">
+                            <div class="col-md-6">
+                                <label class="form-label required" for="Create_Name">Name</label>
+                                <input id="Create_Name" name="Name" class="form-control form-control-sm" required maxlength="200" />
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label required" for="Create_PartCode">SKU</label>
+                                <input id="Create_PartCode" name="PartCode" class="form-control form-control-sm" required maxlength="100" />
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label" for="Create_ProductCategoryId">Category</label>
+                                <select id="Create_ProductCategoryId" name="ProductCategoryId" class="form-select form-select-sm" asp-items="ViewBag.ProductCategoryId">
+                                    <option value="">-- Select category --</option>
+                                </select>
+                            </div>
+                            <div class="col-md-4">
+                                <label class="form-label" for="Create_CurrentCostPrice">Cost Price</label>
+                                <input id="Create_CurrentCostPrice" name="CurrentCostPrice" type="number" step="0.01" min="0" class="form-control form-control-sm create-cost" />
+                            </div>
+                            <div class="col-md-4">
+                                <label class="form-label" for="Create_MarkUpPercentage">Markup %</label>
+                                <input id="Create_MarkUpPercentage" name="MarkUpPercentage" type="number" step="0.01" min="0" class="form-control form-control-sm create-markup" />
+                            </div>
+                            <div class="col-md-4">
+                                <label class="form-label" for="Create_CurrentSalePrice">Sale Price</label>
+                                <input id="Create_CurrentSalePrice" name="CurrentSalePrice" type="number" step="0.01" min="0" class="form-control form-control-sm create-sale" />
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label" for="Create_LeadTimeDays">Lead Time (days)</label>
+                                <input id="Create_LeadTimeDays" name="LeadTimeDays" type="number" min="0" class="form-control form-control-sm" />
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label" for="Create_LowStockCount">Low Stock Threshold</label>
+                                <input id="Create_LowStockCount" name="LowStockCount" type="number" min="0" class="form-control form-control-sm" />
+                            </div>
+                            <div class="col-12">
+                                <label class="form-label" for="Create_Note">Notes</label>
+                                <textarea id="Create_Note" name="Note" class="form-control form-control-sm" rows="2" maxlength="1000"></textarea>
+                            </div>
+
+                            <!-- Custom fields injected by JS based on selected category -->
+                            <div id="custom-fields-container" class="col-12 mt-3" style="display:none;">
+                                <div class="separator separator-dashed border-secondary my-4"></div>
+                                <h6 class="text-muted mb-3">Additional Details</h6>
+                                <div class="row g-3" id="custom-fields-row"></div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-light" data-bs-dismiss="modal">Cancel</button>
+                        <button type="submit" class="btn btn-primary">Save Product</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+}
+
+@section Scripts {
+    <script>
+        $(document).ready(function () {
+            // Custom fields — fetch and render when category changes
+            function loadCustomFields(categoryId, productId) {
+                if (!categoryId) {
+                    $('#custom-fields-container').hide();
+                    $('#custom-fields-row').empty();
+                    return;
+                }
+                var url = '/Products/GetCategoryFields?categoryId=' + categoryId;
+                if (productId) url += '&productId=' + productId;
+                $.get(url, function(fields) {
+                    if (!fields.length) {
+                        $('#custom-fields-container').hide();
+                        return;
+                    }
+                    $('#custom-fields-row').empty();
+                    $.each(fields, function(i, f) {
+                        var col = $('<div class="col-md-6"></div>');
+                        var label = $('<label class="form-label">' + f.displayLabel + (f.isRequired ? ' <span class="text-danger">*</span>' : '') + '</label>');
+                        var input;
+                        var name = 'cf_' + f.fieldName;
+                        if (f.fieldType === 'select') {
+                            input = $('<select name="' + name + '" class="form-select form-select-sm"></select>');
+                            input.append('<option value="">-- Select --</option>');
+                            if (f.options) {
+                                $.each(f.options, function(j, opt) {
+                                    var selected = (f.value === opt) ? ' selected' : '';
+                                    input.append('<option value="' + opt + '"' + selected + '>' + opt + '</option>');
+                                });
+                            }
+                        } else if (f.fieldType === 'checkbox') {
+                            var cdiv = $('<div class="form-check form-check-custom form-check-solid mt-2"></div>');
+                            input = $('<input type="checkbox" name="' + name + '" class="form-check-input" value="true" />');
+                            if (f.value === 'true') input.attr('checked', 'checked');
+                            var clabel = $('<label class="form-check-label">' + f.displayLabel + '</label>');
+                            cdiv.append(input).append(clabel);
+                            col.append(cdiv);
+                            $('#custom-fields-row').append(col);
+                            return;
+                        } else if (f.fieldType === 'textarea') {
+                            input = $('<textarea name="' + name + '" class="form-control form-control-sm" rows="2"></textarea>');
+                        } else if (f.fieldType === 'date') {
+                            input = $('<input type="date" name="' + name + '" class="form-control form-control-sm" />');
+                        } else if (f.fieldType === 'number') {
+                            input = $('<input type="number" name="' + name + '" class="form-control form-control-sm" step="any" />');
+                        } else {
+                            input = $('<input type="text" name="' + name + '" class="form-control form-control-sm" />');
+                        }
+                        if (f.isRequired) input.attr('required', 'required');
+                        if (f.value && f.fieldType !== 'select' && f.fieldType !== 'checkbox') input.val(f.value);
+                        if (f.fieldType !== 'checkbox') {
+                            col.append(label).append(input);
+                        }
+                        $('#custom-fields-row').append(col);
+                    });
+                    $('#custom-fields-container').show();
+                });
+            }
+
+            // Category change on create modal
+            $('#Create_ProductCategoryId').on('change', function() {
+                loadCustomFields($(this).val());
+            });
+
+            // Pre-load if category already selected (e.g., after validation error)
+            if ($('#Create_ProductCategoryId').val()) {
+                loadCustomFields($('#Create_ProductCategoryId').val());
+            }
+
+            // ----------------------------------------------------------------
+            // Products DataTable — server-side processing.
+            // The server returns ONE page of rows per request as JSON, so the
+            // initial page load stays fast even with tens of thousands of products.
+            // Sorting, paging, and search all round-trip to /Products/DataTable.
+            // ----------------------------------------------------------------
+            var canDeleteProducts = @(canDeleteProducts ? "true" : "false");
+
+            // jQuery-html-escape helper for any string we drop into innerHTML.
+            // (We can't trust Name/PartCode/Category — they come from user input.)
+            function esc(s) {
+                if (s === null || typeof s === 'undefined') return '';
+                return String(s)
+                    .replace(/&/g, '&amp;')
+                    .replace(/</g, '&lt;')
+                    .replace(/>/g, '&gt;')
+                    .replace(/"/g, '&quot;')
+                    .replace(/'/g, '&#39;');
+            }
+
+            // Format a numeric price into a currency string. We use the browser locale
+            // for symbol/grouping; pass null/undefined through as an empty cell.
+            var currencyFmt = new Intl.NumberFormat(undefined, {
+                style: 'currency',
+                currency: 'PHP',          // Mercurius is PHP-denominated; switch when multi-currency lands
+                maximumFractionDigits: 2
+            });
+            function fmtPrice(v) {
+                if (v === null || typeof v === 'undefined' || v === '') return '';
+                var n = Number(v);
+                if (!isFinite(n)) return '';
+                return currencyFmt.format(n);
+            }
+
+            // Stock quantities are now decimal (R11) so pharmacy items can carry fractional
+            // inventory. Render integral values as whole numbers, otherwise up to 2 decimals.
+            function fmtQty(v) {
+                if (v === null || typeof v === 'undefined' || v === '') return '';
+                var n = Number(v);
+                if (!isFinite(n)) return '';
+                return Number.isInteger(n) ? String(n) : n.toFixed(2).replace(/\.?0+$/, '');
+            }
+
+            if (!$.fn.DataTable.isDataTable('#productsTable')) {
+                var table = $('#productsTable').DataTable({
+                    serverSide: true,
+                    processing: true,
+                    deferRender: true,
+                    searchDelay: 350,       // wait 350ms after the user stops typing before firing AJAX
+                    pageLength: 25,
+                    lengthMenu: [[10, 25, 50, 100], [10, 25, 50, 100]],
+                    order: [[1, 'asc']],
+                    ajax: {
+                        url: '@Url.Action("DataTable", "Products")',
+                        type: 'GET',
+                        dataType: 'json',
+                        error: function (xhr) {
+                            if (window.showFlash) {
+                                window.showFlash('Failed to load products: ' + (xhr.statusText || 'request failed'), 'error');
+                            }
+                        }
+                    },
+                    columns: [
+                        { data: 'partCode', name: 'PartCode',
+                            render: function (d) { return esc(d); } },
+                        { data: 'name', name: 'Name',
+                            render: function (d, type, row) {
+                                if (type !== 'display') return d;
+                                var initial = (row.name && row.name.length) ? row.name.substring(0, 1) : '?';
+                                return '<div class="d-flex align-items-center">' +
+                                       '  <div class="symbol symbol-50px me-5">' +
+                                       '    <span class="symbol-label bg-light-primary text-primary fw-bold">' + esc(initial) + '</span>' +
+                                       '  </div>' +
+                                       '  <div class="d-flex flex-column">' +
+                                       '    <span class="text-gray-800 text-hover-primary fw-bold">' + esc(row.name) + '</span>' +
+                                       '    <span class="text-muted fs-7">' + esc(row.partCode) + '</span>' +
+                                       '  </div>' +
+                                       '</div>';
+                            }
+                        },
+                        { data: 'category', name: 'Category', orderable: false,
+                            render: function (d) { return esc(d); } },
+                        { data: 'costPrice', name: 'CurrentCostPrice',
+                            render: function (d) { return fmtPrice(d); } },
+                        { data: 'salePrice', name: 'CurrentSalePrice',
+                            render: function (d) { return fmtPrice(d); } },
+                        { data: 'stock', name: 'CurrentStock',
+                            render: function (d, type, row) {
+                                if (type !== 'display') return d;
+                                var cls = (Number(d) <= Number(row.lowStockCount || 0)) ? 'badge-light-danger' : 'badge-light-success';
+                                return '<span class="badge ' + cls + ' fs-7">' + esc(fmtQty(d)) + '</span>';
+                            }
+                        },
+                        { data: 'isActive', name: 'IsActive',
+                            render: function (d, type) {
+                                if (type !== 'display') return d;
+                                return d
+                                    ? '<span class="badge badge-light-success">Active</span>'
+                                    : '<span class="badge badge-light-danger">Inactive</span>';
+                            }
+                        },
+                        { data: null, orderable: false, searchable: false, className: 'text-end',
+                            render: function (_d, _type, row) {
+                                var html = '';
+                                html += '<a href="/MedicineBatches?productId=' + encodeURIComponent(row.id) + '" class="btn btn-sm btn-icon btn-light-info me-2" title="Batches"><i class="bi bi-box-seam fs-4"></i></a>';
+                                html += '<a href="/Products/Details/' + encodeURIComponent(row.id) + '" class="btn btn-sm btn-icon btn-light-primary me-2" title="View"><i class="bi bi-eye fs-4"></i></a>';
+                                html += '<a href="/Products/Edit/' + encodeURIComponent(row.id) + '" class="btn btn-sm btn-icon btn-light-warning me-2" title="Edit"><i class="bi bi-pencil fs-4"></i></a>';
+                                if (canDeleteProducts) {
+                                    html += '<a href="/Products/Delete/' + encodeURIComponent(row.id) + '" class="btn btn-sm btn-icon btn-light-danger" title="Delete"><i class="bi bi-trash fs-4"></i></a>';
+                                }
+                                return html;
+                            }
+                        }
+                    ],
+                    // Drop `f` from the dom — the card header already has its own
+                    // #searchInput wired to table.search(); keeping DataTables' built-in
+                    // search box would render two search boxes side by side.
+                    dom: '<"row"<"col-sm-12"l>>' +
+                         '<"row"<"col-sm-12"tr>>' +
+                         '<"row"<"col-sm-12 col-md-5"i><"col-sm-12 col-md-7"p>>',
+                    language: {
+                        search: "",
+                        searchPlaceholder: "Search products...",
+                        lengthMenu: "Show _MENU_ entries",
+                        info: "Showing _START_ to _END_ of _TOTAL_ entries",
+                        infoEmpty: "Showing 0 to 0 of 0 entries",
+                        infoFiltered: "(filtered from _MAX_ total entries)",
+                        processing: '<div class="spinner-border text-primary" role="status"></div>',
+                        paginate: {
+                            first: "First",
+                            last: "Last",
+                            next: "Next",
+                            previous: "Previous"
+                        }
+                    }
+                });
+
+                // Bind the page's own #searchInput to the table's server-side search.
+                // (The built-in DataTables search box is hidden via the dom string above
+                //  if you change `f` → empty; left visible for now.)
+                $('#searchInput').on('keyup', function () {
+                    table.search(this.value).draw();
+                });
+            }
+
+            // Auto-compute sale price from cost + markup in the create modal
+            function calcCreateSale() {
+                var cost = parseFloat($('.create-cost').val()) || 0;
+                var markup = parseFloat($('.create-markup').val()) || 0;
+                if (cost > 0) {
+                    var sale = cost + (cost * markup / 100);
+                    $('.create-sale').val(sale.toFixed(2));
+                }
+            }
+
+            function calcCreateMarkup() {
+                var cost = parseFloat($('.create-cost').val()) || 0;
+                var sale = parseFloat($('.create-sale').val()) || 0;
+                if (cost > 0) {
+                    var markup = ((sale / cost) - 1) * 100;
+                    $('.create-markup').val(markup.toFixed(2));
+                }
+            }
+
+            $('#createProductModal').on('input', '.create-cost, .create-markup', calcCreateSale);
+            $('#createProductModal').on('blur', '.create-sale', calcCreateMarkup);
+
+            // Reopen modal automatically if server returned validation errors
+            if ($('#createProductModal .text-danger').filter(function () { return $.trim($(this).text()).length > 0; }).length > 0) {
+                var modal = new bootstrap.Modal(document.getElementById('createProductModal'));
+                modal.show();
+            }
+        });
+    </script>
+}

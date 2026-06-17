@@ -1,0 +1,72 @@
+@model Mercurius.Repo.IdentityModel.MercuriusUser
+@{
+    var activate = ViewData["Activate"] is bool b && b;
+    var verb = activate ? "Activate" : "Deactivate";
+    ViewData["Title"] = verb + " User";
+    Layout = "~/Views/Shared/_Layout.cshtml";
+}
+
+<!-- PAGE TITLE -->
+<div id="kt_app_toolbar" class="app-toolbar py-3 py-lg-6">
+    <div id="kt_app_toolbar_container" class="app-container container-xxl d-flex flex-stack">
+        <div class="page-title d-flex flex-column justify-content-center flex-wrap me-3">
+            <h1 class="page-heading d-flex text-dark fw-bold fs-3 flex-column justify-content-center my-0">@verb User</h1>
+        </div>
+    </div>
+</div>
+
+<div class="card">
+    <div class="card-body p-10">
+        <div class="alert @(activate ? "alert-info" : "alert-warning")">
+            @if (activate)
+            {
+                <text>You are about to <strong>activate</strong> this user. They will be able to sign in again.</text>
+            }
+            else
+            {
+                <text>You are about to <strong>deactivate</strong> this user. They will be hidden from the default list and cannot sign in until reactivated.</text>
+            }
+        </div>
+
+        <div class="row g-5 row-cols-1 row-cols-sm-2 row-cols-md-4">
+            <div class="col">
+                <label class="form-label">Username</label>
+                <div>@Model.UserName</div>
+            </div>
+            <div class="col">
+                <label class="form-label">First Name</label>
+                <div>@Model.FirstName</div>
+            </div>
+            <div class="col">
+                <label class="form-label">Last Name</label>
+                <div>@Model.LastName</div>
+            </div>
+            <div class="col">
+                <label class="form-label">Current Status</label>
+                <div>
+                    @if (Model.IsActive)
+                    {
+                        <span class="badge badge-light-success">Active</span>
+                    }
+                    else
+                    {
+                        <span class="badge badge-light-danger">Inactive</span>
+                    }
+                </div>
+            </div>
+        </div>
+
+        <div class="border-top d-flex flex-stack flex-wrap mt-lg-10 pt-5">
+            <div class="my-1 me-5">
+                <a class="btn btn-light" asp-action="Index">Cancel</a>
+            </div>
+            <div class="d-flex align-items-center gap-2 gap-lg-3">
+                <form asp-action="SetActive" method="post">
+                    <input type="hidden" name="id" value="@Model.Id" />
+                    <input type="hidden" name="activate" value="@activate.ToString().ToLower()" />
+                    <button type="submit" class="btn @(activate ? "btn-success" : "btn-danger")">@verb</button>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>

@@ -1,0 +1,10 @@
+{
+  "config": {
+    "path": {
+      "src": "wwwroot/src"
+    },
+    "dist": [
+      "wwwroot/assets"
+    ]
+  }
+}

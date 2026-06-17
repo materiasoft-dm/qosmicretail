@@ -1,0 +1,73 @@
+@using Mercurius.Common
+@using Mercurius.Common.Constants
+@using System.Security.Claims
+@{
+    ViewData["Title"] = "Settings";
+    var user = Context.User as ClaimsPrincipal;
+}
+
+<div class="card">
+    <div class="card-header border-0 pt-6">
+        <div class="card-title"><h2>Settings</h2></div>
+    </div>
+    <div class="card-body">
+        <div class="row g-5">
+            @if (user.HasClaim(MercuriusClaimTypes.AccessPages, ModuleRegistry.Pages.CONFIG_PRODUCT_CATEGORIES))
+            {
+                <div class="col-md-4"><div class="card card-flush h-100"><div class="card-body text-center">
+                    <h4>Product Categories</h4><p>Manage product categories and subcategories.</p>
+                    <a href="/ProductCategories" class="btn btn-primary">Manage</a>
+                </div></div></div>
+            }
+            @if (user.HasClaim(MercuriusClaimTypes.AccessPages, ModuleRegistry.Pages.CONFIG_LOCATIONS))
+            {
+                <div class="col-md-4"><div class="card card-flush h-100"><div class="card-body text-center">
+                    <h4>Locations</h4><p>Manage branches and warehouse locations.</p>
+                    <a href="/Locations" class="btn btn-primary">Manage</a>
+                </div></div></div>
+            }
+            @if (user.HasClaim(MercuriusClaimTypes.AccessPages, ModuleRegistry.Pages.CONFIG_COLORS))
+            {
+                <div class="col-md-4"><div class="card card-flush h-100"><div class="card-body text-center">
+                    <h4>Colors</h4><p>Manage product color variants.</p>
+                    <a href="/Colors" class="btn btn-primary">Manage</a>
+                </div></div></div>
+            }
+            @if (user.HasClaim(MercuriusClaimTypes.AccessPages, ModuleRegistry.Pages.CONFIG_SIZES))
+            {
+                <div class="col-md-4"><div class="card card-flush h-100"><div class="card-body text-center">
+                    <h4>Sizes</h4><p>Manage product size variants.</p>
+                    <a href="/Sizes" class="btn btn-primary">Manage</a>
+                </div></div></div>
+            }
+            @if (user.HasClaim(MercuriusClaimTypes.AccessPages, ModuleRegistry.Pages.CONFIG_SUPPLIERS))
+            {
+                <div class="col-md-4"><div class="card card-flush h-100"><div class="card-body text-center">
+                    <h4>Suppliers</h4><p>Manage supplier information.</p>
+                    <a href="/Suppliers" class="btn btn-primary">Manage</a>
+                </div></div></div>
+            }
+            @if (user.HasClaim(MercuriusClaimTypes.AccessPages, ModuleRegistry.Pages.CONFIG_ADJUSTMENT_REASONS))
+            {
+                <div class="col-md-4"><div class="card card-flush h-100"><div class="card-body text-center">
+                    <h4>Adjustment Reasons</h4><p>Manage inventory adjustment reason codes.</p>
+                    <a href="/AdjustmentReasons" class="btn btn-primary">Manage</a>
+                </div></div></div>
+            }
+            @if (user.HasClaim(MercuriusClaimTypes.AccessPages, ModuleRegistry.Pages.ADMIN_USERS_MANAGEMENT))
+            {
+                <div class="col-md-4"><div class="card card-flush h-100"><div class="card-body text-center">
+                    <h4>Users</h4><p>Manage system users and their roles.</p>
+                    <a href="/Users" class="btn btn-primary">Manage</a>
+                </div></div></div>
+            }
+            @if (user.HasClaim(MercuriusClaimTypes.AccessPages, ModuleRegistry.Pages.ADMIN_ROLES_MANAGEMENT))
+            {
+                <div class="col-md-4"><div class="card card-flush h-100"><div class="card-body text-center">
+                    <h4>Roles</h4><p>Manage roles and permissions.</p>
+                    <a href="/RolesManager" class="btn btn-primary">Manage</a>
+                </div></div></div>
+            }
+        </div>
+    </div>
+</div>

@@ -1,0 +1,54 @@
+@model IEnumerable<Mercurius.Repo.Models.Prescription>
+@{
+    Layout = "~/Views/Shared/_Layout.cshtml";
+    ViewData["Title"] = "Prescriptions";
+    var doctors = ViewBag.Doctors as Dictionary<int, string>;
+    var patients = ViewBag.Patients as Dictionary<int, string>;
+}
+
+<div id="kt_app_toolbar" class="app-toolbar py-3 py-lg-6">
+    <div class="app-container container-xxl d-flex flex-stack">
+        <div class="page-title"><h1 class="page-heading d-flex text-dark fw-bold fs-3 my-0">Prescriptions</h1></div>
+        <a href="/Prescriptions/Create" class="btn btn-primary">New Prescription</a>
+    </div>
+</div>
+
+<div class="card">
+    <div class="card-body pt-0">
+        <div class="table-responsive">
+            <table id="rxTable" class="table table-hover table-rounded table-striped border gy-7 gs-7">
+                <thead>
+                    <tr class="fw-bold fs-6 text-gray-800 border-bottom border-gray-200">
+                        <th>Rx No.</th><th>Date</th><th>Doctor</th><th>Patient</th><th>Status</th><th class="text-end">Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var rx in Model)
+                    {
+                        <tr>
+                            <td><code>@rx.PrescriptionNumber</code></td>
+                            <td><time class="local-time" datetime="@rx.PrescriptionDate.ToString("o")">@rx.PrescriptionDate.ToString("yyyy-MM-dd")</time></td>
+                            <td>@(doctors?.TryGetValue(rx.DoctorId, out var d) == true ? d : "N/A")</td>
+                            <td>@(patients?.TryGetValue(rx.PatientId, out var p) == true ? p : "N/A")</td>
+                            <td>@rx.Status</td>
+                            <td class="text-end">
+                                <a href="/Prescriptions/Edit/@rx.Id" class="btn btn-sm btn-icon btn-light-warning me-2"><i class="bi bi-pencil fs-4"></i></a>
+                                <a href="/Dispense?prescriptionId=@rx.Id" class="btn btn-sm btn-light-success" title="Dispense"><i class="bi bi-capsule fs-4 me-1"></i>Dispense</a>
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+    <script>
+        $(document).ready(function () {
+            if (!$.fn.DataTable.isDataTable('#rxTable')) {
+                $('#rxTable').DataTable({ pageLength: 25, order: [[1, 'desc']] });
+            }
+        });
+    </script>
+}

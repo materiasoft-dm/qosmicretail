@@ -1,0 +1,60 @@
+@model IEnumerable<Mercurius.Repo.Models.Doctor>
+@{
+    Layout = "~/Views/Shared/_Layout.cshtml";
+    ViewData["Title"] = "Doctors";
+}
+
+<div id="kt_app_toolbar" class="app-toolbar py-3 py-lg-6">
+    <div id="kt_app_toolbar_container" class="app-container container-xxl d-flex flex-stack">
+        <div class="page-title"><h1 class="page-heading d-flex text-dark fw-bold fs-3 my-0">Doctors</h1></div>
+        <div class="d-flex align-items-center gap-2">
+            <a href="/Doctors/Create" class="btn btn-primary">Add Doctor</a>
+        </div>
+    </div>
+</div>
+
+<div class="card">
+    <div class="card-body pt-0">
+        <div class="table-responsive">
+            <table id="doctorsTable" class="table table-hover table-rounded table-striped border gy-7 gs-7">
+                <thead>
+                    <tr class="fw-bold fs-6 text-gray-800 border-bottom border-gray-200">
+                        <th>Name</th><th>License No.</th><th>Specialization</th><th>Clinic</th><th>Contact</th><th>Status</th><th class="text-end">Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var d in Model)
+                    {
+                        <tr>
+                            <td>@d.LastName, @d.FirstName @d.MiddleName</td>
+                            <td>@d.LicenseNumber</td>
+                            <td>@d.Specialization</td>
+                            <td>@d.ClinicName</td>
+                            <td>@d.ContactNumber</td>
+                            <td>@(d.IsActive ? "Active" : "Inactive")</td>
+                            <td class="text-end">
+                                <a href="/Doctors/Edit/@d.Id" class="btn btn-sm btn-icon btn-light-warning me-2" title="Edit"><i class="bi bi-pencil fs-4"></i></a>
+                                @if (d.IsActive) {
+                                    <form asp-action="Delete" asp-route-id="@d.Id" method="post" style="display:inline" onsubmit="return confirm('Deactivate this doctor?');">
+                                        @Html.AntiForgeryToken()
+                                        <button class="btn btn-sm btn-icon btn-light-danger" title="Deactivate"><i class="bi bi-trash fs-4"></i></button>
+                                    </form>
+                                }
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+    <script>
+        $(document).ready(function () {
+            if (!$.fn.DataTable.isDataTable('#doctorsTable')) {
+                $('#doctorsTable').DataTable({ pageLength: 25, order: [[0, 'asc']] });
+            }
+        });
+    </script>
+}

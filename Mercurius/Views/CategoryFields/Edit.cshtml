@@ -1,0 +1,69 @@
+@model Mercurius.Repo.Models.CategoryField
+@{
+    Layout = "~/Views/Shared/_Layout.cshtml";
+    ViewData["Title"] = "Edit Category Field";
+}
+
+<div id="kt_app_toolbar" class="app-toolbar py-3 py-lg-6">
+    <div id="kt_app_toolbar_container" class="app-container container-xxl d-flex flex-stack">
+        <div class="page-title">
+            <h1 class="page-heading d-flex text-dark fw-bold fs-3 my-0">Edit Category Field</h1>
+        </div>
+    </div>
+</div>
+
+<div class="card">
+    <div class="card-body p-10">
+        <form asp-action="Edit">
+            <input type="hidden" asp-for="Id" />
+            @Html.AntiForgeryToken()
+            <div asp-validation-summary="ModelOnly" class="text-danger"></div>
+            <div class="row g-5">
+                <div class="col-md-6">
+                    <label class="form-label required">Category</label>
+                    <select asp-for="CategoryId" class="form-select form-select-sm" asp-items="ViewBag.CategoryId" required>
+                        <option value="">-- Select category --</option>
+                    </select>
+                </div>
+                <div class="col-md-6">
+                    <label class="form-label required">Field Name (machine key)</label>
+                    <input asp-for="FieldName" class="form-control form-control-sm" required placeholder="e.g. Strength" />
+                </div>
+                <div class="col-md-6">
+                    <label class="form-label">Display Label</label>
+                    <input asp-for="DisplayLabel" class="form-control form-control-sm" placeholder="e.g. Strength (mg/mL)" />
+                </div>
+                <div class="col-md-3">
+                    <label class="form-label required">Field Type</label>
+                    <select asp-for="FieldType" class="form-select form-select-sm" required>
+                        <option value="text">Text</option>
+                        <option value="number">Number</option>
+                        <option value="select">Select (Dropdown)</option>
+                        <option value="checkbox">Checkbox</option>
+                        <option value="date">Date</option>
+                        <option value="textarea">Text Area</option>
+                    </select>
+                </div>
+                <div class="col-md-3">
+                    <label class="form-label">Sort Order</label>
+                    <input asp-for="SortOrder" type="number" class="form-control form-control-sm" value="0" />
+                </div>
+                <div class="col-12">
+                    <label class="form-label">Options (JSON array for Select type)</label>
+                    <input asp-for="Options" class="form-control form-control-sm" placeholder='["Option 1","Option 2"]' />
+                    <div class="form-text">Only needed for Select field type. Format: JSON array of strings.</div>
+                </div>
+                <div class="col-12">
+                    <div class="form-check">
+                        <input asp-for="IsRequired" class="form-check-input" type="checkbox" />
+                        <label class="form-check-label">Required field</label>
+                    </div>
+                </div>
+            </div>
+            <div class="border-top d-flex flex-stack flex-wrap mt-10 pt-8">
+                <a href="/Config/CategoryFields" class="btn btn-light">Cancel</a>
+                <button type="submit" class="btn btn-primary">Save Field</button>
+            </div>
+        </form>
+    </div>
+</div>

@@ -1,0 +1,247 @@
+﻿@model Mercurius.Repo.Models.Product
+@{
+    Layout = "~/Views/Shared/_Layout.cshtml";
+}
+   
+<!-- PAGE TITLE -->
+<div id="kt_app_toolbar" class="app-toolbar py-3 py-lg-6">
+    <div id="kt_app_toolbar_container" class="app-container container-xxl d-flex flex-stack">   
+        <div class="page-title d-flex flex-column justify-content-center flex-wrap me-3">
+            <h1 class="page-heading d-flex text-dark fw-bold fs-3 flex-column justify-content-center my-0">Edit Item</h1>
+        </div>
+    </div>
+</div>
+
+
+<div class="card">
+    <div class="card-body p-10">
+
+        <form asp-action="Edit" method="post" enctype="multipart/form-data" class="js-ajax-form">
+            @Html.AntiForgeryToken()
+            <div asp-validation-summary="ModelOnly" class="text-danger"></div>
+            @Html.HiddenFor(c => c.Id)
+            @Html.HiddenFor(c => c.CreateDate)
+            @Html.HiddenFor(c => c.CreatedBy)
+            @Html.HiddenFor(c => c.IsActive)
+            @Html.HiddenFor(c => c.ImageFilename)
+            <div class="row g-8">
+                <div class="col-sm-6 col-xs-12">
+                    <label class="form-label">Item Photo</label>
+                    <br />
+                    <style>
+                        .image-input-placeholder {
+                            background-image: url('/assets/media/svg/files/blank-image.svg');
+                        }
+
+                        [data-theme="dark"] .image-input-placeholder {
+                            background-image: url('/assets/media/svg/files/blank-image-dark.svg');
+                        }</style>
+                    <div class="image-input image-input-outline image-input-placeholder" data-kt-image-input="true">    
+                        <div class="image-input-wrapper w-125px h-125px" style="background-image: url(/productimages/@Model.ImageFilename);"></div>
+                        <label class="btn btn-icon btn-circle btn-active-color-primary w-25px h-25px bg-body shadow" data-kt-image-input-action="change" data-bs-toggle="tooltip" title="Change item photo">
+                            <i class="bi bi-pencil-fill fs-7"></i>
+                            <input type="file" name="productimage" accept=".png, .jpg, .jpeg" />
+                            <input type="hidden" name="avatar_remove" />        
+                        </label>
+                        <span class="btn btn-icon btn-circle btn-active-color-primary w-25px h-25px bg-body shadow" data-kt-image-input-action="cancel" data-bs-toggle="tooltip" title="Cancel item photo">
+                            <i class="bi bi-x fs-2"></i>
+                        </span>
+                        <span class="btn btn-icon btn-circle btn-active-color-primary w-25px h-25px bg-body shadow" data-kt-image-input-action="remove" data-bs-toggle="tooltip" title="Remove item photo">
+                            <i class="bi bi-x fs-2"></i>
+                        </span>
+                    </div>
+                    <div class="form-text">Allowed file types: png, jpg, jpeg.</div>
+                </div>
+                <div class="col-sm-6 col-xs-12">
+                    <label class="form-label">QR Code</label>
+                    <!-- Print QR -->
+                    <div id="product-qr" class="product-qr-room">
+                        @Html.Raw(ViewBag.QrCode)
+                        @* <button type="button" onclick="printQR('product-qr')">Print QR Code</button></div> *@
+                        <button type="button" class="btn btn-success" onclick="printQR('product-qr')">
+                            <span class="svg-icon svg-icon-primary svg-icon-2x">
+                                <svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="24px" height="24px" viewBox="0 0 24 24" version="1.1">
+                                    <g stroke="none" stroke-width="1" fill="none" fill-rule="evenodd">
+                                        <rect x="0" y="0" width="24" height="24" />
+                                        <path d="M16,17 L16,21 C16,21.5522847 15.5522847,22 15,22 L9,22 C8.44771525,22 8,21.5522847 8,21 L8,17 L5,17 C3.8954305,17 3,16.1045695 3,15 L3,8 C3,6.8954305 3.8954305,6 5,6 L19,6 C20.1045695,6 21,6.8954305 21,8 L21,15 C21,16.1045695 20.1045695,17 19,17 L16,17 Z M17.5,11 C18.3284271,11 19,10.3284271 19,9.5 C19,8.67157288 18.3284271,8 17.5,8 C16.6715729,8 16,8.67157288 16,9.5 C16,10.3284271 16.6715729,11 17.5,11 Z M10,14 L10,20 L14,20 L14,14 L10,14 Z" fill="currentColor" />
+                                        <rect fill="currentColor" opacity="0.3" x="8" y="2" width="8" height="2" rx="1" />
+                                    </g>
+                                </svg>
+                            </span>
+                        </button>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="separator separator-dashed border-secondary my-8"></div>
+
+            <div class="row g-5 row-cols-1 row-cols-sm-2 row-cols-md-3">
+                <div class="col">
+                    <label class="required form-label">Item Name</label>
+                    <input type="text" asp-for="Name" class="form-control form-control-sm" placeholder="Item Name" />
+                </div>
+                <div class="col">
+                    <label class="required form-label">Category</label>
+                    <select asp-for="ProductCategoryId" aria-label="Select example" class="form-select form-select-sm" asp-items="ViewBag.ProductCategoryId"></select>
+                </div>
+                <div class="col">
+                    <label class="required form-label">SKU</label>
+                    <input type="text" asp-for="PartCode" class="form-control form-control-sm" placeholder="SKU" />
+                </div>
+                <div class="col">
+                    <label class="required form-label">Current Cost Price</label>
+                    <input type="number" class="form-control form-control-sm" placeholder="Input Current Cost" asp-for="CurrentCostPrice" id="txt-cost" />
+                </div>
+                <div class="col">
+                    <label class="required form-label">Item Markup %</label>
+                    <input type="number" class="form-control form-control-sm" placeholder="Input Markup Percentage" asp-for="MarkUpPercentage" id="txt-markup" />
+                </div>
+                <div class="col">
+                    <label class="required form-label">Sales Price</label>
+                    <input type="text" class="form-control form-control-sm" placeholder="Input SRP" asp-for="CurrentSalePrice" id="txt-sales" />
+                </div>
+                <div class="col">
+                    <label class="required form-label">Lead Time (Days)</label>
+                    <input type="text" class="form-control form-control-sm" placeholder="Input Lead Time" asp-for="LeadTimeDays" />
+                </div>
+                <div class="col">
+                    <label class="required form-label">Stock</label>
+                    <input type="text" name="user_name" class="form-control form-control-sm" value="@Model.CurrentStock.ToString("0.##")" readonly="readonly" />
+                </div>
+                <div class="col">
+                    <label class="required form-label">Low Stock Warning</label>
+                    <input type="number" class="form-control form-control-sm" placeholder="Input Low Stock Warning" asp-for="LowStockCount" />
+                </div>
+
+                <div class="col">
+                    <label class="fw-semibold fs-6 mb-2">Remarks</label>
+                    <textarea class="form-control form-control-sm" placeholder="Input Remarks" asp-for="Note" rows="1"></textarea>
+                </div>
+            </div>
+
+            <!-- Custom fields injected by JS based on selected category -->
+            <div id="custom-fields-container" class="mt-8" style="display:none;">
+                <div class="separator separator-dashed border-secondary my-4"></div>
+                <h6 class="text-muted mb-3">Additional Details</h6>
+                <div class="row g-5 row-cols-1 row-cols-sm-2 row-cols-md-3" id="custom-fields-row"></div>
+            </div>
+
+            <div class="mt-8">
+                <label class="form-label fw-semibold fs-6 mb-2">Description</label>
+                <textarea asp-for="Description" class="form-control form-control-sm" placeholder="Input Description" rows="3"></textarea>
+            </div>
+
+            <div class="border-top d-flex flex-stack flex-wrap mt-lg-10 pt-13">
+                <div class="my-1 me-5">
+                    <a href="/Products" class="btn btn-light">Cancel</a>
+                </div>
+
+                <div class="d-flex align-items-center gap-2 gap-lg-3">
+                    <button type="submit" class="btn btn-primary">
+                        <span class="indicator-label">Submit</span>
+                        <span class="indicator-progress">
+                            Please wait...
+                            <span class="spinner-border spinner-border-sm align-middle ms-2"></span>
+                        </span>
+                    </button>
+                </div>
+            </div>
+
+        </form>
+    </div>
+</div>
+
+    
+    @section Scripts{
+        <script>
+            function loadCustomFields(categoryId, productId) {
+                if (!categoryId) {
+                    $('#custom-fields-container').hide();
+                    $('#custom-fields-row').empty();
+                    return;
+                }
+                var url = '/Products/GetCategoryFields?categoryId=' + categoryId;
+                if (productId) url += '&productId=' + productId;
+                $.get(url, function(fields) {
+                    if (!fields.length) {
+                        $('#custom-fields-container').hide();
+                        return;
+                    }
+                    $('#custom-fields-row').empty();
+                    $.each(fields, function(i, f) {
+                        var col = $('<div class="col"></div>');
+                        var label = $('<label class="form-label">' + f.displayLabel + (f.isRequired ? ' <span class="text-danger">*</span>' : '') + '</label>');
+                        var input;
+                        var name = 'cf_' + f.fieldName;
+                        if (f.fieldType === 'select') {
+                            input = $('<select name="' + name + '" class="form-select form-select-sm"></select>');
+                            input.append('<option value="">-- Select --</option>');
+                            if (f.options) {
+                                $.each(f.options, function(j, opt) {
+                                    var selected = (f.value === opt) ? ' selected' : '';
+                                    input.append('<option value="' + opt + '"' + selected + '>' + opt + '</option>');
+                                });
+                            }
+                        } else if (f.fieldType === 'checkbox') {
+                            var cdiv = $('<div class="form-check form-check-custom form-check-solid mt-2"></div>');
+                            input = $('<input type="checkbox" name="' + name + '" class="form-check-input" value="true" />');
+                            if (f.value === 'true') input.attr('checked', 'checked');
+                            var clabel = $('<label class="form-check-label">' + f.displayLabel + '</label>');
+                            cdiv.append(input).append(clabel);
+                            col.append(cdiv);
+                            $('#custom-fields-row').append(col);
+                            return;
+                        } else if (f.fieldType === 'textarea') {
+                            input = $('<textarea name="' + name + '" class="form-control form-control-sm" rows="2"></textarea>');
+                        } else if (f.fieldType === 'date') {
+                            input = $('<input type="date" name="' + name + '" class="form-control form-control-sm" />');
+                        } else if (f.fieldType === 'number') {
+                            input = $('<input type="number" name="' + name + '" class="form-control form-control-sm" step="any" />');
+                        } else {
+                            input = $('<input type="text" name="' + name + '" class="form-control form-control-sm" />');
+                        }
+                        if (f.isRequired) input.attr('required', 'required');
+                        if (f.value && f.fieldType !== 'select' && f.fieldType !== 'checkbox') input.val(f.value);
+                        if (f.fieldType !== 'checkbox') {
+                            col.append(label).append(input);
+                        }
+                        $('#custom-fields-row').append(col);
+                    });
+                    $('#custom-fields-container').show();
+                });
+            }
+
+            $('#ProductCategoryId').on('change', function() {
+                loadCustomFields($(this).val(), @Model.Id);
+            });
+
+            // Pre-load if category already selected
+            if ($('#ProductCategoryId').val()) {
+                loadCustomFields($('#ProductCategoryId').val(), @Model.Id);
+            }
+
+            $(function () {
+                function calculateSalesPrice() {
+                    var cost = parseFloat($('#txt-cost').val()) || 0;
+                    var markup = parseFloat($('#txt-markup').val()) || 0;
+                    var salesPrice = cost * (1 + markup / 100);
+                    $('#txt-sales').val(salesPrice.toFixed(2));
+                }
+
+                function calculateMarkup() {
+                    var cost = parseFloat($('#txt-cost').val()) || 0;
+                    var salesPrice = parseFloat($('#txt-sales').val()) || 0;
+                    if (cost > 0) {
+                        var markup = ((salesPrice / cost) - 1) * 100;
+                        $('#txt-markup').val(markup.toFixed(2));
+                    }
+                }
+
+                $('#txt-cost').on('input', calculateSalesPrice);
+                $('#txt-markup').on('input', calculateSalesPrice);
+                $('#txt-sales').on('blur', calculateMarkup);
+            });
+
+            
+        </script>
+    }

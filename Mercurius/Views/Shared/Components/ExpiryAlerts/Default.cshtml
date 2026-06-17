@@ -1,0 +1,40 @@
+@model Mercurius.ViewComponents.Dashboard.ExpiryAlertsViewModel
+<div class="card">
+    <div class="card-header border-0 pt-5">
+        <h3 class="card-title align-items-start flex-column">
+            <span class="card-label fw-bold text-dark">Expiry Alerts</span>
+            <span class="text-muted mt-1 fw-semibold fs-7">Next 90 days</span>
+        </h3>
+    </div>
+    <div class="card-body pt-2">
+        <div class="d-flex justify-content-around mb-5">
+            <div class="text-center"><span class="text-danger fw-bold fs-1">@Model.ExpiredCount</span><br/><small>Expired</small></div>
+            <div class="text-center"><span class="text-warning fw-bold fs-1">@Model.ExpiringWithin30Days</span><br/><small>Within 30 days</small></div>
+            <div class="text-center"><span class="text-info fw-bold fs-1">@Model.ExpiringWithin90Days</span><br/><small>31-90 days</small></div>
+        </div>
+        @if (Model.Items.Any())
+        {
+            <div class="table-responsive">
+                <table class="table table-sm table-row-dashed">
+                    <thead><tr><th>Medicine</th><th>Batch</th><th>Expiry</th><th>Qty</th></tr></thead>
+                    <tbody>
+                        @foreach (var item in Model.Items)
+                        {
+                            var isExpired = item.ExpiryDate < DateTime.UtcNow;
+                            <tr class="@(isExpired ? "text-danger" : "text-warning")">
+                                <td>@item.ProductName</td>
+                                <td>@item.BatchNumber</td>
+                                <td>@item.ExpiryDate.ToString("MMM dd, yyyy")</td>
+                                <td>@item.RemainingQuantity</td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        }
+        else
+        {
+            <p class="text-muted text-center py-5">No items expiring within 90 days.</p>
+        }
+    </div>
+</div>

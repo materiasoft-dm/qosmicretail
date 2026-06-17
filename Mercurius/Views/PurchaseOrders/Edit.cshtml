@@ -1,0 +1,94 @@
+@model Mercurius.Repo.Models.PurchaseOrder
+@{
+    Layout = "~/Views/Shared/_Layout.cshtml";
+    ViewData["Title"] = "Edit Purchase Order";
+    var productList = ViewBag.ProductList as List<Mercurius.Repo.Models.Product>;
+}
+
+<div id="kt_app_toolbar" class="app-toolbar py-3 py-lg-6">
+    <div class="app-container container-xxl"><div class="page-title"><h1 class="page-heading d-flex text-dark fw-bold fs-3 my-0">Edit Purchase Order</h1></div></div>
+</div>
+
+<div class="card">
+    <div class="card-body p-10">
+        <form asp-action="Edit" method="post">
+            <input type="hidden" name="Id" value="@Model?.Id" />
+            @Html.AntiForgeryToken()
+            <div class="row g-5">
+                <div class="col-md-6">
+                    <label class="form-label required">Supplier</label>
+                    <select asp-for="SupplierId" class="form-select form-select-sm" required asp-items="ViewBag.SupplierId">
+                        <option value="">-- Select supplier --</option>
+                    </select>
+                </div>
+                <div class="col-md-6">
+                    <label class="form-label">Expected Delivery Date</label>
+                    <input asp-for="ExpectedDeliveryDate" type="date" class="form-control form-control-sm" />
+                </div>
+                <div class="col-12">
+                    <label class="form-label">Notes</label>
+                    <textarea asp-for="Notes" class="form-control form-control-sm" rows="2"></textarea>
+                </div>
+            </div>
+
+            <div class="separator separator-dashed border-secondary my-6"></div>
+            <h6 class="text-muted mb-3">Products to Order</h6>
+
+            <div id="po-items">
+                <div class="po-item row g-3 mb-3">
+                    <div class="col-md-5">
+                        <label class="form-label">Product</label>
+                        <select name="productIds" class="form-select form-select-sm product-search">
+                            <option value="">-- Search and select product --</option>
+                            @if (productList != null) {
+                                foreach (var p in productList) {
+                                    <option value="@p.Id">@p.Name (@p.PartCode) — Stock: @p.CurrentStock</option>
+                                }
+                            }
+                        </select>
+                    </div>
+                    <div class="col-md-2">
+                        <label class="form-label">Quantity</label>
+                        <input name="quantities" type="number" step="1" min="1" class="form-control form-control-sm" />
+                    </div>
+                    <div class="col-md-2">
+                        <label class="form-label">Est. Unit Cost</label>
+                        <input name="costs" type="number" step="0.01" min="0" class="form-control form-control-sm" />
+                    </div>
+                    <div class="col-md-2">
+                        <label class="form-label">Est. Total</label>
+                        <input type="text" class="form-control form-control-sm" readonly />
+                    </div>
+                    <div class="col-md-1 d-flex align-items-end">
+                        <button type="button" class="btn btn-sm btn-icon btn-light-danger remove-po-item"><i class="bi bi-x-lg"></i></button>
+                    </div>
+                </div>
+            </div>
+
+            <button type="button" class="btn btn-light-primary btn-sm mt-3" id="add-po-item">
+                <i class="bi bi-plus-lg me-1"></i> Add Product
+            </button>
+
+            <div class="border-top d-flex flex-stack flex-wrap mt-8 pt-6">
+                <a href="/PurchaseOrders" class="btn btn-light">Cancel</a>
+                <button type="submit" class="btn btn-primary">Save Purchase Order</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+@section Scripts {
+    <script>
+        $(function () {
+            $('#add-po-item').click(function () {
+                var clone = $('.po-item').first().clone();
+                clone.find('input,select').val('');
+                clone.find('.remove-po-item').show();
+                $('#po-items').append(clone);
+            });
+            $(document).on('click', '.remove-po-item', function () {
+                if ($('.po-item').length > 1) $(this).closest('.po-item').remove();
+            });
+        });
+    </script>
+}

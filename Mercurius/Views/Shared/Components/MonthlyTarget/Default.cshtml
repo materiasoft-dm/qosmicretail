@@ -1,0 +1,30 @@
+@model Mercurius.ViewComponents.Dashboard.MonthlyTargetModel
+
+<div class="card card-flush h-100">
+    <div class="card-header pt-5">
+        <h3 class="card-title align-items-start flex-column">
+            <span class="card-label fw-bold text-dark">Sales Snapshot</span>
+            <span class="text-gray-400 mt-1 fw-semibold fs-6">Today, this month, and last month at a glance</span>
+        </h3>
+    </div>
+    <div class="card-body pt-2">
+        <div class="dashboard-metric-grid">
+            <div class="border border-dashed rounded p-4 text-center dashboard-metric-tile">
+                <div class="text-gray-400 fw-semibold fs-7">Today's Sales</div>
+                <div class="fs-2 fw-bold text-dark dashboard-money">@Model.TotalSales.ToString("C")</div>
+            </div>
+            <div class="border border-dashed rounded p-4 text-center dashboard-metric-tile">
+                <div class="text-gray-400 fw-semibold fs-7">Today's Profit</div>
+                <div class="fs-2 fw-bold dashboard-money @(Model.TotalRevenueToday < 0 ? "text-danger" : "text-success")">@Model.TotalRevenueToday.ToString("C")</div>
+            </div>
+            <div class="border border-dashed rounded p-4 text-center dashboard-metric-tile">
+                <div class="text-gray-400 fw-semibold fs-7">This Month</div>
+                <div class="fs-2 fw-bold text-dark dashboard-money">@Model.TotalSalesThisMonth.ToString("C")</div>
+            </div>
+            <div class="border border-dashed rounded p-4 text-center dashboard-metric-tile">
+                <div class="text-gray-400 fw-semibold fs-7">Last Month</div>
+                <div class="fs-2 fw-bold text-dark dashboard-money">@Model.TotalSalesPreviousMonth.ToString("C")</div>
+            </div>
+        </div>
+    </div>
+</div>

@@ -1,0 +1,118 @@
+@{
+    Layout = "~/Views/Shared/_Layout.cshtml";
+    ViewData["Title"] = "Import Products";
+}
+
+<!-- PAGE TITLE -->
+<div id="kt_app_toolbar" class="app-toolbar py-3 py-lg-6">
+    <div id="kt_app_toolbar_container" class="app-container container-xxl d-flex flex-stack">   
+        <div class="page-title d-flex flex-column justify-content-center flex-wrap me-3">
+            <h1 class="page-heading d-flex text-dark fw-bold fs-3 flex-column justify-content-center my-0">Import Products</h1>
+            <ul class="breadcrumb breadcrumb-separatorless fw-semibold fs-7 my-0 pt-1">
+                <li class="breadcrumb-item text-muted">
+                    <a href="/" class="text-muted text-hover-primary">Home</a>
+                </li>
+                <li class="breadcrumb-item">
+                    <span class="bullet bg-gray-400 w-5px h-2px"></span>
+                </li>
+                <li class="breadcrumb-item text-muted">
+                    <a href="/Products" class="text-muted text-hover-primary">Products</a>
+                </li>
+                <li class="breadcrumb-item">
+                    <span class="bullet bg-gray-400 w-5px h-2px"></span>
+                </li>
+                <li class="breadcrumb-item text-muted">Import</li>
+            </ul>
+        </div>
+    </div>
+</div>
+
+<div class="card">
+    <div class="card-body p-10">
+        <div class="alert alert-info">
+            <h4 class="alert-heading">CSV Import Instructions</h4>
+            <p>Upload a CSV file with product data. The CSV should have the following columns:</p>
+            <ul>
+                <li><strong>Handle</strong> or <strong>SKU</strong>: Product identifier (used as SKU)</li>
+                <li><strong>Name</strong>: Product name</li>
+                <li><strong>Category</strong>: Product category (will be created if it doesn't exist)</li>
+                <li><strong>Description</strong>: Product description</li>
+                <li><strong>Cost</strong>: Cost price</li>
+                <li><strong>Price [Parmasya ng Bayan Sapang Maisac Mexico]</strong>: Sale price</li>
+                <li><strong>In stock [Parmasya ng Bayan Sapang Maisac Mexico]</strong>: Current stock quantity</li>
+                <li><strong>Low stock [Parmasya ng Bayan Sapang Maisac Mexico]</strong>: Low stock warning level</li>
+                <li><strong>Available for sale [Parmasya ng Bayan Sapang Maisac Mexico]</strong>: "Y" for active, "N" for inactive</li>
+            </ul>
+            <p class="mb-0">You can download a sample CSV file <a href="/sample-products.csv" target="_blank">here</a>.</p>
+        </div>
+
+        <form asp-action="Import" method="post" enctype="multipart/form-data">
+            @Html.AntiForgeryToken()
+            
+            <div class="row g-5">
+                <div class="col-md-6">
+                    <div class="mb-10">
+                        <label class="required form-label">CSV File</label>
+                        <input type="file" name="csvFile" class="form-control form-control-solid" accept=".csv" required />
+                        <div class="form-text">Select a CSV file to upload. Maximum file size: 10MB.</div>
+                    </div>
+                </div>
+                
+                <div class="col-md-6">
+                    <div class="mb-10">
+                        <label class="form-label">Import Options</label>
+                        <div class="form-check form-check-custom form-check-solid">
+                            <input class="form-check-input" type="checkbox" name="updateExisting" value="true" id="updateExisting" />
+                            <label class="form-check-label" for="updateExisting">
+                                Update existing products
+                            </label>
+                            <div class="form-text">If checked, existing products with matching SKU/Handle will be updated. If unchecked, they will be skipped.</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            @if (ViewData.ModelState.ErrorCount > 0)
+            {
+                <div class="alert alert-danger">
+                    <h4 class="alert-heading">Errors found:</h4>
+                    <ul>
+                        @foreach (var error in ViewData.ModelState.Values.SelectMany(v => v.Errors))
+                        {
+                            <li>@error.ErrorMessage</li>
+                        }
+                    </ul>
+                </div>
+            }
+
+            <div class="border-top d-flex flex-stack flex-wrap mt-lg-10 pt-13">
+                <div class="my-1 me-5">
+                    <a href="/Products" class="btn btn-light">Cancel</a>
+                </div>
+
+                <div class="d-flex align-items-center gap-2 gap-lg-3">
+                    <button type="submit" class="btn btn-primary" data-kt-users-modal-action="submit">
+                        <span class="indicator-label">Import Products</span>
+                        <span class="indicator-progress">
+                            Please wait...
+                            <span class="spinner-border spinner-border-sm align-middle ms-2"></span>
+                        </span>
+                    </button>
+                </div>
+            </div>
+        </form>
+    </div>
+</div>
+
+@section Scripts {
+    <script>
+        $(document).ready(function () {
+            $('form').submit(function () {
+                var submitButton = $(this).find('button[type="submit"]');
+                submitButton.prop('disabled', true);
+                submitButton.find('.indicator-label').hide();
+                submitButton.find('.indicator-progress').show();
+            });
+        });
+    </script>
+}

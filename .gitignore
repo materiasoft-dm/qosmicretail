@@ -1,0 +1,43 @@
+# Build artifacts
+**/bin/
+**/obj/
+**/Host/
+**/Release/
+**/Debug/
+
+# LiteDB and SQLite databases
+**/*.litedb
+**/*.db
+**/*.sqlite
+identity.db
+
+# Logs
+**/logs/
+
+# Uploaded runtime files
+**/wwwroot/ProductImages/*.png
+**/wwwroot/ProductImages/*.jpg
+**/wwwroot/ProductImages/*.jpeg
+
+# Temp / scratch
+**/_ul
+**/_ul-*
+**/*.tmp
+**/*.temp
+**/*.log
+
+# OS / editor
+.DS_Store
+Thumbs.db
+*.user
+*.suo
+.vs/
+.vscode/settings.json
+.idea/
+
+# Node
+node_modules/
+npm-debug.log*
+
+# Package caches
+**/.nuget/

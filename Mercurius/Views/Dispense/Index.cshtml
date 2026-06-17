@@ -1,0 +1,92 @@
+@{
+    Layout = "~/Views/Shared/_Layout.cshtml";
+    ViewData["Title"] = "Dispense Medicine";
+    var rx = ViewBag.Prescription as Mercurius.Repo.Models.Prescription;
+    var doctor = ViewBag.Doctor as Mercurius.Repo.Models.Doctor;
+    var patient = ViewBag.Patient as Mercurius.Repo.Models.Customer;
+    var items = ViewBag.Items as List<Mercurius.Repo.Models.PrescriptionItem>;
+    var batches = ViewBag.Batches as List<Mercurius.Repo.Models.MedicineBatch>;
+    var products = ViewBag.Products as Dictionary<int, Mercurius.Repo.Models.Product>;
+}
+
+<div id="kt_app_toolbar" class="app-toolbar py-3 py-lg-6">
+    <div class="app-container container-xxl d-flex flex-stack">
+        <div class="page-title">
+            <h1 class="page-heading d-flex text-dark fw-bold fs-3 my-0">Dispense: @rx?.PrescriptionNumber</h1>
+        </div>
+        <a href="/Prescriptions" class="btn btn-light">Back to Prescriptions</a>
+    </div>
+</div>
+
+<div class="row g-5 mb-5">
+    <div class="col-md-6">
+        <div class="card bg-light"><div class="card-body p-4">
+            <strong>Doctor:</strong> @doctor?.LastName, @doctor?.FirstName (@doctor?.LicenseNumber)<br/>
+            <strong>Patient:</strong> @patient?.LastName, @patient?.FirstName<br/>
+            <strong>Date:</strong> @rx?.PrescriptionDate.ToString("yyyy-MM-dd")<br/>
+            <strong>Status:</strong> @rx?.Status
+        </div></div>
+    </div>
+    <div class="col-md-6">
+        <div class="card bg-light"><div class="card-body p-4">
+            <strong>Diagnosis:</strong> @rx?.Diagnosis<br/>
+            <strong>Allergies:</strong> <span class="text-danger">@patient?.Allergies</span>
+        </div></div>
+    </div>
+</div>
+
+<form asp-action="Dispense" method="post">
+    @Html.AntiForgeryToken()
+    <input type="hidden" name="prescriptionId" value="@rx?.Id" />
+
+    <div class="card">
+        <div class="card-body pt-0">
+            <div class="table-responsive">
+                <table class="table table-hover table-rounded border gy-7 gs-7">
+                    <thead>
+                        <tr class="fw-bold fs-6 text-gray-800 border-bottom border-gray-200">
+                            <th>Medicine</th><th>Dosage</th><th>Prescribed</th><th>Remaining</th><th>Select Batch</th><th>Qty to Dispense</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @if (items != null) {
+                            var itemIndex = 0;
+                            foreach (var item in items)
+                            {
+                                var remaining = item.QuantityPrescribed - item.QuantityDispensed;
+                                if (remaining <= 0) continue;
+                                var productName = products?.TryGetValue(item.ProductId, out var prod) == true ? prod.Name : "Unknown";
+                                var productBatches = batches?.Where(b => b.ProductId == item.ProductId).ToList() ?? new();
+                                <tr>
+                                    <td>@productName</td>
+                                    <td>@item.Dosage</td>
+                                    <td>@item.QuantityPrescribed</td>
+                                    <td>@remaining</td>
+                                    <td>
+                                        <input type="hidden" name="itemIds" value="@item.Id" />
+                                        <select name="batchIds" class="form-select form-select-sm">
+                                            <option value="">-- Select batch (FEFO) --</option>
+                                            @foreach (var b in productBatches) {
+                                                <option value="@b.Id">@b.BatchNumber (Exp: @b.ExpiryDate:yyyy-MM-dd, Qty: @b.RemainingQuantity)</option>
+                                            }
+                                        </select>
+                                    </td>
+                                    <td>
+                                        <input name="quantities" type="number" step="1" min="1" max="@((int)remaining)" class="form-control form-control-sm" style="width:80px" />
+                                    </td>
+                                </tr>
+                                itemIndex++;
+                            }
+                        }
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <div class="d-flex justify-content-end mt-5">
+        <button type="submit" class="btn btn-success btn-lg">
+            <i class="bi bi-capsule fs-4 me-2"></i>Complete Dispensing
+        </button>
+    </div>
+</form>

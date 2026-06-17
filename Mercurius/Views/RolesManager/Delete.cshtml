@@ -1,0 +1,70 @@
+﻿@model Microsoft.AspNetCore.Identity.IdentityRole
+
+@{
+    ViewData["Title"] = "Delete";
+    Layout = "~/Views/Shared/_Layout.cshtml";
+}
+
+<!-- PAGE TITLE -->
+<div id="kt_app_toolbar" class="app-toolbar py-3 py-lg-6">
+    <div id="kt_app_toolbar_container" class="app-container container-xxl d-flex flex-stack">   
+        <div class="page-title d-flex flex-column justify-content-center flex-wrap me-3">
+            <h1 class="page-heading d-flex text-dark fw-bold fs-3 flex-column justify-content-center my-0">Delete Role</h1>
+        </div>
+    </div>
+</div>
+
+
+<div class="card">
+    <div class="card-body p-10">
+
+        <div class="row g-5 row-cols-1 row-cols-sm-2 row-cols-md-4">
+
+            <div class="col">
+                <label class="form-label">
+                    @Html.DisplayNameFor(model => model.Name)
+                </label>
+                <div>
+                    
+                </div>
+            </div>
+        
+        </div>
+
+        <div class="separator border-gray-200 pt-5 mb-5"></div>
+
+        <label for="" class="form-label">Access to pages</label>
+        <br />
+        <br />
+        <div class="row g-5 row-cols-1 row-cols-sm-2 row-cols-md-3 row-cols-lg-4">
+            @foreach (PageSelectItem p in ViewBag.pages)
+            {
+            <div class="col">
+                <div class="form-check form-check-inline">
+                    <input type="checkbox" class="form-check-input" name="pages" value="@p.PageId" @(p.IsSelected ? "checked='checked'" : "")> 
+                    <label class="form-check-label" for="selectedRoles">@p.PageId</label>
+                </div>
+            </div>
+            }
+            @foreach(PageSelectItem p in ViewBag.pages)
+            {
+                <div class="col">@p.PageId</div>
+            }
+        </div>
+
+        <div class="border-top d-flex flex-stack flex-wrap mt-lg-10 pt-5">
+            <div class="my-1 me-5">
+                <a  class="btn btn-light" asp-action="Index">Back to List</a>  
+            </div>
+            <div class="d-flex align-items-center gap-2 gap-lg-3">
+                <form asp-action="DeleteConfirmed">
+                    <input type="hidden" asp-for="Id" />
+                    <input type="submit" value="Delete" class="btn btn-danger" />
+                </form>
+            </div>
+        </div>
+    </div>
+
+</div>
+
+
