@@ -1,0 +1,8 @@
+{
+  "BaseUrl": "http://localhost:5094",
+  "Browser": "chromium",
+  "Headless": false,
+  "SlowMo": 500,
+  "Timeout": 30000,
+  "NavigationTimeout": 30000
+}

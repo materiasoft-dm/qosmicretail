@@ -1,0 +1,72 @@
+# === Core project ignores ===
+Mercurius/Mercurius/*.litedb
+Mercurius/Mercurius/*.db
+Mercurius/Mercurius/logs/
+Mercurius/Mercurius/bin/
+Mercurius/Mercurius/obj/
+Mercurius/Mercurius/Mercurius/bin/
+Mercurius/Mercurius/Mercurius/obj/
+
+# === Solution-level build output ===
+Mercurius/build.log
+Mercurius/build_output.txt
+Mercurius/debug.log
+Mercurius/run_log.txt
+Mercurius/run_output*.log
+Mercurius/identity.db
+Mercurius/mercurius.db
+Mercurius/obj/
+Mercurius/node_modules/
+
+# === All bin/obj everywhere ===
+**/bin/
+**/obj/
+
+# === OS / editor junk ===
+.DS_Store
+Thumbs.db
+*.user
+*.suo
+.vs/
+.vscode/settings.json
+.idea/
+*.DotSettings.user
+
+# === Temp / scratch ===
+*.log
+*.tmp
+*.temp
+*.csv
+emptyveramay/
+_dbcheck/
+_query_db.csx
+_ul
+check_db.csx
+check_identity_db.py
+temp_sqlite_check.py
+temp_sqlite_grant.py
+publish-output/
+soomePassword.txt
+
+# === Top-level noise (if tracked) ===
+AGENTS.md
+CLAUDE.md
+CODE_REVIEW.md
+CONTROLLERS_TO_UPDATE.md
+IMMEDIATE_NEXT_STEPS.md
+ISSUE_SEARCH_BUG.md
+LITEDB_MIGRATION_PLAN.md
+LiteDB_POC_Test.cs
+PHARMACY_MIGRATION_PLAN.md
+TODO.md
+UpdatePrices/
+UpdateProductPrices.cs
+runtests.ps1
+run_app.ps1
+tools/
+EmptyVeramay.csx
+
+# === Packages ===
+.nuget/
+.claude/
+EmptyVeramay.csx
