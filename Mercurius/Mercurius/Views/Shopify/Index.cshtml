@@ -1,0 +1,149 @@
+@model IEnumerable<Mercurius.Services.ShopifyProduct>
+@{
+    ViewData["Title"] = "Shopify Products";
+}
+
+<div class="card">
+    <div class="card-header">
+        <h3 class="card-title">Shopify Products</h3>
+        <div class="card-toolbar">
+            <a href="@Url.Action("SyncProductsStatus", "Shopify")" class="btn btn-sm btn-info me-2" id="syncStatus">
+                Check Status
+            </a>
+            <form action="@Url.Action("SyncProducts", "Shopify")" method="post" class="d-inline me-2" id="syncForm">
+                <button type="submit" class="btn btn-sm btn-success" onclick="return confirm('Sync products from Shopify to local database?')">
+                    <i class="bi bi-arrow-down-circle"></i> Sync to Database
+                </button>
+            </form>
+            <a href="@Url.Action("TestConnection", "Shopify")" class="btn btn-sm btn-primary" id="testConnection">
+                Test Connection
+            </a>
+        </div>
+    </div>
+    <div class="card-body">
+        @if (TempData["Success"] != null)
+        {
+            <div class="alert alert-success alert-dismissible fade show">
+                @TempData["Success"]
+                <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+            </div>
+        }
+        @if (TempData["Error"] != null)
+        {
+            <div class="alert alert-warning alert-dismissible fade show">
+                @TempData["Error"]
+                <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+            </div>
+        }
+        @if (ViewBag.Connected == false)
+        {
+            <div class="alert alert-warning">
+                <strong>Not Connected</strong> - Please configure your Shopify access token in appsettings.json
+            </div>
+        }
+        
+        <table class="table table-striped table-hover" id="shopifyProductsTable">
+            <thead>
+                <tr>
+                    <th>ID</th>
+                    <th>Title</th>
+                    <th>SKU</th>
+                    <th>Price</th>
+                    <th>Inventory</th>
+                    <th>Status</th>
+                    <th>Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach (var product in Model)
+                {
+                    <tr>
+                        <td>@product.Id</td>
+                        <td>@product.Title</td>
+                        <td>@product.Sku</td>
+                        <td>
+                            <span id="price-@product.Id">@product.Price?.ToString("C")</span>
+                        </td>
+                        <td>@product.InventoryQuantity</td>
+                        <td>
+                            <span class="badge badge-@(product.Status == "active" ? "success" : "secondary")">
+                                @product.Status
+                            </span>
+                        </td>
+                        <td>
+                            <button class="btn btn-sm btn-primary" onclick="editPrice('@product.Id', @product.Price)">
+                                Update Price
+                            </button>
+                        </td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<div class="modal fade" id="priceModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Update Price</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <input type="hidden" id="productId" />
+                <div class="mb-3">
+                    <label class="form-label">New Price</label>
+                    <input type="number" step="0.01" class="form-control" id="newPrice" />
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-primary" onclick="savePrice()">Save</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+    <script>
+        function editPrice(productId, currentPrice) {
+            document.getElementById('productId').value = productId;
+            document.getElementById('newPrice').value = currentPrice;
+            new bootstrap.Modal(document.getElementById('priceModal')).show();
+        }
+
+        async function savePrice() {
+            const productId = document.getElementById('productId').value;
+            const price = document.getElementById('newPrice').value;
+            
+            const response = await fetch('@Url.Action("UpdatePrice", "Shopify")', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ productId, price: parseFloat(price) })
+            });
+            
+            if (response.ok) {
+                document.getElementById('price-' + productId).textContent = '$' + parseFloat(price).toFixed(2);
+                bootstrap.Modal.getInstance(document.getElementById('priceModal')).hide();
+                toastr.success('Price updated successfully');
+            } else {
+                toastr.error('Failed to update price');
+            }
+        }
+
+        document.getElementById('testConnection')?.addEventListener('click', async (e) => {
+            e.preventDefault();
+            const response = await fetch('@Url.Action("TestConnection", "Shopify")');
+            const data = await response.json();
+            if (data.connected) {
+                toastr.success('Connected to Shopify');
+            } else {
+                toastr.error('Failed to connect to Shopify');
+            }
+        });
+
+        $(document).ready(function() {
+            $('#shopifyProductsTable').DataTable();
+        });
+    </script>
+}

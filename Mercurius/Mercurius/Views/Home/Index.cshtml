@@ -1,0 +1,205 @@
+@inject Microsoft.AspNetCore.Antiforgery.IAntiforgery Antiforgery
+@using Mercurius.Common
+@using Mercurius.Common.Constants
+@{
+    ViewData["Title"] = "Dashboard";
+    var tokens = Antiforgery.GetAndStoreTokens(Context);
+}
+
+<style>
+    .dashboard-grid {
+        width: 100%;
+    }
+
+    .grid-stack-item-content {
+        padding: 4px;
+        display: flex;
+        overflow: visible !important;
+    }
+
+    .grid-stack-item-content > .card {
+        margin: 0 !important;
+        flex-grow: 1;
+        width: 100% !important;
+        height: 100% !important;
+        min-width: 0;
+        border-radius: 8px;
+    }
+
+    .dashboard-metric-grid {
+        display: grid;
+        grid-template-columns: repeat(4, minmax(0, 1fr));
+        gap: 12px;
+    }
+
+    .dashboard-metric-tile {
+        min-width: 0;
+    }
+
+    .dashboard-money {
+        overflow-wrap: normal;
+        word-break: normal;
+        white-space: nowrap;
+        font-size: clamp(1.25rem, 1.4vw, 1.75rem) !important;
+    }
+
+    .dashboard-grid .table-responsive {
+        overflow-x: auto;
+    }
+
+    @@media (max-width: 1199.98px) {
+        .dashboard-metric-grid {
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+        }
+    }
+
+    @@media (max-width: 767.98px) {
+        .dashboard-metric-grid {
+            grid-template-columns: 1fr;
+        }
+    }
+</style>
+
+<div class="d-flex flex-column flex-column-fluid">
+    <div class="d-flex flex-stack mt-4 mb-5 dashboard-toolbar">
+        <h3 class="fw-bold my-2">Dashboard</h3>
+        <div class="d-flex align-items-center gap-2">
+            <button id="edit-layout-btn" class="btn btn-sm fw-bold btn-primary">Edit Layout</button>
+            <button id="save-layout-btn" class="btn btn-sm fw-bold btn-success d-none">Save Layout</button>
+            <button id="cancel-layout-btn" class="btn btn-sm fw-bold btn-secondary d-none">Cancel</button>
+        </div>
+    </div>
+
+    <div class="grid-stack dashboard-grid">
+        @if (User.HasClaim(MercuriusClaimTypes.AccessPages, ModuleRegistry.Pages.CLIENT_DASHBOARD_MonthlyTargetWidget))
+        {
+            <div class="grid-stack-item" gs-id="MonthlyTargetWidget" gs-w="6" gs-h="4">
+                <div class="grid-stack-item-content">
+                    @await Component.InvokeAsync("MonthlyTarget")
+                </div>
+            </div>
+        }
+        @if (User.HasClaim(MercuriusClaimTypes.AccessPages, ModuleRegistry.Pages.CLIENT_DASHBOARD_MonthlyNewCustomers))
+        {
+            <div class="grid-stack-item" gs-id="MonthlyNewCustomers" gs-w="6" gs-h="4">
+                <div class="grid-stack-item-content">
+                    @await Component.InvokeAsync("MonthlyNewCustomers")
+                </div>
+            </div>
+        }
+        @if (User.HasClaim(MercuriusClaimTypes.AccessPages, ModuleRegistry.Pages.CLIENT_DASHBOARD_ItemsSoldTodayWidget))
+        {
+            <div class="grid-stack-item" gs-id="ItemsSoldTodayWidget" gs-w="6" gs-h="6">
+                <div class="grid-stack-item-content">
+                    @await Component.InvokeAsync("ItemsSoldToday")
+                </div>
+            </div>
+        }
+        @if (User.HasClaim(MercuriusClaimTypes.AccessPages, ModuleRegistry.Pages.CLIENT_DASHBOARD_StockWarningWidget))
+        {
+            <div class="grid-stack-item" gs-id="StockWarningWidget" gs-w="6" gs-h="6">
+                <div class="grid-stack-item-content">
+                    @await Component.InvokeAsync("StockWarning")
+                </div>
+            </div>
+        }
+        <div class="grid-stack-item" gs-id="ExpiryAlertsWidget" gs-w="6" gs-h="5">
+            <div class="grid-stack-item-content">
+                @await Component.InvokeAsync("ExpiryAlerts")
+            </div>
+        </div>
+        @if (User.HasClaim(MercuriusClaimTypes.AccessPages, ModuleRegistry.Pages.CLIENT_DASHBOARD_DailySalesWidget))
+        {
+            <div class="grid-stack-item" gs-id="DailySalesWidget" gs-w="3" gs-h="4">
+                <div class="grid-stack-item-content">
+                    @await Component.InvokeAsync("DailySales")
+                </div>
+            </div>
+        }
+        @if (User.HasClaim(MercuriusClaimTypes.AccessPages, ModuleRegistry.Pages.CLIENT_DASHBOARD_PreviousMonthSalesWidget))
+        {
+            <div class="grid-stack-item" gs-id="PreviousMonthSalesWidget" gs-w="3" gs-h="4">
+                <div class="grid-stack-item-content">
+                    @await Component.InvokeAsync("PreviousMonthSales")
+                </div>
+            </div>
+        }
+    </div>
+</div>
+
+@section Scripts {
+    <script>
+        var grid = GridStack.init({
+            cellHeight: 96,
+            margin: 6,
+            columnOpts: {
+                breakpoints: [
+                    { w: 768, c: 1 },
+                    { w: 1200, c: 2 }
+                ]
+            },
+            staticGrid: true // Start in read-only mode
+        });
+
+        // Load saved layout
+        $.get('/api/DashboardLayout', function(data) {
+            if (data && data.length > 0) {
+                grid.batchUpdate();
+                data.forEach(function(item) {
+                    var el = document.querySelector('.grid-stack-item[gs-id="' + item.widgetId + '"]');
+                    if (el) {
+                        grid.update(el, { x: item.x, y: item.y, w: item.width, h: item.height });
+                    }
+                });
+                grid.commit();
+            }
+        });
+
+        $('#edit-layout-btn').on('click', function() {
+            grid.setStatic(false);
+            $(this).addClass('d-none');
+            $('#save-layout-btn, #cancel-layout-btn').removeClass('d-none');
+            $('.grid-stack-item').addClass('border border-primary border-dashed');
+        });
+
+        $('#cancel-layout-btn').on('click', function() {
+            location.reload(); // Simplest way to revert
+        });
+
+        $('#save-layout-btn').on('click', function() {
+            var layout = [];
+            grid.getGridItems().forEach(function(el) {
+                var node = el.gridstackNode;
+                layout.push({
+                    widgetId: el.getAttribute('gs-id'),
+                    x: node.x,
+                    y: node.y,
+                    width: node.w,
+                    height: node.h
+                });
+            });
+
+            $.ajax({
+                url: '/api/DashboardLayout',
+                type: 'POST',
+                contentType: 'application/json',
+                headers: {
+                    '@tokens.HeaderName': '@tokens.RequestToken'
+                },
+                data: JSON.stringify(layout),
+                success: function() {
+                    toastr.success('Layout saved successfully');
+                    grid.setStatic(true);
+                    $('#edit-layout-btn').removeClass('d-none');
+                    $('#save-layout-btn, #cancel-layout-btn').addClass('d-none');
+                    $('.grid-stack-item').removeClass('border border-primary border-dashed');
+                },
+                error: function(xhr, status, error) {
+                    console.error('Save error:', error);
+                    console.error('Response:', xhr.responseText);
+                    toastr.error('Failed to save layout');
+                }
+            });
+        });
+    </script>
+}

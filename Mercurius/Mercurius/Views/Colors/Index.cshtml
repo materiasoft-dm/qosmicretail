@@ -1,0 +1,104 @@
+@model IEnumerable<Mercurius.Repo.Models.Color>
+@{
+    ViewData["Title"] = "Item Colors";
+    Layout = "~/Views/Shared/_Layout.cshtml";
+}
+
+<!-- PAGE TITLE -->
+<div id="kt_app_toolbar" class="app-toolbar py-3 py-lg-6">
+    <div id="kt_app_toolbar_container" class="app-container container-xxl d-flex flex-stack">
+        <div class="page-title d-flex flex-column justify-content-center flex-wrap me-3">
+            <h1 class="page-heading d-flex text-dark fw-bold fs-3 flex-column justify-content-center my-0">Item Colors</h1>
+        </div>
+    </div>
+</div>
+
+<div class="card">
+    <div class="card-header border-0 pt-6">
+        <div class="card-title">
+            <div class="d-flex align-items-center position-relative my-1">
+                <span class="svg-icon svg-icon-1 position-absolute ms-6">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none">
+                        <rect opacity="0.5" x="17.0365" y="15.1223" width="8.15546" height="2" rx="1" transform="rotate(45 17.0365 15.1223)" fill="currentColor"/>
+                        <path d="M11 19C6.55556 19 3 15.4444 3 11C3 6.55556 6.55556 3 11 3C15.4444 3 19 6.55556 19 11C19 15.4444 15.4444 19 11 19ZM11 5C7.53333 5 5 7.53333 5 11C5 14.4667 7.53333 17 11 17C14.4667 17 17 14.4667 17 11C17 7.53333 14.4667 5 11 5Z" fill="currentColor"/>
+                    </svg>
+                </span>
+                <input type="text" id="searchInput" class="form-control form-control-solid w-250px ps-15" placeholder="Search colors..." />
+            </div>
+        </div>
+        <div class="card-toolbar">
+            <a asp-action="Create" class="btn btn-primary">Create New Item Color</a>
+        </div>
+    </div>
+    <div class="card-body pt-0">
+        <div class="table-responsive">
+            <table id="colorsTable" class="table table-hover table-rounded table-striped border gy-7 gs-7" style="width:100%">
+                <thead>
+                    <tr class="fw-bold fs-6 text-gray-800 border-bottom border-gray-200">
+                        <th>Name</th>
+                        <th class="text-end">Actions</th>
+                    </tr>
+                </thead>
+                <tbody></tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+    <script>
+        $(document).ready(function () {
+            function esc(s) {
+                if (s === null || typeof s === 'undefined') return '';
+                return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+            }
+
+            if (!$.fn.DataTable.isDataTable('#colorsTable')) {
+                var table = $('#colorsTable').DataTable({
+                    serverSide: true,
+                    processing: true,
+                    deferRender: true,
+                    searchDelay: 350,
+                    pageLength: 25,
+                    lengthMenu: [[10, 25, 50, 100], [10, 25, 50, 100]],
+                    order: [[0, 'asc']],
+                    ajax: {
+                        url: '@Url.Action("DataTable", "Colors")',
+                        type: 'GET',
+                        dataType: 'json',
+                        error: function (xhr) {
+                            if (window.showFlash) window.showFlash('Failed to load colors: ' + (xhr.statusText || 'request failed'), 'error');
+                        }
+                    },
+                    columns: [
+                        { data: 'name', name: 'Name', render: function (d) { return esc(d); } },
+                        { data: null, orderable: false, searchable: false, className: 'text-end',
+                            render: function (_d, _type, row) {
+                                var id = encodeURIComponent(row.id);
+                                return '' +
+                                    '<a href="/Colors/Details/' + id + '" class="btn btn-sm btn-icon btn-light-primary me-2" title="Details"><i class="bi bi-eye fs-4"></i></a>' +
+                                    '<a href="/Colors/Edit/' + id + '" class="btn btn-sm btn-icon btn-light-warning me-2" title="Edit"><i class="bi bi-pencil fs-4"></i></a>' +
+                                    '<a href="/Colors/Delete/' + id + '" class="btn btn-sm btn-icon btn-light-danger" title="Delete"><i class="bi bi-trash fs-4"></i></a>';
+                            }
+                        }
+                    ],
+                    // Drop `f` — the card header has its own #searchInput.
+                    dom: '<"row"<"col-sm-12"l>>' +
+                         '<"row"<"col-sm-12"tr>>' +
+                         '<"row"<"col-sm-12 col-md-5"i><"col-sm-12 col-md-7"p>>',
+                    language: {
+                        search: "", searchPlaceholder: "Search colors...",
+                        lengthMenu: "Show _MENU_ entries",
+                        info: "Showing _START_ to _END_ of _TOTAL_ entries",
+                        infoEmpty: "Showing 0 to 0 of 0 entries",
+                        infoFiltered: "(filtered from _MAX_ total entries)",
+                        processing: '<div class="spinner-border text-primary" role="status"></div>',
+                        paginate: { first: "First", last: "Last", next: "Next", previous: "Previous" }
+                    }
+                });
+
+                $('#searchInput').on('keyup', function () { table.search(this.value).draw(); });
+            }
+        });
+    </script>
+}

@@ -1,0 +1,36 @@
+@{
+    ViewData["Title"] = "Shopify Connection";
+}
+
+<div class="card">
+    <div class="card-header">
+        <h3 class="card-title">Shopify Connection Failed</h3>
+    </div>
+    <div class="card-body">
+        <div class="alert alert-danger">
+            <h4><i class="fas fa-exclamation-triangle"></i> Unable to Connect</h4>
+            <p>Could not connect to Shopify. Please verify your configuration:</p>
+            <hr />
+            <h5>Check the Shopify Settings screen:</h5>
+            <p>
+                Open <a href="@Url.Action("Index", "ShopifySettings")" class="alert-link">Shopify Settings</a>
+                and confirm the following values are correct:
+            </p>
+            <ul class="mb-3">
+                <li><strong>Store URL</strong> &mdash; your <code>.myshopify.com</code> domain (e.g. <code>your-store.myshopify.com</code>)</li>
+                <li><strong>API Version</strong> &mdash; a currently supported Shopify Admin API version</li>
+                <li><strong>Admin API Access Token</strong> &mdash; from a custom app with the required scopes</li>
+            </ul>
+            <a href="@Url.Action("Index", "ShopifySettings")" class="btn btn-primary">
+                <i class="fas fa-cog"></i> Open Shopify Settings
+            </a>
+            <hr />
+            <p class="mb-0">
+                <strong>Note:</strong> You can get your access token from Shopify Admin &rarr; Settings &rarr; Apps and sales channels &rarr; Develop apps &rarr; Create an app &rarr; Configure Admin API scopes &rarr; Install app
+            </p>
+        </div>
+        <a href="@Url.Action("Index", "Home")" class="btn btn-secondary">
+            <i class="fas fa-home"></i> Back to Home
+        </a>
+    </div>
+</div>

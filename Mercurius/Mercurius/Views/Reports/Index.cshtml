@@ -1,0 +1,55 @@
+@using Mercurius.Common
+@using Mercurius.Common.Constants
+@using System.Security.Claims
+@{
+    ViewData["Title"] = "Reports";
+    var user = Context.User as ClaimsPrincipal;
+}
+
+<div class="card">
+    <div class="card-header border-0 pt-6">
+        <div class="card-title">
+            <h2>Reports</h2>
+        </div>
+    </div>
+    <div class="card-body">
+        <div class="row g-5">
+            @if (user.HasClaim(MercuriusClaimTypes.AccessPages, ModuleRegistry.Pages.REPORT_INVENTORY))
+            {
+                <div class="col-md-4">
+                    <div class="card card-flush h-100">
+                        <div class="card-body text-center">
+                            <h4>Inventory Report</h4>
+                            <p>View current stock levels and inventory status.</p>
+                            <a href="/Reports/Inventory" class="btn btn-primary">View Report</a>
+                        </div>
+                    </div>
+                </div>
+            }
+            @if (user.HasClaim(MercuriusClaimTypes.AccessPages, ModuleRegistry.Pages.REPORT_SALES))
+            {
+                <div class="col-md-4">
+                    <div class="card card-flush h-100">
+                        <div class="card-body text-center">
+                            <h4>Sales Report</h4>
+                            <p>View sales performance and revenue data.</p>
+                            <a href="/Reports/Sales" class="btn btn-primary">View Report</a>
+                        </div>
+                    </div>
+                </div>
+            }
+            @if (user.HasClaim(MercuriusClaimTypes.AccessPages, ModuleRegistry.Pages.REPORT_SHIPMENT))
+            {
+                <div class="col-md-4">
+                    <div class="card card-flush h-100">
+                        <div class="card-body text-center">
+                            <h4>Shipment Report</h4>
+                            <p>View shipment arrivals and history.</p>
+                            <a href="/Reports/Shipment" class="btn btn-primary">View Report</a>
+                        </div>
+                    </div>
+                </div>
+            }
+        </div>
+    </div>
+</div>

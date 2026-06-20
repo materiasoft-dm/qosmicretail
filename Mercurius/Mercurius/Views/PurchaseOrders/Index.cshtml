@@ -1,0 +1,84 @@
+@model IEnumerable<Mercurius.Repo.Models.PurchaseOrder>
+@{
+    Layout = "~/Views/Shared/_Layout.cshtml";
+    ViewData["Title"] = "Purchase Orders";
+    var suppliers = ViewBag.Suppliers as Dictionary<int, string>;
+}
+
+<div id="kt_app_toolbar" class="app-toolbar py-3 py-lg-6">
+    <div class="app-container container-xxl d-flex flex-stack">
+        <div class="page-title"><h1 class="page-heading d-flex text-dark fw-bold fs-3 my-0">Purchase Orders</h1></div>
+        <a href="/PurchaseOrders/Create" class="btn btn-primary">New Purchase Order</a>
+    </div>
+</div>
+
+<div class="card">
+    <div class="card-body pt-0">
+        <div class="table-responsive">
+            <table id="poTable" class="table table-hover table-rounded table-striped border gy-7 gs-7">
+                <thead>
+                    <tr class="fw-bold fs-6 text-gray-800 border-bottom border-gray-200">
+                        <th>PO No.</th><th>Supplier</th><th>Date</th><th>Status</th><th class="text-end">Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var po in Model)
+                    {
+                        var statusClass = po.Status switch {
+                            "PendingApproval" => "badge-light-warning",
+                            "Approved" => "badge-light-info",
+                            "OrderSent" => "badge-light-primary",
+                            "ReceivedComplete" => "badge-light-success",
+                            "ReceivedIncomplete" => "badge-light-danger",
+                            _ => "badge-light-secondary"
+                        };
+                        <tr>
+                            <td><code>@po.OrderNumber</code></td>
+                            <td>@(suppliers?.TryGetValue(po.SupplierId, out var s) == true ? s : "N/A")</td>
+                            <td><time class="local-time" datetime="@po.OrderDate.ToString("o")">@po.OrderDate.ToString("yyyy-MM-dd")</time></td>
+                            <td><span class="badge @statusClass">@po.Status</span></td>
+                            <td class="text-end">
+                                <a href="/Shipment/Create?poId=@po.Id" class="btn btn-sm btn-light-info me-2" title="Create Shipment"><i class="bi bi-truck me-1"></i>Receive</a>
+                                <a href="/PurchaseOrders/Edit/@po.Id" class="btn btn-sm btn-icon btn-light-warning me-2"><i class="bi bi-pencil fs-4"></i></a>
+                                @if (po.Status == "PendingApproval") {
+                                    <form asp-action="Approve" asp-route-id="@po.Id" method="post" style="display:inline">
+                                        @Html.AntiForgeryToken()
+                                        <button class="btn btn-sm btn-light-success" title="Approve"><i class="bi bi-check-circle me-1"></i>Approve</button>
+                                    </form>
+                                }
+                                @if (po.Status == "Approved") {
+                                    <form asp-action="MarkSent" asp-route-id="@po.Id" method="post" style="display:inline">
+                                        @Html.AntiForgeryToken()
+                                        <button class="btn btn-sm btn-light-primary" title="Mark Sent"><i class="bi bi-send me-1"></i>Mark Sent</button>
+                                    </form>
+                                }
+                                @if (po.Status == "OrderSent") {
+                                    <form asp-action="MarkReceived" asp-route-id="@po.Id" method="post" style="display:inline" class="me-1">
+                                        @Html.AntiForgeryToken()
+                                        <input type="hidden" name="isComplete" value="true" />
+                                        <button class="btn btn-sm btn-light-success" title="Received Complete"><i class="bi bi-check-all me-1"></i>Complete</button>
+                                    </form>
+                                    <form asp-action="MarkReceived" asp-route-id="@po.Id" method="post" style="display:inline">
+                                        @Html.AntiForgeryToken()
+                                        <input type="hidden" name="isComplete" value="false" />
+                                        <button class="btn btn-sm btn-light-danger" title="Received Incomplete"><i class="bi bi-exclamation-triangle me-1"></i>Incomplete</button>
+                                    </form>
+                                }
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+    <script>
+        $(document).ready(function () {
+            if (!$.fn.DataTable.isDataTable('#poTable')) {
+                $('#poTable').DataTable({ pageLength: 25, order: [[2, 'desc']] });
+            }
+        });
+    </script>
+}

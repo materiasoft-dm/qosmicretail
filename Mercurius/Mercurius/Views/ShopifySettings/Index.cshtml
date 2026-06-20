@@ -1,0 +1,161 @@
+@model ShopifySettingsViewModel
+@{
+    ViewData["Title"] = "Shopify Integration Settings";
+    Layout = "~/Views/Shared/_Layout.cshtml";
+}
+
+<!-- PAGE TITLE -->
+<div id="kt_app_toolbar" class="app-toolbar py-3 py-lg-6">
+    <div id="kt_app_toolbar_container" class="app-container container-xxl d-flex flex-stack">
+        <div class="page-title d-flex flex-column justify-content-center flex-wrap me-3">
+            <h1 class="page-heading d-flex text-dark fw-bold fs-3 flex-column justify-content-center my-0">Shopify Integration</h1>
+        </div>
+    </div>
+</div>
+
+<div class="card">
+    <div class="card-header border-0 pt-6">
+        <div class="card-title">
+            <h2 class="fw-bold fs-4">Connection Settings</h2>
+        </div>
+    </div>
+    <div class="card-body pt-0">
+        @if (TempData["Success"] != null)
+        {
+            <div class="alert alert-success d-flex align-items-center mb-5">
+                <i class="bi bi-check-circle-fill me-2"></i>
+                @TempData["Success"]
+            </div>
+        }
+
+        <form asp-action="Index" method="post" id="shopifySettingsForm">
+            <div asp-validation-summary="ModelOnly" class="text-danger mb-4"></div>
+            @Html.AntiForgeryToken()
+
+            <div class="row g-5 mb-5">
+                <div class="col-12 col-md-6">
+                    <label asp-for="StoreUrl" class="form-label fw-bold">Store URL</label>
+                    <input asp-for="StoreUrl" class="form-control form-control-solid" placeholder="your-store.myshopify.com" />
+                    <span asp-validation-for="StoreUrl" class="text-danger"></span>
+                    <div class="form-text">Your Shopify store domain (e.g., mystore.myshopify.com)</div>
+                </div>
+                <div class="col-12 col-md-6">
+                    <label asp-for="ApiVersion" class="form-label fw-bold">API Version</label>
+                    <input asp-for="ApiVersion" class="form-control form-control-solid" placeholder="2024-01" />
+                    <span asp-validation-for="ApiVersion" class="text-danger"></span>
+                    <div class="form-text">Shopify Admin API version (default: 2024-01)</div>
+                </div>
+            </div>
+
+            <div class="row g-5 mb-5">
+                <div class="col-12">
+                    <label asp-for="AccessToken" class="form-label fw-bold">Admin API Access Token</label>
+                    <div class="input-group">
+                        <input asp-for="AccessToken" type="text" class="form-control form-control-solid" id="accessToken" />
+                        <button type="button" class="btn btn-outline-secondary" onclick="togglePasswordVisibility()">
+                            <i class="bi bi-eye" id="toggleIcon"></i>
+                        </button>
+                    </div>
+                    <span asp-validation-for="AccessToken" class="text-danger"></span>
+                    <div class="form-text">
+                        Found in Shopify Admin → Settings → Apps and sales channels → Develop apps → Your app → API credentials
+                    </div>
+                </div>
+            </div>
+
+            <div class="border-top d-flex flex-stack flex-wrap pt-5">
+                <div class="my-1 me-5">
+                    <a href="@Url.Action("Index", "Shopify")" class="btn btn-light">Back to Shopify</a>
+                </div>
+                <div class="d-flex align-items-center gap-2 gap-lg-3">
+                    <button type="button" class="btn btn-secondary" onclick="testConnection()">
+                        <i class="bi bi-plug me-2"></i>Test Connection
+                    </button>
+                    <input type="submit" value="Save Settings" class="btn btn-primary" />
+                </div>
+            </div>
+        </form>
+    </div>
+</div>
+
+<div class="modal fade" tabindex="-1" id="connectionModal">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Connection Test</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body" id="connectionResult">
+                <div class="text-center">
+                    <div class="spinner-border text-primary" role="status"></div>
+                    <p class="mt-3">Testing connection...</p>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+    <script>
+        function togglePasswordVisibility() {
+            var input = document.getElementById('accessToken');
+            var icon = document.getElementById('toggleIcon');
+            if (input.type === 'password') {
+                input.type = 'text';
+                icon.className = 'bi bi-eye-slash';
+            } else {
+                input.type = 'password';
+                icon.className = 'bi bi-eye';
+            }
+        }
+
+        function testConnection() {
+            var modal = new bootstrap.Modal(document.getElementById('connectionModal'));
+            var resultDiv = document.getElementById('connectionResult');
+            resultDiv.innerHTML = '<div class="text-center"><div class="spinner-border text-primary" role="status"></div><p class="mt-3">Testing connection...</p></div>';
+            modal.show();
+
+            var form = document.getElementById('shopifySettingsForm');
+            var formData = new FormData(form);
+            
+            // Add anti-forgery token
+            var token = document.querySelector('input[name="__RequestVerificationToken"]').value;
+            formData.append('__RequestVerificationToken', token);
+
+            fetch('@Url.Action("TestConnection", "ShopifySettings")', {
+                method: 'POST',
+                body: formData,
+                headers: {
+                    'Accept': 'application/json',
+                    'X-Requested-With': 'XMLHttpRequest'
+                }
+            })
+            .then(function(response) {
+                if (!response.ok) {
+                    // Server returned a non-200 status (e.g. 302 redirect to login, 403, 400)
+                    // This typically means auth/anti-forgery failure — return HTML, not JSON
+                    return { success: false, message: 'Request failed (HTTP ' + response.status + '). Your session may have expired — try refreshing the page.' };
+                }
+                var ct = response.headers.get('content-type') || '';
+                if (ct.indexOf('application/json') === -1) {
+                    // Not JSON (e.g. HTML login page from a redirect)
+                    return { success: false, message: 'Received an unexpected response. Your session may have expired — try refreshing the page.' };
+                }
+                return response.json();
+            })
+            .then(function(data) {
+                if (data.success) {
+                    resultDiv.innerHTML = '<div class="text-center text-success"><i class="bi bi-check-circle-fill fs-1"></i><p class="mt-3 fs-5 fw-bold">Connection Successful!</p><p>Your Shopify store is connected.</p></div>';
+                } else {
+                    resultDiv.innerHTML = '<div class="text-center text-danger"><i class="bi bi-x-circle-fill fs-1"></i><p class="mt-3 fs-5 fw-bold">Connection Failed</p><p>' + (data.message || 'Unknown error occurred') + '</p></div>';
+                }
+            })
+            .catch(function(error) {
+                resultDiv.innerHTML = '<div class="text-center text-danger"><i class="bi bi-x-circle-fill fs-1"></i><p class="mt-3 fs-5 fw-bold">Connection Failed</p><p>' + error.message + '</p></div>';
+            });
+        }
+    </script>
+}

@@ -1,0 +1,60 @@
+@model Mercurius.ViewComponents.Dashboard.StockWarningModel
+
+<div class="card card-flush h-100">
+    <div class="card-header pt-7">
+        <h3 class="card-title align-items-start flex-column">
+            <span class="card-label fw-bold text-dark">Stock Report</span>
+            <span class="text-gray-400 mt-1 fw-semibold fs-6">Total @Model.TotalItems.ToString("n0") Items in the Stock</span>
+        </h3>
+        <div class="card-toolbar">
+            <a href="/Products" class="btn btn-light btn-sm">View All Items</a>
+        </div>
+    </div>
+    <div class="card-body">
+        <div class="table-responsive">
+            <table class="table align-middle table-row-dashed fs-6 gy-3">
+                <thead>
+                    <tr class="text-start text-gray-400 fw-bold fs-7 text-uppercase gs-0">
+                        <th class="min-w-100px">SKU</th>
+                        <th class="pe-3 min-w-100px">Item Name</th>
+                        <th class="text-end pe-3 min-w-50px">Status</th>
+                        <th class="text-end pe-0 min-w-25px">Qty</th>
+                    </tr>
+                </thead>
+                <tbody class="fw-bold text-gray-600">
+                    @foreach (var s in Model.Stock)
+                    {
+                        string badgeClass = "badge-light-success";
+                        string stockStatus = "In Stock";
+                        if (s.CurrentStock <= 0)
+                        {
+                            badgeClass = "badge-light-danger";
+                            stockStatus = "Out of Stock";
+                        }
+                        else if (s.CurrentStock <= s.LowStockCount)
+                        {
+                            badgeClass = "badge-light-warning";
+                            stockStatus = "Low Stock";
+                        }
+                        <tr>
+                            <td>@s.PartCode</td>
+                            <td>
+                                <a href="/Products/Details/@s.Id" class="text-dark text-hover-primary">@s.Name</a>
+                            </td>
+                            <td class="text-end">
+                                <span class="badge py-3 px-4 fs-7 @badgeClass">@stockStatus</span>
+                            </td>
+                            <td class="text-end">
+                                <span class="text-dark fw-bold">@s.CurrentStock PCS</span>
+                            </td>
+                        </tr>
+                    }
+                    @if (!Model.Stock.Any())
+                    {
+                        <tr><td colspan="4" class="text-center text-muted">No products yet.</td></tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>

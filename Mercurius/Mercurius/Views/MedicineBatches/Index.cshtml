@@ -1,0 +1,106 @@
+@model IEnumerable<Mercurius.Repo.Models.MedicineBatch>
+@{
+    Layout = "~/Views/Shared/_Layout.cshtml";
+    var product = ViewBag.Product as Mercurius.Repo.Models.Product;
+    ViewData["Title"] = $"Batches - {product?.Name}";
+}
+
+<div id="kt_app_toolbar" class="app-toolbar py-3 py-lg-6">
+    <div class="app-container container-xxl d-flex flex-stack">
+        <div class="page-title">
+            <h1 class="page-heading d-flex text-dark fw-bold fs-3 my-0">Batches: @product?.Name</h1>
+            <ul class="breadcrumb breadcrumb-separatorless fw-semibold fs-7 my-0 pt-1">
+                <li class="breadcrumb-item text-muted"><a href="/Products" class="text-muted text-hover-primary">Products</a></li>
+                <li class="breadcrumb-item"><span class="bullet bg-gray-400 w-5px h-2px"></span></li>
+                <li class="breadcrumb-item text-muted">Batches</li>
+            </ul>
+        </div>
+        <a href="/Products" class="btn btn-light">Back to Products</a>
+    </div>
+</div>
+
+<div class="row g-5">
+    <div class="col-lg-8">
+        <div class="card">
+            <div class="card-body pt-0">
+                <div class="table-responsive">
+                    <table id="batchesTable" class="table table-hover table-rounded table-striped border gy-7 gs-7">
+                        <thead>
+                            <tr class="fw-bold fs-6 text-gray-800 border-bottom border-gray-200">
+                                <th>Batch No.</th><th>Received</th><th>Expiry</th><th>Qty Received</th><th>Qty Remaining</th><th>Unit Cost</th><th>Status</th><th class="text-end">Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach (var b in Model)
+                            {
+                                var isExpired = b.ExpiryDate < DateTime.UtcNow;
+                                var isExpiring = !isExpired && b.ExpiryDate < DateTime.UtcNow.AddMonths(3);
+                                <tr class="@(isExpired ? "text-muted" : "")">
+                                    <td><code>@b.BatchNumber</code></td>
+                                    <td>@b.ReceivedDate.ToString("yyyy-MM-dd")</td>
+                                    <td>
+                                        <span class="@(isExpired ? "text-danger fw-bold" : isExpiring ? "text-warning fw-bold" : "")">
+                                            @b.ExpiryDate.ToString("yyyy-MM-dd")
+                                            @if (isExpired) { <span class="badge badge-light-danger ms-1">Expired</span> }
+                                            else if (isExpiring) { <span class="badge badge-light-warning ms-1">Expiring</span> }
+                                        </span>
+                                    </td>
+                                    <td>@b.InitialQuantity</td>
+                                    <td>@b.RemainingQuantity</td>
+                                    <td>@b.UnitCost.ToString("C")</td>
+                                    <td>@(b.IsActive ? "Active" : "Inactive")</td>
+                                    <td class="text-end">
+                                        @if (b.IsActive) {
+                                            <form asp-action="Delete" asp-route-id="@b.Id" method="post" style="display:inline" onsubmit="return confirm('Deactivate this batch?');">
+                                                @Html.AntiForgeryToken()
+                                                <button class="btn btn-sm btn-icon btn-light-danger" title="Deactivate"><i class="bi bi-x-circle fs-4"></i></button>
+                                            </form>
+                                        }
+                                    </td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="col-lg-4">
+        <div class="card">
+            <div class="card-header"><h3 class="card-title">Add Batch</h3></div>
+            <div class="card-body">
+                <form asp-action="Create" method="post">
+                    @Html.AntiForgeryToken()
+                    <input type="hidden" name="ProductId" value="@product?.Id" />
+                    <div class="mb-3">
+                        <label class="form-label required">Batch Number</label>
+                        <input name="BatchNumber" class="form-control form-control-sm" required placeholder="e.g. LOT-2026-001" />
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label required">Expiry Date</label>
+                        <input name="ExpiryDate" type="date" class="form-control form-control-sm" required />
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label required">Quantity Received</label>
+                        <input name="InitialQuantity" type="number" step="1" min="1" class="form-control form-control-sm" required />
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Unit Cost</label>
+                        <input name="UnitCost" type="number" step="0.01" min="0" class="form-control form-control-sm" value="0" />
+                    </div>
+                    <button type="submit" class="btn btn-primary w-100">Add Batch</button>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+    <script>
+        $(document).ready(function () {
+            if (!$.fn.DataTable.isDataTable('#batchesTable')) {
+                $('#batchesTable').DataTable({ pageLength: 25, order: [[2, 'asc']] });
+            }
+        });
+    </script>
+}

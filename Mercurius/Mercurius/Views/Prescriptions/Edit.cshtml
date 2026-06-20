@@ -1,0 +1,114 @@
+@model Mercurius.Repo.Models.Prescription
+@{
+    Layout = "~/Views/Shared/_Layout.cshtml";
+    ViewData["Title"] = "Edit Prescription";
+    var doctorList = ViewBag.DoctorList as List<Mercurius.Repo.Models.Doctor>;
+    var patientList = ViewBag.PatientList as List<Mercurius.Repo.Models.Customer>;
+    var productList = ViewBag.ProductList as List<Mercurius.Repo.Models.Product>;
+}
+
+<div id="kt_app_toolbar" class="app-toolbar py-3 py-lg-6">
+    <div class="app-container container-xxl"><div class="page-title"><h1 class="page-heading d-flex text-dark fw-bold fs-3 my-0">Edit Prescription</h1></div></div>
+</div>
+
+<div class="card">
+    <div class="card-body p-10">
+        <form asp-action="Edit" method="post" id="rx-form">
+            <input type="hidden" name="Id" value="@Model?.Id" />
+            @Html.AntiForgeryToken()
+            <div class="row g-5">
+                <div class="col-md-6">
+                    <label class="form-label required">Doctor</label>
+                    <select name="DoctorId" class="form-select form-select-sm" required>
+                        <option value="">-- Search and select doctor --</option>
+                        @if (doctorList != null) {
+                            foreach (var d in doctorList) {
+                                <option value="@d.Id">@d.LastName, @d.FirstName@(string.IsNullOrEmpty(d.Specialization) ? "" : $" ({d.Specialization})")</option>
+                            }
+                        }
+                    </select>
+                </div>
+                <div class="col-md-6">
+                    <label class="form-label required">Patient</label>
+                    <select name="PatientId" class="form-select form-select-sm" required>
+                        <option value="">-- Search and select patient --</option>
+                        @if (patientList != null) {
+                            foreach (var p in patientList) {
+                                <option value="@p.Id">@p.LastName, @p.FirstName@(p.Age.HasValue ? $" ({p.Age})" : "")</option>
+                            }
+                        }
+                    </select>
+                </div>
+                <div class="col-md-6">
+                    <label class="form-label">Valid Until</label>
+                    <input name="ValidUntil" type="date" class="form-control form-control-sm" />
+                </div>
+                <div class="col-12">
+                    <label class="form-label">Diagnosis / Notes</label>
+                    <textarea name="Diagnosis" class="form-control form-control-sm" rows="2"></textarea>
+                </div>
+            </div>
+
+            <div class="separator separator-dashed border-secondary my-6"></div>
+            <h6 class="text-muted mb-3">Medicines Prescribed</h6>
+
+            <div id="rx-items">
+                <div class="rx-item row g-3 mb-3">
+                    <div class="col-md-4">
+                        <label class="form-label">Medicine</label>
+                        <select name="productIds" class="form-select form-select-sm">
+                            <option value="">-- Select medicine --</option>
+                            @if (productList != null) {
+                                foreach (var prod in productList) {
+                                    <option value="@prod.Id">@prod.Name (@prod.CurrentStock in stock)</option>
+                                }
+                            }
+                        </select>
+                    </div>
+                    <div class="col-md-3">
+                        <label class="form-label">Dosage Instructions</label>
+                        <input name="dosages" class="form-control form-control-sm" placeholder="e.g. 1 tablet 3x daily after meals" />
+                    </div>
+                    <div class="col-md-2">
+                        <label class="form-label">Quantity</label>
+                        <input name="quantities" type="number" step="1" min="1" class="form-control form-control-sm" />
+                    </div>
+                    <div class="col-md-2">
+                        <label class="form-label">Days</label>
+                        <input name="durationDays" type="number" step="1" min="1" class="form-control form-control-sm" />
+                    </div>
+                    <div class="col-md-1 d-flex align-items-end">
+                        <button type="button" class="btn btn-sm btn-icon btn-light-danger remove-rx-item" title="Remove"><i class="bi bi-x-lg"></i></button>
+                    </div>
+                </div>
+            </div>
+
+            <button type="button" class="btn btn-light-primary btn-sm mt-3" id="add-rx-item">
+                <i class="bi bi-plus-lg me-1"></i> Add Medicine
+            </button>
+
+            <div class="border-top d-flex flex-stack flex-wrap mt-8 pt-6">
+                <a href="/Prescriptions" class="btn btn-light">Cancel</a>
+                <button type="submit" class="btn btn-primary">Save Prescription</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+@section Scripts {
+    <script>
+        $(function () {
+            $('#add-rx-item').click(function () {
+                var clone = $('.rx-item').first().clone();
+                clone.find('input,select').val('');
+                clone.find('.remove-rx-item').show();
+                $('#rx-items').append(clone);
+            });
+            $(document).on('click', '.remove-rx-item', function () {
+                if ($('.rx-item').length > 1) {
+                    $(this).closest('.rx-item').remove();
+                }
+            });
+        });
+    </script>
+}

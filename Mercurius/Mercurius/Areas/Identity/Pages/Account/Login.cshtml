@@ -1,0 +1,57 @@
+﻿@page
+@model LoginModel
+
+@{
+    ViewData["Title"] = "Log in";
+    Layout = "/Views/Shared/_LayoutAnonymous.cshtml";
+
+}
+
+
+<form id="account" method="post" class="form w-100">
+	<!--begin::Heading-->
+	
+	<!--end::Login options-->
+
+	<div class="fv-row mb-8">
+		<div asp-validation-summary="ModelOnly" class="text-danger" role="alert"></div>
+	</div>
+	<!--begin::Input group=-->
+	<div class="fv-row mb-3">
+		<!--begin::Email-->
+		<input asp-for="Input.Email" class="form-control bg-transparent" autocomplete="username" aria-required="true" placeholder="Email" />
+		<span asp-validation-for="Input.Email" class="text-danger"></span>
+		<!--end::Email-->
+	</div>
+	<!--end::Input group=-->
+	<div class="fv-row mb-3">
+		<!--begin::Password-->
+		<input asp-for="Input.Password" class="form-control bg-transparent" autocomplete="current-password" aria-required="true" placeholder="Password" />
+		<span asp-validation-for="Input.Password" class="text-danger"></span>
+		<!--end::Password-->
+	</div>
+	<!--end::Input group=-->
+	
+	<!--begin::Submit button-->
+	<div class="d-grid mb-10">
+		<button type="submit" id="kt_sign_in_submit" class="btn btn-primary">
+			<!--begin::Indicator label-->
+			<span class="indicator-label">Sign In</span>
+			<!--end::Indicator label-->
+			<!--begin::Indicator progress-->
+			<span class="indicator-progress">
+				Please wait...
+				<span class="spinner-border spinner-border-sm align-middle ms-2"></span>
+			</span>
+			<!--end::Indicator progress-->
+		</button>
+	</div>
+	<!--end::Submit button-->
+	<!--begin::Sign up-->
+	@* <div class="text-gray-500 text-center fw-semibold fs-6">
+		
+		<a href="/identity/account/register" class="link-primary">Sign up</a>
+	</div> *@
+	<!--end::Sign up-->
+</form>
+				

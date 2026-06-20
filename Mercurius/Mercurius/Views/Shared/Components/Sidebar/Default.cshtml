@@ -1,0 +1,390 @@
+@model Mercurius.ViewComponents.SidebarViewModel
+
+<div id="kt_app_sidebar" class="app-sidebar flex-column"
+     data-kt-drawer="true"
+     data-kt-drawer-name="app-sidebar"
+     data-kt-drawer-activate="{default: true, lg: false}"
+     data-kt-drawer-overlay="true"
+     data-kt-drawer-width="225px"
+     data-kt-drawer-direction="start"
+     data-kt-drawer-toggle="#kt_app_sidebar_mobile_toggle">
+
+    <div class="app-sidebar-logo px-6" id="kt_app_sidebar_logo">
+        <a href="/">
+            <img alt="Logo" src="/assets/media/logos/default-dark.svg" class="h-40px app-sidebar-logo-default" />
+            <img alt="Logo" src="/assets/media/logos/default-small.svg" class="h-40px app-sidebar-logo-minimize" />
+        </a>
+        <div id="kt_app_sidebar_toggle" class="app-sidebar-toggle btn btn-icon btn-shadow btn-sm btn-color-muted btn-active-color-primary body-bg h-30px w-30px position-absolute top-50 start-100 translate-middle rotate" data-kt-toggle="true" data-kt-toggle-state="active" data-kt-toggle-target="body" data-kt-toggle-name="app-sidebar-minimize">
+            <span class="svg-icon svg-icon-2 rotate-180">
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                    <path opacity="0.5" d="M14.2657 11.4343L18.45 7.25C18.8642 6.83579 18.8642 6.16421 18.45 5.75C18.0358 5.33579 17.3642 5.33579 16.95 5.75L11.4071 11.2929C11.0166 11.6834 11.0166 12.3166 11.4071 12.7071L16.95 18.25C17.3642 18.6642 18.0358 18.6642 18.45 18.25C18.8642 17.8358 18.8642 17.1642 18.45 16.75L14.2657 12.5657C13.9533 12.2533 13.9533 11.7467 14.2657 11.4343Z" fill="currentColor" />
+                    <path d="M8.2657 11.4343L12.45 7.25C12.8642 6.83579 12.8642 6.16421 12.45 5.75C12.0358 5.33579 11.3642 5.33579 10.95 5.75L5.40712 11.2929C5.01659 11.6834 5.01659 12.3166 5.40712 12.7071L10.95 18.25C11.3642 18.6642 12.0358 18.6642 12.45 18.25C12.8642 17.8358 12.8642 17.1642 12.45 16.75L8.2657 12.5657C7.95328 12.2533 7.95328 11.7467 8.2657 11.4343Z" fill="currentColor" />
+                </svg>
+            </span>
+        </div>
+    </div>
+
+    <div class="app-sidebar-menu overflow-hidden flex-column-fluid">
+        <div id="kt_app_sidebar_menu_wrapper" class="app-sidebar-wrapper hover-scroll-overlay-y my-5" data-kt-scroll="true" data-kt-scroll-activate="true" data-kt-scroll-height="auto" data-kt-scroll-dependencies="#kt_app_sidebar_logo, #kt_app_sidebar_footer" data-kt-scroll-wrappers="#kt_app_sidebar_menu" data-kt-scroll-offset="5px" data-kt-scroll-save-state="true">
+            <div class="menu menu-column menu-rounded menu-sub-indention px-3" id="#kt_app_sidebar_menu" data-kt-menu="true" data-kt-menu-expand="false">
+
+                <div class="menu-item">
+                    <a class="menu-link" href="/">
+                        <span class="menu-icon">
+                            <span class="svg-icon svg-icon-2">
+                                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                                    <rect x="2" y="2" width="9" height="9" rx="2" fill="currentColor" />
+                                    <rect opacity="0.3" x="13" y="2" width="9" height="9" rx="2" fill="currentColor" />
+                                    <rect opacity="0.3" x="13" y="13" width="9" height="9" rx="2" fill="currentColor" />
+                                    <rect opacity="0.3" x="2" y="13" width="9" height="9" rx="2" fill="currentColor" />
+                                </svg>
+                            </span>
+                        </span>
+                        <span class="menu-title">Dashboard</span>
+                    </a>
+                </div>
+
+                @if (Model.CanViewProductList || Model.CanViewShipmentList)
+                {
+                    <div data-kt-menu-trigger="click" class="menu-item menu-accordion">
+                        <span class="menu-link">
+                            <span class="menu-icon">
+                                <span class="svg-icon svg-icon-2">
+                                    <svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="24px" height="24px" viewBox="0 0 24 24" version="1.1">
+                                        <g stroke="none" stroke-width="1" fill="none" fill-rule="evenodd">
+                                            <rect x="0" y="0" width="24" height="24" />
+                                            <path d="M4,9.67471899 L10.880262,13.6470401 C10.9543486,13.689814 11.0320333,13.7207107 11.1111111,13.740321 L11.1111111,21.4444444 L4.49070127,17.526473 C4.18655139,17.3464765 4,17.0193034 4,16.6658832 L4,9.67471899 Z M20,9.56911707 L20,16.6658832 C20,17.0193034 19.8134486,17.3464765 19.5092987,17.526473 L12.8888889,21.4444444 L12.8888889,13.6728275 C12.9050191,13.6647696 12.9210067,13.6561758 12.9368301,13.6470401 L20,9.56911707 Z" fill="currentColor" />
+                                            <path d="M4.21611835,7.74669402 C4.30015839,7.64056877 4.40623188,7.55087574 4.5299008,7.48500698 L11.5299008,3.75665466 C11.8237589,3.60013944 12.1762411,3.60013944 12.4700992,3.75665466 L19.4700992,7.48500698 C19.5654307,7.53578262 19.6503066,7.60071528 19.7226939,7.67641889 L12.0479413,12.1074394 C11.9974761,12.1365754 11.9509488,12.1699127 11.9085461,12.2067543 C11.8661433,12.1699127 11.819616,12.1365754 11.7691509,12.1074394 L4.21611835,7.74669402 Z" fill="currentColor" opacity="0.8" />
+                                        </g>
+                                    </svg>
+                                </span>
+                            </span>
+                            <span class="menu-title">Inventory</span>
+                            <span class="menu-arrow"></span>
+                        </span>
+                        <div class="menu-sub menu-sub-accordion">
+                            @if (Model.CanViewProductList)
+                            {
+                                <div class="menu-item">
+                                    <a class="menu-link" href="/Products">
+                                        <span class="menu-bullet">
+                                            <span class="bullet bullet-dot"></span>
+                                        </span>
+                                        <span class="menu-title">Items Manager</span>
+                                    </a>
+                                </div>
+                            }
+                            @if (Model.CanViewShipmentList)
+                            {
+                                <div class="menu-item">
+                                    <a class="menu-link" href="/Shipment">
+                                        <span class="menu-bullet">
+                                            <span class="bullet bullet-dot"></span>
+                                        </span>
+                                        <span class="menu-title">Shipment Received</span>
+                                    </a>
+                                </div>
+                            }
+                            @if (Model.CanCreateAdjustments || Model.CanViewAdjustmentList)
+                            {
+                                <div class="menu-item">
+                                    <a class="menu-link" href="/adjustments">
+                                        <span class="menu-bullet">
+                                            <span class="bullet bullet-dot"></span>
+                                        </span>
+                                        <span class="menu-title">Adjustments</span>
+                                    </a>
+                                </div>
+                            }
+                            @if (User.HasClaim(Mercurius.Common.Constants.MercuriusClaimTypes.AccessPages, Mercurius.Common.ModuleRegistry.Pages.PURCHASE_ORDERS_LIST))
+                            {
+                                <div class="menu-item">
+                                    <a class="menu-link" href="/PurchaseOrders">
+                                        <span class="menu-bullet"><span class="bullet bullet-dot"></span></span>
+                                        <span class="menu-title">Purchase Orders</span>
+                                    </a>
+                                </div>
+                            }
+                        </div></div>
+                }
+
+                @if (Model.CanViewInvoiceList || Model.CanCreateInvoice)
+                {
+                    <div data-kt-menu-trigger="click" class="menu-item menu-accordion">
+                        <span class="menu-link">
+                            <span class="menu-icon">
+                                <span class="svg-icon svg-icon-2">
+                                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                                        <path opacity="0.3" d="M20 15.5C20 16.8856 19.4117 18.1517 18.4383 19.0835C17.9 19.5835 17.15 20 16 20C14.85 20 14.1 19.5835 13.5617 19.0835C12.5883 18.1517 12 16.8856 12 15.5C12 14.1144 12.5883 12.8483 13.5617 11.9165C14.1 11.4165 14.85 11 16 11C17.15 11 17.9 11.4165 18.4383 11.9165C19.4117 12.8483 20 14.1144 20 15.5Z" fill="currentColor" />
+                                        <path d="M6 8C6 9.65685 7.34315 11 9 11C10.6569 11 12 9.65685 12 8C12 6.34315 10.6569 5 9 5C7.34315 5 6 6.34315 6 8Z" fill="currentColor" />
+                                        <path d="M6 16C6 17.6569 7.34315 19 9 19C10.6569 19 12 17.6569 12 16C12 14.3431 10.6569 13 9 13C7.34315 13 6 14.3431 6 16Z" fill="currentColor" />
+                                        <path d="M16 11C14.85 11 14.1 11.4165 13.5617 11.9165C12.5883 12.8483 12 14.1144 12 15.5C12 16.8856 12.5883 18.1517 13.5617 19.0835C14.1 19.5835 14.85 20 16 20C17.15 20 17.9 19.5835 18.4383 19.0835C19.4117 18.1517 20 16.8856 20 15.5C20 14.1144 19.4117 12.8483 18.4383 11.9165C17.9 11.4165 17.15 11 16 11Z" fill="currentColor" />
+                                    </svg>
+                                </span>
+                            </span>
+                            <span class="menu-title">Sales</span>
+                            <span class="menu-arrow"></span>
+                        </span>
+                        <div class="menu-sub menu-sub-accordion">
+                            @if (Model.CanViewInvoiceList)
+                            {
+                                <div class="menu-item">
+                                    <a class="menu-link" href="/Invoices">
+                                        <span class="menu-bullet">
+                                            <span class="bullet bullet-dot"></span>
+                                        </span>
+                                        <span class="menu-title">Invoices</span>
+                                    </a>
+                                </div>
+                            }
+                            @if (Model.CanCreateInvoice)
+                            {
+                                <div class="menu-item">
+                                    <a class="menu-link" href="/quickinvoice">
+                                        <span class="menu-bullet">
+                                            <span class="bullet bullet-dot"></span>
+                                        </span>
+                                        <span class="menu-title">Quick Invoice</span>
+                                    </a>
+                                </div>
+                            }
+                        </div>
+                    </div>
+                }
+
+                @if (Model.CanViewCustomerList || Model.CanAddCustomer)
+                {
+                    
+<div data-kt-menu-trigger="click" class="menu-item menu-accordion">
+                        <span class="menu-link">
+                            <span class="menu-icon">
+                                <span class="svg-icon svg-icon-2">
+                                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                                        <path d="M18 21C18 19.3431 16.6569 18 15 18H9C7.34315 18 6 19.3431 6 21V22H18V21Z" fill="currentColor" />
+                                        <path opacity="0.3" d="M9 14C6.23858 14 4 11.7614 4 9C4 6.23858 6.23858 4 9 4C11.7614 4 14 6.23858 14 9C14 11.7614 11.7614 14 9 14Z" fill="currentColor" />
+                                        <path opacity="0.3" d="M18 14C15.2386 14 13 11.7614 13 9C13 6.23858 15.2386 4 18 4C20.7614 4 23 6.23858 23 9C23 11.7614 20.7614 14 18 14Z" fill="currentColor" />
+                                    </svg>
+                                </span>
+                            </span>
+                            <span class="menu-title">Customers</span>
+                            <span class="menu-arrow"></span>
+                        </span>
+                        <div class="menu-sub menu-sub-accordion">
+                            @if (Model.CanViewCustomerList)
+                            {
+                                <div class="menu-item">
+                                    <a class="menu-link" href="/Customers">
+                                        <span class="menu-bullet">
+                                            <span class="bullet bullet-dot"></span>
+                                        </span>
+                                        <span class="menu-title">Customer List</span>
+                                    </a>
+                                </div>
+                            }
+                            @if (Model.CanAddCustomer)
+                            {
+                                <div class="menu-item">
+                                    <a class="menu-link" href="/Customers/Create">
+                                        <span class="menu-bullet">
+                                            <span class="bullet bullet-dot"></span>
+                                        </span>
+                                        <span class="menu-title">Add Customer</span>
+                                    </a>
+                                </div>
+                            }
+                        </div>
+                    </div>
+                }
+
+                @if (User.HasClaim(Mercurius.Common.Constants.MercuriusClaimTypes.AccessPages, Mercurius.Common.ModuleRegistry.Pages.INVENTORY_LIST))
+                {
+                    <div data-kt-menu-trigger="click" class="menu-item menu-accordion">
+                        <span class="menu-link">
+                            <span class="menu-icon">
+                                <span class="svg-icon svg-icon-2">
+                                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                                        <path d="M12 2L2 7L12 12L22 7L12 2Z" fill="currentColor"/>
+                                        <path d="M2 17L12 22L22 17" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                                        <path d="M2 12L12 17L22 12" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                                    </svg>
+                                </span>
+                            </span>
+                            <span class="menu-title">Shopify</span>
+                            <span class="menu-arrow"></span>
+                        </span>
+                        <div class="menu-sub menu-sub-accordion">
+                            <div class="menu-item">
+                                <a class="menu-link" href="/Shopify">
+                                    <span class="menu-bullet">
+                                        <span class="bullet bullet-dot"></span>
+                                    </span>
+                                    <span class="menu-title">Products</span>
+                                </a>
+                            </div>
+                        </div>
+                    </div>
+                }
+
+
+
+                @if (Model.CanViewReport)
+                {
+                    <div class="menu-item">
+                        <a class="menu-link" href="/Reports">
+                            <span class="menu-icon">
+                                <span class="svg-icon svg-icon-2">
+                                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                                        <path d="M13 11H21C21.5523 11 22 11.4477 22 12V20C22 20.5523 21.5523 21 21 21H13C12.4477 21 12 20.5523 12 20V12C12 11.4477 12.4477 11 13 11Z" fill="currentColor" />
+                                        <path opacity="0.3" d="M13 2H21C21.5523 2 22 2.44772 22 3V9C22 9.55228 21.5523 10 21 10H13C12.4477 10 12 9.55228 12 9V3C12 2.44772 12.4477 2 13 2Z" fill="currentColor" />
+                                        <path opacity="0.3" d="M3 13H11C11.5523 13 12 13.4477 12 14V20C12 20.5523 11.5523 21 11 21H3C2.44772 21 2 20.5523 2 20V14C2 13.4477 2.44772 13 3 13Z" fill="currentColor" />
+                                        <path d="M3 2H11C11.5523 2 12 2.44772 12 3V9C12 9.55228 11.5523 10 11 10H3C2.44772 10 2 9.55228 2 9V3C2 2.44772 2.44772 2 3 2Z" fill="currentColor" />
+                                    </svg>
+                                </span>
+                            </span>
+                            <span class="menu-title">Reports</span>
+                        </a>
+                    </div>
+                }
+
+                @if (Model.CanViewSettings || Model.CanViewUserList)
+                {
+                    <div data-kt-menu-trigger="click" class="menu-item menu-accordion">
+                        <span class="menu-link">
+                            <span class="menu-icon">
+                                <span class="svg-icon svg-icon-2">
+                                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                                        <path d="M19 11H5C3.89543 11 3 11.8954 3 13V20C3 21.1046 3.89543 22 5 22H19C20.1046 22 21 21.1046 21 20V13C21 11.8954 20.1046 11 19 11Z" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+                                        <path opacity="0.3" d="M7 11V7C7 5.93913 7.42143 4.92172 8.17157 4.17157C8.92172 3.42143 9.93913 3 11 3H13C14.0609 3 15.0783 3.42143 15.8284 4.17157C16.5786 4.92172 17 5.93913 17 7V11" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+                                    </svg>
+                                </span>
+                            </span>
+                            <span class="menu-title">Settings</span>
+                            <span class="menu-arrow"></span>
+                        </span>
+                        <div class="menu-sub menu-sub-accordion">
+                            @if (Model.CanViewSettings)
+                            {
+                                <div class="menu-item">
+                                    <a class="menu-link" href="/Settings">
+                                        <span class="menu-bullet">
+                                            <span class="bullet bullet-dot"></span>
+                                        </span>
+                                        <span class="menu-title">General Settings</span>
+                                    </a>
+                                </div>
+                            }
+                            @if (Model.CanViewProductCategories)
+                            {
+                                <div class="menu-item">
+                                    <a class="menu-link" href="/ProductCategories">
+                                        <span class="menu-bullet">
+                                            <span class="bullet bullet-dot"></span>
+                                        </span>
+                                        <span class="menu-title">Product Categories</span>
+                                    </a>
+                                </div>
+                            }
+                            @if (Model.CanViewLocations)
+                            {
+                                <div class="menu-item">
+                                    <a class="menu-link" href="/Locations">
+                                        <span class="menu-bullet">
+                                            <span class="bullet bullet-dot"></span>
+                                        </span>
+                                        <span class="menu-title">Locations</span>
+                                    </a>
+                                </div>
+                            }
+                            @if (Model.CanViewColors)
+                            {
+                                <div class="menu-item">
+                                    <a class="menu-link" href="/Colors">
+                                        <span class="menu-bullet">
+                                            <span class="bullet bullet-dot"></span>
+                                        </span>
+                                        <span class="menu-title">Colors</span>
+                                    </a>
+                                </div>
+                            }
+                            @if (Model.CanViewSizes)
+                            {
+                                <div class="menu-item">
+                                    <a class="menu-link" href="/Sizes">
+                                        <span class="menu-bullet">
+                                            <span class="bullet bullet-dot"></span>
+                                        </span>
+                                        <span class="menu-title">Sizes</span>
+                                    </a>
+                                </div>
+                            }
+                            @if (Model.CanViewSuppliers)
+                            {
+                                <div class="menu-item">
+                                    <a class="menu-link" href="/Suppliers">
+                                        <span class="menu-bullet">
+                                            <span class="bullet bullet-dot"></span>
+                                        </span>
+                                        <span class="menu-title">Suppliers</span>
+                                    </a>
+                                </div>
+                            }
+                            @if (Model.CanViewAdjustmentReasons)
+                            {
+                                <div class="menu-item">
+                                    <a class="menu-link" href="/AdjustmentReasons">
+                                        <span class="menu-bullet">
+                                            <span class="bullet bullet-dot"></span>
+                                        </span>
+                                        <span class="menu-title">Adjustment Reasons</span>
+                                    </a>
+                                </div>
+                            }
+                            @if (Model.CanViewUserList)
+                            {
+                                <div class="menu-item">
+                                    <a class="menu-link" href="/Users">
+                                        <span class="menu-bullet">
+                                            <span class="bullet bullet-dot"></span>
+                                        </span>
+                                        <span class="menu-title">Users</span>
+                                    </a>
+                                </div>
+                            }
+                            <div class="menu-item">
+                                <a class="menu-link" href="/Logs">
+                                    <span class="menu-bullet">
+                                        <span class="bullet bullet-dot"></span>
+                                    </span>
+                                    <span class="menu-title">System Logs</span>
+                                </a>
+                            
+                                                @if (User.HasClaim(Mercurius.Common.Constants.MercuriusClaimTypes.AccessPages, Mercurius.Common.ModuleRegistry.Pages.CONFIG_CATEGORY_FIELDS))
+                                                {
+                                                    <div class="menu-item">
+                                                        <a class="menu-link" href="/Config/CategoryFields">
+                                                            <span class="menu-bullet">
+                                                                <span class="bullet bullet-dot"></span>
+                                                            </span>
+                                                            <span class="menu-title">Category Fields</span>
+                                                        </a>
+                                                    </div>
+                                                }
+                                                @if (User.HasClaim(Mercurius.Common.Constants.MercuriusClaimTypes.AccessPages, Mercurius.Common.ModuleRegistry.Pages.CONFIG_SHOPIFY))
+                                                {
+                                                    <div class="menu-item">
+                                                        <a class="menu-link" href="/ShopifySettings">
+                                                            <span class="menu-bullet">
+                                                                <span class="bullet bullet-dot"></span>
+                                                            </span>
+                                                            <span class="menu-title">Shopify Integration</span>
+                                                        </a>
+                                                    </div>
+                                                }</div>
+                        </div>
+                    </div>
+                }
+
+            </div>
+        </div>
+    </div>
+</div>

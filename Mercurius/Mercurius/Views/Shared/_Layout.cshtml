@@ -1,0 +1,288 @@
+<!DOCTYPE html>
+<html lang="en">
+<!--begin::Head-->
+<head>
+    <title>@ViewData["Title"] - Mercurius</title>
+    <meta charset="utf-8" />
+    <meta name="description" content="" />
+    <meta name="keywords" content="" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta property="og:locale" content="en_US" />
+    <meta property="og:type" content="article" />
+    <meta property="og:title" content="" />
+    <link rel="shortcut icon" href="/assets/media/logos/favicon.ico" />
+    <!--begin::Fonts(mandatory for all pages)-->
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Inter:300,400,500,600,700" crossorigin="anonymous" integrity="sha384-R+0DWQwhDNupU5Od9YMSPrmYHq50hcVUZInXx/QaOJvnafo3THj6UCfnVsypOD3l" />
+    <!--end::Fonts-->
+    <!--begin::Vendor Stylesheets(used for this page only)-->
+    <link href="/assets/plugins/custom/fullcalendar/fullcalendar.bundle.css" rel="stylesheet" type="text/css" />
+    <link href="/assets/plugins/custom/datatables/datatables.bundle.css" rel="stylesheet" type="text/css" />
+    <!--end::Vendor Stylesheets-->
+    <!--begin::Global Stylesheets Bundle(mandatory for all pages)-->
+    <link href="/assets/plugins/global/plugins.bundle.css" rel="stylesheet" type="text/css" />
+    <link href="/assets/css/style.bundle.css" rel="stylesheet" type="text/css" />
+    <!--end::Global Stylesheets Bundle-->
+    <link href="https://cdn.jsdelivr.net/npm/gridstack@7.2.3/dist/gridstack.min.css" rel="stylesheet" crossorigin="anonymous" integrity="sha384-pKZUIxuzCWeLivA/ZCgPl4avv99+w9fleRYph3U9cCHz8iMDI6CgpsRgtlXPvnff" />
+    <link href="/assets/css/gridstack-overrides.css" rel="stylesheet" />
+
+    </head>
+<!--end::Head-->
+<!--begin::Body-->
+<body id="kt_app_body" data-kt-app-layout="dark-sidebar" data-kt-app-header-fixed="true" data-kt-app-sidebar-enabled="true" data-kt-app-sidebar-fixed="true" data-kt-app-sidebar-hoverable="true" data-kt-app-sidebar-push-header="true" data-kt-app-sidebar-push-toolbar="true" data-kt-app-sidebar-push-footer="true" data-kt-app-toolbar-enabled="true" class="app-default">
+    
+    <script src="/assets/js/theme-init.js"></script>
+
+    <div class="d-flex flex-column flex-root app-root" id="kt_app_root">
+        <div class="app-page flex-column flex-column-fluid" id="kt_app_page">
+            @await Component.InvokeAsync("Header")
+            <div class="app-wrapper flex-column flex-row-fluid" id="kt_app_wrapper">
+                @await Component.InvokeAsync("Sidebar")
+                <div class="app-main flex-column flex-row-fluid" id="kt_app_main">
+                    <div class="d-flex flex-column flex-column-fluid">
+                        
+                        <div id="kt_app_content" class="app-content flex-column-fluid">    
+                            <div id="kt_app_content_container" class="app-container container-xxl">    
+                                
+                                    @RenderBody()
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Scrolltop -->
+    <div id="kt_scrolltop" class="scrolltop" data-kt-scrolltop="true">
+        <span class="svg-icon">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <rect opacity="0.5" x="13" y="6" width="13" height="2" rx="1" transform="rotate(90 13 6)" fill="currentColor" />
+                <path d="M12.5657 8.56569L16.75 12.75C17.1642 13.1642 17.8358 13.1642 18.25 12.75C18.6642 12.3358 18.6642 11.6642 18.25 11.25L12.7071 5.70711C12.3166 5.31658 11.6834 5.31658 11.2929 5.70711L5.75 11.25C5.33579 11.6642 5.33579 12.3358 5.75 12.75C6.16421 13.1642 6.83579 13.1642 7.25 12.75L11.4343 8.56569C11.7467 8.25327 12.2533 8.25327 12.5657 8.56569Z" fill="currentColor" />
+            </svg>
+        </span>
+    </div>
+
+    <!--begin::Javascript-->
+    <script>var hostUrl = "/assets/";</script>
+    <!--begin::Global Javascript Bundle(mandatory for all pages)-->
+    <script src="/assets/plugins/global/plugins.bundle.js"></script>
+    <script src="/assets/js/scripts.bundle.js"></script>
+    <!--end::Global Javascript Bundle-->
+    <!--begin::Vendors Javascript(used for this page only)-->
+    <script src="/assets/plugins/custom/fullcalendar/fullcalendar.bundle.js"></script>
+    <script src="https://cdn.amcharts.com/lib/5/index.js"></script>
+    <script src="https://cdn.amcharts.com/lib/5/xy.js"></script>
+    <script src="https://cdn.amcharts.com/lib/5/percent.js"></script>
+    <script src="https://cdn.amcharts.com/lib/5/radar.js"></script>
+    <script src="https://cdn.amcharts.com/lib/5/themes/Animated.js"></script>
+    <script src="https://cdn.amcharts.com/lib/5/map.js"></script>
+    <script src="https://cdn.amcharts.com/lib/5/geodata/worldLow.js"></script>
+    <script src="https://cdn.amcharts.com/lib/5/geodata/continentsLow.js"></script>
+    <script src="https://cdn.amcharts.com/lib/5/geodata/usaLow.js"></script>
+    <script src="https://cdn.amcharts.com/lib/5/geodata/worldTimeZonesLow.js"></script>
+    <script src="https://cdn.amcharts.com/lib/5/geodata/worldTimeZoneAreasLow.js"></script>
+    <script src="/assets/plugins/custom/datatables/datatables.bundle.js"></script>
+    <!--end::Vendors Javascript-->
+    <!--begin::Custom Javascript(used for this page only)-->
+    <script src="/assets/js/widgets.bundle.js"></script>
+    <script src="/assets/js/custom/widgets.js"></script>
+    <script src="/assets/js/custom/apps/chat/chat.js"></script>
+    <script src="/assets/js/custom/utilities/modals/upgrade-plan.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/gridstack@7.2.3/dist/gridstack-all.js"></script>
+    @await RenderSectionAsync("Scripts", required: false)
+    @{
+        // Flash messages — populated via either TempData (survives one redirect) or
+        // ViewData (same-view re-render after validation failure). The companion
+        // *Type keys carry "success" | "error" | "warning" | "info" — falls back to "info".
+        // For backward compatibility we also pick up the older TempData["Message"] /
+        // TempData["ProductCreated"] keys that several controllers set.
+        var flashMessage = TempData["FlashMessage"] as string
+                           ?? (ViewData["FlashMessage"] as string)
+                           ?? (TempData["Message"] as string)
+                           ?? (TempData["ProductCreated"] is string pc ? $"Product '{pc}' saved." : null);
+        var flashType = (TempData["FlashType"] as string)
+                        ?? (ViewData["FlashType"] as string)
+                        ?? (flashMessage != null && TempData["ProductCreated"] != null ? "success" : null)
+                        ?? "info";
+    }
+    <script>
+        $(function () {
+            // Toastr defaults — applied once per page load.
+            if (typeof toastr !== 'undefined') {
+                toastr.options = $.extend({}, toastr.options, {
+                    closeButton: true,
+                    progressBar: true,
+                    positionClass: 'toastr-top-right',  // Metronic's bundled toastr uses 'toastr-*' class prefix, not vanilla 'toast-*'
+                    timeOut: 5000,
+                    extendedTimeOut: 2000,
+                    newestOnTop: true,
+                    preventDuplicates: true,
+                    escapeHtml: true   // we render server-supplied strings; never trust them as HTML
+                });
+            }
+
+            // Helper any view can call: showFlash('Saved.', 'success')
+            window.showFlash = function (message, type) {
+                if (typeof toastr === 'undefined' || !message) return;
+                var fn = toastr[type] || toastr.info;
+                fn.call(toastr, message);
+            };
+
+        @if (!string.IsNullOrWhiteSpace(flashMessage))
+        {
+            <text>
+            window.showFlash(@Html.Raw(System.Text.Json.JsonSerializer.Serialize(flashMessage)),
+                             @Html.Raw(System.Text.Json.JsonSerializer.Serialize(flashType)));
+            </text>
+        }
+
+            // Legacy ?message=... query-string handler — kept so existing links keep working.
+            var querystringMessage = (new URL(location.href)).searchParams.get('message');
+            if (querystringMessage !== null) {
+                window.showFlash(querystringMessage, 'info');
+                var uri = window.location.toString();
+                if (uri.indexOf("?") > 0) {
+                    var clean_uri = uri.substring(0, uri.indexOf("?"));
+                    window.history.replaceState({}, document.title, clean_uri);
+                }
+            }
+
+            // Pending flash from an AJAX-form redirect — see js-ajax-form handler below.
+            try {
+                var pending = sessionStorage.getItem('mercurius_pending_flash');
+                if (pending) {
+                    sessionStorage.removeItem('mercurius_pending_flash');
+                    var parsed = JSON.parse(pending);
+                    window.showFlash(parsed.message, parsed.type || 'info');
+                }
+            } catch (e) { /* ignore malformed flash */ }
+
+            // ------------------------------------------------------------------
+            // AJAX form submission. Opt-in: add class="js-ajax-form" to a <form>.
+            // The server-side counterpart returns JSON like
+            //   { ok: true,  redirect: "/Products", message: "Saved." }
+            //   { ok: false, errors: ["PartCode is required", ...] }
+            // when the request advertises Accept: application/json.
+            // ------------------------------------------------------------------
+            $(document).on('submit', 'form.js-ajax-form', function (e) {
+                e.preventDefault();
+                var $form = $(this);
+                if ($form.data('mercurius-submitting')) return false;
+                $form.data('mercurius-submitting', true);
+
+                // Disable submit buttons to prevent double-submits & show spinner if Metronic-styled.
+                var $buttons = $form.find('button[type="submit"], input[type="submit"]').prop('disabled', true);
+                $buttons.filter('[data-kt-indicator]').attr('data-kt-indicator', 'on');
+
+                var formData = new FormData(this);
+
+                fetch($form.attr('action') || window.location.pathname, {
+                    method: ($form.attr('method') || 'POST').toUpperCase(),
+                    body: formData,
+                    credentials: 'same-origin',
+                    headers: {
+                        // Tell the server we want JSON back. Don't set Content-Type —
+                        // the browser sets multipart/form-data with the right boundary.
+                        'Accept': 'application/json',
+                        'X-Requested-With': 'XMLHttpRequest'
+                    }
+                }).then(function (resp) {
+                    var ct = resp.headers.get('content-type') || '';
+                    // If the server somehow returned HTML (auth redirect, unhandled exception
+                    // page, non-AJAX endpoint), fall back to a full submit.
+                    if (!ct.includes('application/json')) {
+                        if (resp.redirected) {
+                            window.location.href = resp.url;
+                            return null;
+                        }
+                        return resp.text().then(function () {
+                            window.showFlash('Unexpected server response. Please try again.', 'error');
+                            return null;
+                        });
+                    }
+                    return resp.json();
+                }).then(function (data) {
+                    if (!data) return;
+                    if (data.ok) {
+                        if (data.message && data.redirect) {
+                            // Stash so the destination page can show the toast after navigation.
+                            try {
+                                sessionStorage.setItem('mercurius_pending_flash',
+                                    JSON.stringify({ message: data.message, type: 'success' }));
+                            } catch (e) { /* ignore quota */ }
+                        } else if (data.message) {
+                            window.showFlash(data.message, 'success');
+                        }
+                        if (data.redirect) {
+                            window.location.href = data.redirect;
+                        } else {
+                            // No redirect — re-enable form for further edits.
+                            $buttons.prop('disabled', false);
+                            $buttons.filter('[data-kt-indicator]').removeAttr('data-kt-indicator');
+                        }
+                    } else {
+                        var errs = (data.errors && data.errors.length)
+                            ? data.errors.join(' • ')
+                            : (data.message || 'Save failed.');
+                        window.showFlash(errs, 'error');
+                        $buttons.prop('disabled', false);
+                        $buttons.filter('[data-kt-indicator]').removeAttr('data-kt-indicator');
+                    }
+                }).catch(function (err) {
+                    window.showFlash('Network error: ' + (err && err.message ? err.message : 'request failed.'), 'error');
+                    $buttons.prop('disabled', false);
+                    $buttons.filter('[data-kt-indicator]').removeAttr('data-kt-indicator');
+                }).finally(function () {
+                    $form.data('mercurius-submitting', false);
+                });
+
+                return false;
+            });
+        });
+
+        function registerDataTable(selector) {
+            //check if initialized already
+            var isInitialized = $.fn.DataTable.isDataTable(selector);
+            if (!isInitialized){
+                $(selector).DataTable({
+                    initComplete: function () {
+                        this.api()
+                            .columns()
+                            .every(function () {
+                                var column = this;
+                                var select = $('<select><option value=""></option></select>')
+                                    .appendTo($(column.header()).empty())
+                                    .on('change', function () {
+                                        var val = $.fn.dataTable.util.escapeRegex($(this).val());
+                                        column.search(val ? '^' + val + '$' : '', true, false).draw();
+                                    });
+                            });
+                    }
+                });
+            }
+        }
+    </script>
+
+    <!-- UTC to Local Time Converter — processes <time class="local-time" datetime="2026-05-19T10:30:00Z"> -->
+    <script>
+        (function () {
+            function formatLocal(d) {
+                return d.getFullYear() + '-' +
+                    String(d.getMonth() + 1).padStart(2, '0') + '-' +
+                    String(d.getDate()).padStart(2, '0') + ' ' +
+                    String(d.getHours()).padStart(2, '0') + ':' +
+                    String(d.getMinutes()).padStart(2, '0');
+            }
+            document.querySelectorAll('time.local-time').forEach(function (el) {
+                var iso = el.getAttribute('datetime') || el.textContent.trim();
+                var d = new Date(iso);
+                if (!isNaN(d.getTime())) {
+                    el.textContent = formatLocal(d);
+                    el.setAttribute('title', 'UTC: ' + iso);
+                }
+            });
+        })();
+    </script>
+</body>
+<!--end::Body-->
+</html>

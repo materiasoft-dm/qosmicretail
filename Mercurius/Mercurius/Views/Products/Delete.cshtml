@@ -1,0 +1,74 @@
+﻿@model Mercurius.Repo.Models.Product
+
+@{
+    ViewData["Title"] = "Delete";
+    Layout = "~/Views/Shared/_Layout.cshtml";
+}
+
+<!-- PAGE TITLE -->
+<div id="kt_app_toolbar" class="app-toolbar py-3 py-lg-6">
+    <div id="kt_app_toolbar_container" class="app-container container-xxl d-flex flex-stack">   
+        <div class="page-title d-flex flex-column justify-content-center flex-wrap me-3">
+            <h1 class="page-heading d-flex text-dark fw-bold fs-3 flex-column justify-content-center my-0">Delete Item</h1>
+        </div>
+    </div>
+</div>
+
+
+<div class="card">
+    <div class="card-body p-10">
+
+        <div class="row g-5 row-cols-1 row-cols-sm-2 row-cols-md-4">
+
+            <div class="col">
+                <label class="form-label">SKU</label>
+                <div>@Model.PartCode</div>
+            </div>
+            <div class="col">
+                <label class="form-label">Description</label>
+                <div>@Model.Description</div>
+            </div>
+            <div class="col">
+                <label class="form-label">Date Created</label>
+                <div>@Model.CreateDate</div>
+            </div>
+            <div class="col">
+                <label class="form-label">Date Updated</label>
+                <div>@Model.UpdatedDate</div>
+            </div>
+            <div class="col">
+                <label class="form-label">Is Active</label>
+                <div>@Model.IsActive</div>
+            </div>
+            <div class="col">
+                <label class="form-label">Remarks</label>
+                <div>@Model.Note</div>
+            </div>
+            <div class="col">
+                <label class="form-label">Custom Warnings</label>
+                <div>@Model.CustomWarning</div>
+            </div>
+            <div class="col">
+                <label class="form-label">Category</label>
+                <div>@Model.ProductCategory?.Name</div>
+            </div>
+        
+        </div>
+        <div class="border-top d-flex flex-stack flex-wrap mt-lg-10 pt-5">
+            <div class="my-1 me-5">
+                <a  class="btn btn-light" asp-action="Index">Back to List</a>  
+            </div>
+            <div class="d-flex align-items-center gap-2 gap-lg-3">
+                <form asp-action="Delete">
+                    <input type="hidden" asp-for="Id" />
+                    <input type="submit" value="Delete" class="btn btn-danger" />
+                </form>
+            </div>
+        </div>
+    </div>
+
+</div>
+
+
+        
+

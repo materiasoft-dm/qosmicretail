@@ -1,0 +1,143 @@
+﻿@model Mercurius.Repo.Models.Product
+
+@{
+    ViewData["Title"] = "Details";
+    Layout = "~/Views/Shared/_Layout.cshtml";
+}
+
+<!-- PAGE TITLE -->
+<div id="kt_app_toolbar" class="app-toolbar py-3 py-lg-6">
+    <div id="kt_app_toolbar_container" class="app-container container-xxl d-flex flex-stack">   
+        <div class="page-title d-flex flex-column justify-content-center flex-wrap me-3">
+            <h1 class="page-heading d-flex text-dark fw-bold fs-3 flex-column justify-content-center my-0">Item Details</h1>
+        </div>
+    </div>
+</div>
+
+
+<div class="card">
+    <div class="card-body p-10">
+
+        <div class="row g-8">
+
+            <div class="col-sm-6 col-xs-12">
+                <label class="form-label">Item Photo</label>
+                <div>
+                    <img id="details-main-image" src="/productimages/@Model.ImageFilename" class="img-thumbnail img-150" alt="@Model.Name" />
+                </div>
+                @if (Model.ProductImages != null && Model.ProductImages.Any())
+                {
+                    <label class="form-label mt-4">Additional Photos</label>
+                    <div class="d-flex flex-wrap gap-2">
+                        @foreach (var img in Model.ProductImages.OrderBy(i => i.Position))
+                        {
+                            <img src="/productimages/@img.Filename" class="img-thumbnail js-details-thumb" style="width:75px;height:75px;object-fit:cover;cursor:pointer;" alt="@img.Alt" />
+                        }
+                    </div>
+                }
+            </div>
+
+            <div class="col-sm-6 col-xs-12">
+                <label class="form-label">QR Code</label>
+                <!-- Print QR -->
+                
+                <div id="product-qr" class="product-qr-room">
+                    <svg xmlns="http://www.w3.org/2000/svg" version="1.1" viewBox="0 0 29 29" stroke="none">
+                        <rect width="100%" height="100%" fill="#ffffff"></rect>
+                        <path d="M4,4h7v1h-7z M12,4h2v1h-2z M18,4h7v1h-7z M4,5h1v6h-1z M10,5h1v6h-1z M13,5h2v1h-2z M16,5h1v1h-1z M18,5h1v6h-1z M24,5h1v6h-1z M6,6h3v3h-3z M14,6h2v1h-2z M20,6h3v3h-3z M16,7h1v1h-1z M12,8h1v3h-1z M14,8h1v1h-1z M13,9h1v1h-1z M15,9h2v1h-2z M5,10h5v1h-5z M14,10h1v1h-1z M16,10h1v1h-1z M19,10h5v1h-5z M13,11h1v2h-1z M15,11h1v1h-1z M5,12h7v1h-7z M14,12h1v2h-1z M16,12h1v2h-1z M19,12h2v2h-2z M24,12h1v2h-1z M4,13h1v1h-1z M8,13h1v2h-1z M11,13h2v1h-2z M18,13h1v1h-1z M22,13h2v1h-2z M6,14h2v2h-2z M9,14h2v1h-2z M13,14h1v1h-1z M17,14h1v2h-1z M23,14h1v1h-1z M4,15h2v1h-2z M12,15h1v9h-1z M19,15h1v1h-1z M21,15h2v1h-2z M5,16h1v1h-1z M7,16h5v1h-5z M14,16h2v1h-2z M18,16h1v1h-1z M13,17h1v1h-1z M16,17h1v8h-1z M17,17h1v1h-1z M20,17h2v1h-2z M23,17h1v3h-1z M24,17h1v1h-1z M4,18h7v1h-7z M14,18h2v1h-2z M21,18h1v2h-1z M4,19h1v6h-1z M10,19h1v6h-1z M17,19h1v4h-1z M20,19h1v1h-1z M22,19h1v1h-1z M24,19h1v2h-1z M6,20h3v3h-3z M13,20h1v2h-1z M19,20h1v2h-1z M18,21h1v2h-1z M20,21h3v1h-3z M22,22h1v2h-1z M13,23h3v1h-3z M21,23h1v2h-1z M5,24h5v1h-5z M17,24h2v1h-2z M23,24h1v1h-1z" fill="#000000"></path>
+                    </svg>
+                    <button type="button" class="btn btn-success" onclick="printQR('product-qr')">
+                        <span class="svg-icon svg-icon-primary svg-icon-2x">
+                            <svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="24px" height="24px" viewBox="0 0 24 24" version="1.1">
+                                <g stroke="none" stroke-width="1" fill="none" fill-rule="evenodd">
+                                    <rect x="0" y="0" width="24" height="24" />
+                                    <path d="M16,17 L16,21 C16,21.5522847 15.5522847,22 15,22 L9,22 C8.44771525,22 8,21.5522847 8,21 L8,17 L5,17 C3.8954305,17 3,16.1045695 3,15 L3,8 C3,6.8954305 3.8954305,6 5,6 L19,6 C20.1045695,6 21,6.8954305 21,8 L21,15 C21,16.1045695 20.1045695,17 19,17 L16,17 Z M17.5,11 C18.3284271,11 19,10.3284271 19,9.5 C19,8.67157288 18.3284271,8 17.5,8 C16.6715729,8 16,8.67157288 16,9.5 C16,10.3284271 16.6715729,11 17.5,11 Z M10,14 L10,20 L14,20 L14,14 L10,14 Z" fill="currentColor" />
+                                    <rect fill="currentColor" opacity="0.3" x="8" y="2" width="8" height="2" rx="1" />
+                                </g>
+                            </svg>
+                        </span>
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <div class="separator separator-dashed border-secondary my-8"></div>
+
+        <div class="row g-5 row-cols-1 row-cols-sm-2 row-cols-md-3">
+            <div class="col">
+                <label class="form-label">@Html.DisplayNameFor(model => model.PartCode)</label>
+                <div>@Html.DisplayFor(model => model.PartCode)</div>
+            </div>
+            <div class="col">
+                <label class="form-label">@Html.DisplayNameFor(model => model.Description)</label>
+                <div>@Html.DisplayFor(model => model.Description)</div>
+            </div>
+            <div class="col">
+                <label class="form-label">@Html.DisplayNameFor(model => model.CurrentStock)</label>
+                @* CurrentStock is now decimal (R11). `0.##` shows whole numbers without trailing zeros. *@
+                <div>@Model.CurrentStock.ToString("0.##")</div>
+            </div>
+            <div class="col">
+                <label class="form-label">@Html.DisplayNameFor(model => model.CreateDate)</label>
+                <div>@Html.DisplayFor(model => model.CreateDate)</div>
+            </div>
+            <div class="col">
+                <label class="form-label">@Html.DisplayNameFor(model => model.CreatedBy)</label>
+                <div>@Html.DisplayFor(model => model.CreatedBy)</div>
+            </div>
+            <div class="col">
+                <label class="form-label">@Html.DisplayNameFor(model => model.UpdatedDate)</label>
+                <div>@Html.DisplayFor(model => model.UpdatedDate)</div>
+            </div>
+            <div class="col">
+                <label class="form-label">@Html.DisplayNameFor(model => model.UpdatedBy)</label>
+                <div>@Html.DisplayFor(model => model.UpdatedBy)</div>
+            </div>
+            <div class="col">
+                <label class="form-label">@Html.DisplayNameFor(model => model.IsActive)</label>
+                <div>@Html.DisplayFor(model => model.IsActive)</div>
+            </div>
+            <div class="col">
+                <label class="form-label">@Html.DisplayNameFor(model => model.Note)</label>
+                <div>@Html.DisplayFor(model => model.Note)</div>
+            </div>
+            <div class="col">
+                <label class="form-label">@Html.DisplayNameFor(model => model.CustomWarning)</label>
+                <div>@Html.DisplayFor(model => model.CustomWarning)</div>
+            </div>
+            <div class="col">
+                <label class="form-label">@Html.DisplayNameFor(model => model.ProductCategory)</label>
+                <div>@Html.DisplayFor(model => model.ProductCategory.Name)</div>
+            </div>
+        </div>
+
+            <div class="border-top d-flex flex-stack flex-wrap mt-lg-10 pt-13">
+                <div class="my-1 me-5">
+                    <a asp-action="Index" class="btn btn-secondary">Back to List</a>
+                </div>
+
+                <div class="d-flex align-items-center gap-2 gap-lg-3">
+                    <a asp-action="Edit" asp-route-id="@Model?.Id" class="btn btn-primary">Edit</a>
+                </div>
+            </div>
+
+        </div>
+
+    </div>
+</div>
+
+@section Scripts {
+    <script>
+        // Click thumbnail to swap into main image
+        (function () {
+            var main = document.getElementById('details-main-image');
+            var thumbs = document.querySelectorAll('.js-details-thumb');
+            thumbs.forEach(function (t) {
+                t.addEventListener('click', function () {
+                    if (main && t.src) main.src = t.src;
+                });
+            });
+        })();
+    </script>
+}
+

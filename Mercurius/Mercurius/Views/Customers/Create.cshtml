@@ -1,0 +1,32 @@
+@model Mercurius.Repo.Models.Customer
+@{
+    ViewData["Title"] = "Add Customer / Patient";
+}
+
+<div id="kt_app_toolbar" class="app-toolbar py-3 py-lg-6">
+    <div class="app-container container-xxl"><div class="page-title"><h1 class="page-heading d-flex text-dark fw-bold fs-3 my-0">Add Customer / Patient</h1></div></div>
+</div>
+
+<div class="card">
+    <div class="card-header border-0 pt-6"><div class="card-title"><h2>Personal Information</h2></div></div>
+    <div class="card-body">
+        <form asp-action="Create" method="post">
+            @Html.AntiForgeryToken()
+            <div class="row g-5">
+                <div class="col-md-4"><label asp-for="FirstName" class="form-label required">First Name</label><input asp-for="FirstName" class="form-control form-control-sm" required /></div>
+                <div class="col-md-4"><label asp-for="MiddleName" class="form-label">Middle Name</label><input asp-for="MiddleName" class="form-control form-control-sm" /></div>
+                <div class="col-md-4"><label asp-for="LastName" class="form-label required">Last Name</label><input asp-for="LastName" class="form-control form-control-sm" required /></div>
+                <div class="col-md-3"><label asp-for="Age" class="form-label">Age</label><input asp-for="Age" type="number" min="0" max="150" class="form-control form-control-sm" /></div>
+                <div class="col-md-3"><label asp-for="Gender" class="form-label">Gender</label><select asp-for="Gender" class="form-select form-select-sm"><option value="">-- Select --</option><option>Male</option><option>Female</option></select></div>
+                <div class="col-md-3"><label asp-for="BloodType" class="form-label">Blood Type</label><select asp-for="BloodType" class="form-select form-select-sm"><option value="">-- Select --</option><option>A+</option><option>A-</option><option>B+</option><option>B-</option><option>AB+</option><option>AB-</option><option>O+</option><option>O-</option></select></div>
+                <div class="col-md-3"><label asp-for="ContactNumber" class="form-label">Contact No.</label><input asp-for="ContactNumber" class="form-control form-control-sm" /></div>
+                <div class="col-md-6"><label asp-for="EmailAddress" class="form-label">Email</label><input asp-for="EmailAddress" class="form-control form-control-sm" type="email" /></div>
+                <div class="col-md-6"><label asp-for="Tinnumber" class="form-label">TIN / ID Number</label><input asp-for="Tinnumber" class="form-control form-control-sm" /></div>
+            </div>
+            <div class="border-top d-flex flex-stack flex-wrap mt-8 pt-6">
+                <a href="/Customers" class="btn btn-light">Cancel</a>
+                <button type="submit" class="btn btn-primary">Save</button>
+            </div>
+        </form>
+    </div>
+</div>

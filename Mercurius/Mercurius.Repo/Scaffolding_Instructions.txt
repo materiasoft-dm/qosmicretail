@@ -1,0 +1,14 @@
+﻿Scaffold-DbContext "Data Source=SQL6030.site4now.net;Initial Catalog=db_a99603_qosmiclab;User Id=db_a99603_qosmiclab_admin;Password=Mercurius123!;Trust Server Certificate=true" Microsoft.EntityFrameworkCore.SqlServer -OutputDir Models -ContextDir DbContexts -Context MercuriusContext -DataAnnotations -Force -tables "Products","ProductCategories","Customers","Vehicles","Transactions","TransactionItems","ShipmentArrivals","Branches","Addresses","ContactInformations","BranchContactInformation","Invoices","CustomerContactInformation","Sizes","Colors","Files","RoleModuleAccess","AspNetRoles","AspNetUserRoles","Locations","ShipmentArrivalStatus","ShipmentArrivalItems","Suppliers","InvoiceItems","InvoiceStatus","UserCurrentLocations","Adjustments","AdjustmentReasons","Provinces","LocationSetting","TransactionIdGenerators","ItemMovements","InvoiceItemRefunds","InvoiceRefunds"
+
+
+
+Scaffold-DbContext "Data Source=SQL6030.site4now.net;Initial Catalog=db_a99603_qosmiclabdemo;User Id=db_a99603_qosmiclabdemo_admin;Password=Mercurius123!;Trust Server Certificate=true" Microsoft.EntityFrameworkCore.SqlServer -OutputDir Models -ContextDir DbContexts -Context MercuriusContext -DataAnnotations -Force -tables "Products","ProductCategories","Customers","Vehicles","Transactions","TransactionItems","ShipmentArrivals","Branches","Addresses","ContactInformations","BranchContactInformation","Invoices","CustomerContactInformation","Sizes","Colors","Files","RoleModuleAccess","AspNetRoles","AspNetUserRoles","Locations","ShipmentArrivalStatus","ShipmentArrivalItems","Suppliers","InvoiceItems","InvoiceStatus","UserCurrentLocations","Adjustments","AdjustmentReasons","Provinces","LocationSetting","TransactionIdGenerators","ItemMovements","InvoiceItemRefunds","InvoiceRefunds","BulkPackages"
+
+delete from [dbo].[Invoices] DBCC CHECKIDENT ('dbo.Invoices', RESEED, 0)
+delete from [dbo].[InvoiceItems] DBCC CHECKIDENT ('dbo.InvoiceItems', RESEED, 0)
+delete from [dbo].[InvoiceItemRefund] DBCC CHECKIDENT ('dbo.InvoiceItemRefund', RESEED, 0)
+delete from [dbo].[Products] DBCC CHECKIDENT ('dbo.Products', RESEED, 0)
+delete from [dbo].[ProductCategories] DBCC CHECKIDENT ('dbo.ProductCategories', RESEED, 0)
+delete from [dbo].[ShipmentArrivalItems] DBCC CHECKIDENT ('dbo.ShipmentArrivalItems', RESEED, 0)
+delete from [dbo].[ShipmentArrivals] DBCC CHECKIDENT ('dbo.ShipmentArrivals', RESEED, 0)
+delete from [dbo].[Adjustments] DBCC CHECKIDENT ('dbo.Adjustments', RESEED, 0)

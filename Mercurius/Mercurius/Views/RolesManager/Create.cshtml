@@ -1,0 +1,61 @@
+﻿@model Microsoft.AspNetCore.Identity.IdentityRole
+@{
+    ViewData["Title"] = "Create Role";
+    Layout = "~/Views/Shared/_Layout.cshtml";
+}
+
+<!-- PAGE TITLE -->
+<div id="kt_app_toolbar" class="app-toolbar py-3 py-lg-6">
+    <div id="kt_app_toolbar_container" class="app-container container-xxl d-flex flex-stack">   
+        <div class="page-title d-flex flex-column justify-content-center flex-wrap me-3">
+            <h1 class="page-heading d-flex text-dark fw-bold fs-3 flex-column justify-content-center my-0">Create New Role</h1>
+        </div>
+    </div>
+</div>
+
+
+<div class="card">
+    <div class="card-body p-10">
+
+        <form asp-action="Create">
+            <div asp-validation-summary="ModelOnly" class="text-danger"></div>
+
+            <div class="row g-5 row-cols-1 row-cols-sm-2 row-cols-md-auto">
+                <div class="col">
+                    <label asp-for="Name" class="fs-6 fw-semibold form-label mt-3">
+                        <span class="required">Role Name</span>
+                    </label>
+                    <input asp-for="Name" type="text" class="form-control form-control-sm" name="name" value="">
+                    <span asp-validation-for="Name" class="text-danger"></span>
+                </div>
+            </div>
+
+            <div class="separator border-gray-200 pt-5 mb-5"></div>
+
+            <label for="" class="form-label">Access to pages</label>
+            <br />
+            <br />
+            <div class="row g-5 row-cols-1 row-cols-sm-2 row-cols-md-3 row-cols-lg-4">
+                @foreach (PageSelectItem p in ViewBag.pages)
+                {
+                <div class="col">
+                    <div class="form-check form-check-inline">
+                        <input type="checkbox" class="form-check-input" name="pages" value="@p.PageId" @(p.IsSelected ? "checked='checked'" : "")> 
+                        <label class="form-check-label" for="selectedRoles">@p.PageId</label>
+                    </div>
+                </div>
+                }
+            </div>
+            <div class="border-top d-flex flex-stack flex-wrap mt-10 pt-5">
+                <div class="my-1 me-5">
+                    <a asp-action="Index" class="btn btn-light">Back to List</a>
+                </div>
+                <div class="d-flex align-items-center gap-2 gap-lg-3">
+                    <input type="submit" value="Create" class="btn btn-primary" />
+                </div>
+            </div>   
+        </form>
+
+    </div> 
+</div>
+

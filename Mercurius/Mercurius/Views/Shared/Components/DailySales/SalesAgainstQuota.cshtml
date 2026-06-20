@@ -1,0 +1,29 @@
+@model Mercurius.ViewComponents.Dashboard.SalesAgainstQuotaModel
+@{
+    var pct = (double)Model.Percentage;
+    if (pct < 0) pct = 0;
+    if (pct > 100) pct = 100;
+    var pctText = Model.Percentage.ToString("0.##");
+}
+
+<div class="col-md-6 col-xxl-3">
+    <div class="card card-flush h-md-50 mb-5 mb-xl-10">
+        <div class="card-header pt-5">
+            <div class="card-title d-flex flex-column">
+                <span class="fs-2hx fw-bold text-dark me-2 lh-1 ls-n2">@Model.TotalSales</span>
+                <span class="text-gray-400 pt-1 fw-semibold fs-6">@Model.Title</span>
+            </div>
+        </div>
+        <div class="card-body d-flex align-items-end pt-0">
+            <div class="d-flex flex-column w-100">
+                <div class="d-flex align-items-center mb-2">
+                    <span class="text-gray-500 fw-semibold fs-7 me-2">@pctText% of @Model.Quota</span>
+                </div>
+                <div class="progress h-7px bg-light-primary">
+                    <div class="progress-bar bg-primary" role="progressbar" style="width: @pct.ToString("0.##", System.Globalization.CultureInfo.InvariantCulture)%" aria-valuenow="@pct" aria-valuemin="0" aria-valuemax="100"></div>
+                </div>
+                <span class="text-gray-400 mt-2 fs-7">@Model.Subtitle</span>
+            </div>
+        </div>
+    </div>
+</div>

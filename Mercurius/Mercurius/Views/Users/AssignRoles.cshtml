@@ -1,0 +1,73 @@
+﻿@model Mercurius.Models.UserUpdateRoleModel
+
+@{
+    ViewData["Title"] = "AssignRoles";
+    Layout = "~/Views/Shared/_Layout.cshtml";
+}
+
+
+<!-- PAGE TITLE -->
+<div id="kt_app_toolbar" class="app-toolbar py-3 py-lg-6">
+    <div id="kt_app_toolbar_container" class="app-container container-xxl d-flex flex-stack">   
+        <div class="page-title d-flex flex-column justify-content-center flex-wrap me-3">
+            <h1 class="page-heading d-flex text-dark fw-bold fs-3 flex-column justify-content-center my-0">Asign Roles</h1>
+        </div>
+    </div>
+</div>
+
+
+<div class="card">
+    <div class="card-body p-10">
+
+        <div class="row g-5 row-cols-1 row-cols-sm-2 row-cols-md-4">
+            <div class="col">
+                <label class="form-label">Username</label>
+                <div>
+                    @Model.User.UserName
+                </div>
+            </div>
+            <div class="col">
+                <label class="form-label">First Name</label>
+                <div>
+                    @Model.User.FirstName
+                </div>
+            </div>
+            <div class="col">
+                <label class="form-label">Last Name</label>
+                <div>
+                    @Model.User.LastName
+                </div>
+            </div>
+        </div>
+
+        <div class="separator border-gray-200 pt-5 mb-5"></div>
+
+        <div class="row g-5">
+            <div class="col-12">
+                <label for="" class="form-label">Roles</label>
+                <br />
+                <form asp-action="assignroles" method="post">
+                    @foreach (Microsoft.AspNetCore.Identity.IdentityRole role in ViewBag.Roles)
+                    {
+                        <div class="form-check form-check-inline">
+                            <input type="checkbox" class="form-check-input" value="@role.Id" name="selectedRoles" @(Model.Roles.Any(c => c.Id == role.Id) ? "checked='checked'" : "")/> 
+                            <label class="form-check-label" for="selectedRoles">@role.Name</label>
+                        </div>
+                    }
+                    <div class="border-top d-flex flex-stack flex-wrap mt-lg-10 pt-5">
+                        <div class="my-1 me-5">
+                            <a  class="btn btn-light" href="/Users">Back to List</a>  
+                        </div>
+                        <div class="d-flex align-items-center gap-2 gap-lg-3">
+                            <button type="submit" class="btn btn-primary">Save</button>
+                        </div>
+                    </div>          
+                </form>
+            </div>
+
+        </div>
+
+    </div>
+</div>
+
+

@@ -1,0 +1,193 @@
+@model IEnumerable<Mercurius.Repo.Models.Invoice>
+@{
+    ViewData["Title"] = "Invoices";
+    Layout = "~/Views/Shared/_Layout.cshtml";
+}
+
+<!-- PAGE TITLE -->
+<div id="kt_app_toolbar" class="app-toolbar py-3 py-lg-6">
+    <div id="kt_app_toolbar_container" class="app-container container-xxl d-flex flex-stack">
+        <div class="page-title d-flex flex-column justify-content-center flex-wrap me-3">
+            <h1 class="page-heading d-flex text-dark fw-bold fs-3 flex-column justify-content-center my-0">Invoices</h1>
+        </div>
+        <div class="d-flex align-items-center gap-2 gap-lg-3">
+            <a href="@Url.Action("NewSale", "Sales")" class="btn btn-primary">
+                <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" class="me-1" style="display: inline-block;">
+                    <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm5 11h-4v4h-2v-4H7v-2h4V7h2v4h4v2z" fill="currentColor"/>
+                </svg>
+                Create Invoice
+            </a>
+        </div>
+    </div>
+</div>
+
+<div class="card">
+    <div class="card-header border-0 pt-6">
+        <div class="card-title">
+            <div class="d-flex align-items-center position-relative my-1">
+                <span class="svg-icon svg-icon-1 position-absolute ms-6">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none">
+                        <rect opacity="0.5" x="17.0365" y="15.1223" width="8.15546" height="2" rx="1" transform="rotate(45 17.0365 15.1223)" fill="currentColor"/>
+                        <path d="M11 19C6.55556 19 3 15.4444 3 11C3 6.55556 6.55556 3 11 3C15.4444 3 19 6.55556 19 11C19 15.4444 15.4444 19 11 19ZM11 5C7.53333 5 5 7.53333 5 11C5 14.4667 7.53333 17 11 17C14.4667 17 17 14.4667 17 11C17 7.53333 14.4667 5 11 5Z" fill="currentColor"/>
+                    </svg>
+                </span>
+                <input type="text" id="searchInput" class="form-control form-control-solid w-300px ps-15" placeholder="Search by invoice # or customer..." />
+            </div>
+        </div>
+    </div>
+    <div class="card-body pt-0">
+        <div class="table-responsive">
+            @* Tbody intentionally empty — DataTables populates it via AJAX from /Invoices/DataTable. *@
+            <table id="invoicesTable" class="table table-hover table-rounded table-striped border gy-7 gs-7" style="width:100%">
+                <thead>
+                    <tr class="fw-bold fs-6 text-gray-800 border-bottom border-gray-200">
+                        <th>ID</th>
+                        <th>Invoice #</th>
+                        <th>Date</th>
+                        <th>Due Date</th>
+                        <th>Customer</th>
+                        <th>Status</th>
+                        <th class="text-end">Paid Amount</th>
+                    </tr>
+                </thead>
+                <tbody></tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+    <script>
+        $(document).ready(function () {
+            // ----------------------------------------------------------------
+            // Invoices DataTable — server-side processing.
+            // Default sort is InvoiceDate desc (newest first), matching the
+            // legacy OrderByDescending the controller used to apply.
+            // ----------------------------------------------------------------
+
+            function esc(s) {
+                if (s === null || typeof s === 'undefined') return '';
+                return String(s)
+                    .replace(/&/g, '&amp;')
+                    .replace(/</g, '&lt;')
+                    .replace(/>/g, '&gt;')
+                    .replace(/"/g, '&quot;')
+                    .replace(/'/g, '&#39;');
+            }
+
+            function fmtDate(iso) {
+                if (!iso) return '';
+                var d = new Date(iso);
+                if (isNaN(d.getTime())) return esc(iso);
+                return d.getFullYear() + '-' +
+                       String(d.getMonth() + 1).padStart(2, '0') + '-' +
+                       String(d.getDate()).padStart(2, '0');
+            }
+
+            // PHP currency formatter — mirrors Products page.
+            var currencyFmt = new Intl.NumberFormat(undefined, {
+                style: 'currency',
+                currency: 'PHP',
+                maximumFractionDigits: 2
+            });
+            function fmtPrice(v) {
+                if (v === null || typeof v === 'undefined' || v === '') return '';
+                var n = Number(v);
+                if (!isFinite(n)) return '';
+                return currencyFmt.format(n);
+            }
+
+            // Map StatusId → bootstrap-badge class for the colored chip.
+            // Mirrors StatusCollection.InvoiceStatus values in Mercurius.Common.
+            // 1 Draft, 2 Completed, 3 Finalized, 4 Refunded, 5 Deleted, 6 DeferredPayment, 7 PartiallyPaid
+            function statusBadgeClass(statusId) {
+                switch (Number(statusId)) {
+                    case 1: return 'badge-light-secondary'; // Draft
+                    case 2: return 'badge-light-success';   // Completed
+                    case 3: return 'badge-light-primary';   // Finalized
+                    case 4: return 'badge-light-danger';    // Refunded
+                    case 5: return 'badge-light-dark';      // Deleted
+                    case 6: return 'badge-light-warning';   // DeferredPayment
+                    case 7: return 'badge-light-info';      // PartiallyPaid
+                    default: return 'badge-light';
+                }
+            }
+
+            if (!$.fn.DataTable.isDataTable('#invoicesTable')) {
+                var table = $('#invoicesTable').DataTable({
+                    serverSide: true,
+                    processing: true,
+                    deferRender: true,
+                    searchDelay: 350,
+                    pageLength: 25,
+                    lengthMenu: [[10, 25, 50, 100], [10, 25, 50, 100]],
+                    order: [[2, 'desc']],
+                    ajax: {
+                        url: '@Url.Action("DataTable", "InvoiceList")',
+                        type: 'GET',
+                        dataType: 'json',
+                        error: function (xhr) {
+                            if (window.showFlash) {
+                                window.showFlash('Failed to load invoices: ' + (xhr.statusText || 'request failed'), 'error');
+                            }
+                        }
+                    },
+                    columns: [
+                        { data: 'id', name: 'Id' },
+                        { data: 'invoiceNumber', name: 'InvoiceNumber',
+                            render: function (d) { return esc(d); } },
+                        { data: 'invoiceDate', name: 'InvoiceDate',
+                            render: function (d, type) {
+                                if (type !== 'display') return d;
+                                return fmtDate(d);
+                            }
+                        },
+                        { data: 'invoiceDueDate', name: 'InvoiceDueDate',
+                            render: function (d, type) {
+                                if (type !== 'display') return d;
+                                return fmtDate(d);
+                            }
+                        },
+                        { data: 'customerName', name: 'CustomerId',
+                            render: function (d) { return esc(d || '(no customer)'); } },
+                        { data: 'statusName', name: 'StatusId',
+                            render: function (_d, type, row) {
+                                if (type !== 'display') return row.statusName;
+                                var name = esc(row.statusName || 'Unknown');
+                                var cls = statusBadgeClass(row.statusId);
+                                var refundFlag = row.hasRefund
+                                    ? ' <i class="bi bi-arrow-counterclockwise text-danger ms-1" title="Has refund"></i>'
+                                    : '';
+                                return '<span class="badge ' + cls + '">' + name + '</span>' + refundFlag;
+                            }
+                        },
+                        { data: 'paidAmount', name: 'PaidAmount', className: 'text-end',
+                            render: function (d, type) {
+                                if (type !== 'display') return d;
+                                return fmtPrice(d);
+                            }
+                        }
+                    ],
+                    // Drop `f` — the card header has its own #searchInput.
+                    dom: '<"row"<"col-sm-12"l>>' +
+                         '<"row"<"col-sm-12"tr>>' +
+                         '<"row"<"col-sm-12 col-md-5"i><"col-sm-12 col-md-7"p>>',
+                    language: {
+                        search: "",
+                        searchPlaceholder: "Search...",
+                        lengthMenu: "Show _MENU_ entries",
+                        info: "Showing _START_ to _END_ of _TOTAL_ entries",
+                        infoEmpty: "Showing 0 to 0 of 0 entries",
+                        infoFiltered: "(filtered from _MAX_ total entries)",
+                        processing: '<div class="spinner-border text-primary" role="status"></div>',
+                        paginate: { first: "First", last: "Last", next: "Next", previous: "Previous" }
+                    }
+                });
+
+                $('#searchInput').on('keyup', function () {
+                    table.search(this.value).draw();
+                });
+            }
+        });
+    </script>
+}

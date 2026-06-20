@@ -1,0 +1,38 @@
+@model Mercurius.Repo.Models.Doctor
+@{
+    Layout = "~/Views/Shared/_Layout.cshtml";
+    ViewData["Title"] = "Edit Doctor";
+}
+
+<div id="kt_app_toolbar" class="app-toolbar py-3 py-lg-6">
+    <div class="app-container container-xxl"><div class="page-title"><h1 class="page-heading d-flex text-dark fw-bold fs-3 my-0">Edit Doctor</h1></div></div>
+</div>
+
+<div class="card">
+    <div class="card-body p-10">
+        <form asp-action="Edit">
+            <input type="hidden" asp-for="Id" />
+            <input type="hidden" asp-for="CreatedDate" />
+            @Html.AntiForgeryToken()
+            <div asp-validation-summary="ModelOnly" class="text-danger"></div>
+            <div class="row g-5">
+                <div class="col-md-4"><label class="form-label required">First Name</label><input asp-for="FirstName" class="form-control form-control-sm" required /></div>
+                <div class="col-md-4"><label class="form-label">Middle Name</label><input asp-for="MiddleName" class="form-control form-control-sm" /></div>
+                <div class="col-md-4"><label class="form-label required">Last Name</label><input asp-for="LastName" class="form-control form-control-sm" required /></div>
+                <div class="col-md-4"><label class="form-label">PRC License No.</label><input asp-for="LicenseNumber" class="form-control form-control-sm" /></div>
+                <div class="col-md-4"><label class="form-label">PTR No.</label><input asp-for="PtrNumber" class="form-control form-control-sm" /></div>
+                <div class="col-md-4"><label class="form-label">S2 License No.</label><input asp-for="S2LicenseNumber" class="form-control form-control-sm" /><div class="form-text">Required for controlled substances.</div></div>
+                <div class="col-md-6"><label class="form-label">Specialization</label><input asp-for="Specialization" class="form-control form-control-sm" placeholder="e.g. Pediatrics" /></div>
+                <div class="col-md-6"><label class="form-label">Contact Number</label><input asp-for="ContactNumber" class="form-control form-control-sm" /></div>
+                <div class="col-md-6"><label class="form-label">Email</label><input asp-for="EmailAddress" class="form-control form-control-sm" type="email" /></div>
+                <div class="col-md-6"><label class="form-label">Clinic / Hospital</label><input asp-for="ClinicName" class="form-control form-control-sm" /></div>
+                <div class="col-md-8"><label class="form-label">Clinic Address</label><input asp-for="ClinicAddress" class="form-control form-control-sm" /></div>
+                <div class="col-md-4"><label class="form-label">Clinic Contact</label><input asp-for="ClinicContactNumber" class="form-control form-control-sm" /></div>
+            </div>
+            <div class="border-top d-flex flex-stack flex-wrap mt-10 pt-8">
+                <a href="/Doctors" class="btn btn-light">Cancel</a>
+                <button type="submit" class="btn btn-primary">Save Doctor</button>
+            </div>
+        </form>
+    </div>
+</div>
