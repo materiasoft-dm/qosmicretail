@@ -47,6 +47,14 @@ temp_sqlite_check.py
 temp_sqlite_grant.py
 publish-output/
 soomePassword.txt
+someePassword.txt
+
+# === Local SDK / runtime caches ===
+.dotnet/
+**/.dotnet/
+%SystemDrive%/
+.config/
+**/.config/
 
 # === Top-level noise (if tracked) ===
 AGENTS.md
