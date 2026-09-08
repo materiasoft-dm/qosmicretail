@@ -24,38 +24,40 @@ public class ProductsTests : MercuriusTestBase
     public async Task CreateProduct_ThenAppearsInList()
     {
         await LoginAsAdminAsync();
-        await Page.GotoAsync("/Products");
-
-        var uniqueCode = $"E2E-{Guid.NewGuid():N}".Substring(0, 12);
-        var uniqueName = $"E2E Test Product {Guid.NewGuid():N}".Substring(0, 30);
-
-        await Page.ClickAsync("button[data-bs-target='#createProductModal']");
-        await Page.Locator("#createProductModal.show").WaitForAsync(new LocatorWaitForOptions { Timeout = 5000 });
-
-        await Page.FillAsync("#Create_Name", uniqueName);
-        await Page.FillAsync("#Create_ProductCode", uniqueCode);
-        await Page.FillAsync("#Create_CurrentCostPrice", "5.00");
-        await Page.FillAsync("#Create_CurrentSalePrice", "9.99");
-        // LowStockCount and MarkUpPercentage are non-nullable decimals — an empty input submits
-        // "" and fails model binding outright ("The value '' is invalid"), not just validation.
-        await Page.FillAsync("#Create_LowStockCount", "5");
-        await Page.FillAsync("#Create_MarkUpPercentage", "0");
-
-        // The create form is an ajax-form: the click fires a fetch, and only on success does the
-        // JS handler do `window.location.href = redirect`. We're already sitting on /Products, so
-        // waiting for a URL "containing /Products" would resolve instantly without ever actually
-        // waiting for that fetch — wait for the POST's own response instead, which only arrives
-        // once the save genuinely completes, then let the resulting redirect finish loading.
-        await Page.RunAndWaitForResponseAsync(
-            async () => await Page.ClickAsync("#createProductModal button:has-text('Save Product')"),
-            resp => resp.Url.Contains("/Products/Create") && resp.Request.Method == "POST",
-            new PageRunAndWaitForResponseOptions { Timeout = 10000 });
-        await Page.WaitForLoadStateAsync(LoadState.Load);
+        var uniqueName = await Page.CreateTestProductAsync("E2E Test Product");
 
         await Page.GotoAsync("/Products");
         // DataTables' search box only reacts to a real 'keyup' event; Fill() sets the value
         // directly without dispatching one, so type it out one keystroke at a time instead.
-        await Page.Locator("#searchInput").PressSequentiallyAsync(uniqueCode, new LocatorPressSequentiallyOptions { Delay = 20 });
-        await Page.Locator($"#productsTable tbody tr:has-text('{uniqueCode}')").WaitForAsync(new LocatorWaitForOptions { Timeout = 10000 });
+        await Page.Locator("#searchInput").PressSequentiallyAsync(uniqueName, new LocatorPressSequentiallyOptions { Delay = 20 });
+        await Page.Locator($"#productsTable tbody tr:has-text('{uniqueName}')").WaitForAsync(new LocatorWaitForOptions { Timeout = 10000 });
+    }
+
+    /// <summary>
+    /// "Delete" is a soft delete throughout this app (see CLAUDE.md) — the row must still exist
+    /// afterward, just flipped to IsActive = false, not removed from the list.
+    /// </summary>
+    [Fact]
+    public async Task DeleteProduct_IsSoftDeleted_StaysInListAsInactive()
+    {
+        await LoginAsAdminAsync();
+        var productName = await Page.CreateTestProductAsync("E2E Delete Product");
+
+        await Page.GotoAsync("/Products");
+        await Page.Locator("#searchInput").PressSequentiallyAsync(productName, new LocatorPressSequentiallyOptions { Delay = 20 });
+        var row = Page.Locator($"#productsTable tbody tr:has-text('{productName}')");
+        await row.WaitForAsync(new LocatorWaitForOptions { Timeout = 10000 });
+        await Assertions.Expect(row).ToContainTextAsync("Active");
+
+        await row.Locator("a[title=Delete]").ClickAsync();
+        await Page.WaitForURLAsync(url => url.Contains("/Products/Delete/"), new PageWaitForURLOptions { Timeout = 10000 });
+
+        await Page.ClickAsync("input[type=submit][value=Delete]");
+        await Page.WaitForURLAsync(url => url.Contains("/Products") && !url.Contains("Delete"), new PageWaitForURLOptions { Timeout = 10000 });
+
+        await Page.Locator("#searchInput").PressSequentiallyAsync(productName, new LocatorPressSequentiallyOptions { Delay = 20 });
+        row = Page.Locator($"#productsTable tbody tr:has-text('{productName}')");
+        await row.WaitForAsync(new LocatorWaitForOptions { Timeout = 10000 });
+        await Assertions.Expect(row).ToContainTextAsync("Inactive");
     }
 }
