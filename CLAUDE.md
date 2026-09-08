@@ -126,6 +126,17 @@ browser against a real instance of the app:
   even finishes. Wait for the POST's own response instead (`RunAndWaitForResponseAsync`).
 - Set `E2E_HEADED=1` before `dotnet test` to watch the browser locally instead of running headless
   (also slows actions down via `SlowMo` so it's actually followable).
+- The test server's full stdout/stderr (including any unhandled-exception dumps from
+  `ExceptionHandlingMiddleware`) is mirrored to `%TEMP%\mercurius-e2e-server.log` on every run —
+  check it first when a test fails with no obvious cause from the Playwright error alone.
+- A subtle timing trap worth knowing about: waiting for a POST's own `Response` event
+  (`RunAndWaitForResponseAsync`) is *not* the same as waiting for the page that POST redirects to.
+  For an ajax-form, the response arrives before the page's own `.then()` callback has run
+  `window.location.href = ...`; for a plain form that 302s, the response for the POST can arrive
+  before the browser finishes following the redirect. Either way, code that immediately calls
+  `WaitForLoadStateAsync` afterward can resolve against the *old* page. Wait for a real DOM signal
+  instead — a modal closing, a button/row re-rendering — see `TestDataHelpers.CreateTestProductAsync`
+  and `ShipmentTests.CreateAndApprovePurchaseOrderAsync` for two different flavors of this.
 - `PurchaseOrderTests` caught a fourth production bug: `PurchaseOrder.OrderNumber` was `[Required]`
   but is always server-generated in `PurchaseOrdersController.Create` *after* `ModelState` is
   already validated — the Create form has no field for it, so it bound to `""`, failed `[Required]`
@@ -133,6 +144,19 @@ browser against a real instance of the app:
   (that view has no validation summary). Creating a Purchase Order via the web UI had likely never
   worked. Fixed by removing `[Required]` from that property (it was never meant to validate
   user input in the first place) — see the `MakePurchaseOrderNumberNullable` migration.
+- `ShipmentTests` caught two more, both in the "receive a shipment against a PO" flow — confirmed
+  zero `ShipmentArrival` rows existed live, so this feature had never worked either:
+  1. `ShipmentArrivalStatuses` was never seeded, and `ShipmentArrival.ShipmentArrivalStatus` is a
+     required relationship — same class of bug as `InvoiceStatuses`. Fixed by seeding it in
+     `Program.cs` (`Pending`/`Received`/`Delayed`/`Damaged`).
+  2. `Views/Shipment/Create.cshtml`'s script called `.trigger('change')` on the pre-selected PO
+     dropdown *before* registering the `.on('change', ...)` handler that actually auto-fills the
+     supplier — so clicking "Receive" from an approved PO always left the supplier field stuck on
+     its placeholder. Fixed by reordering the registration before the trigger.
+  3. `ShipmentArrival.PurchaseOrderId` (an `int?`) was decorated with `[StringLength(500)]` — an
+     attribute that only applies to strings. The moment it actually held a value, ASP.NET Core's
+     validator threw `InvalidCastException` trying to cast the boxed int to a string, taking down
+     the whole request. Fixed by removing the attribute.
 
 ### FIFO batch pricing (`BatchPricingService`)
 

@@ -57,12 +57,11 @@
 @section Scripts {
     <script>
         $(function () {
-            var poId = '@poId';
-            if (poId) {
-                $('#po-select').val(poId).trigger('change');
-            }
-
-            // When PO is selected, auto-fill supplier from PO
+            // When PO is selected, auto-fill supplier from PO. Registered before the
+            // pre-selection below fires its own 'change' trigger — otherwise clicking "Receive"
+            // from an approved PO's row (which pre-fills poId via the query string) would select
+            // the PO but never actually auto-fill its supplier, since the trigger would fire with
+            // no listener yet attached.
             $('#po-select').on('change', function () {
                 var selectedPoId = $(this).val();
                 if (selectedPoId) {
@@ -75,6 +74,11 @@
                     $('#supplier-name').val('Auto-filled from PO');
                 }
             });
+
+            var poId = '@poId';
+            if (poId) {
+                $('#po-select').val(poId).trigger('change');
+            }
         });
     </script>
 }

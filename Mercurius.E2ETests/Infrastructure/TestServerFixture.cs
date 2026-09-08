@@ -54,15 +54,20 @@ public class TestServerFixture : IAsyncLifetime
 
         var readyTcs = new TaskCompletionSource();
         var outputLog = new System.Text.StringBuilder();
+        var logPath = Path.Combine(Path.GetTempPath(), "mercurius-e2e-server.log");
+        var logWriter = new StreamWriter(logPath, append: false) { AutoFlush = true };
         _process.OutputDataReceived += (_, e) =>
         {
             if (e.Data == null) return;
             outputLog.AppendLine(e.Data);
+            logWriter.WriteLine(e.Data);
             if (e.Data.Contains("Now listening")) readyTcs.TrySetResult();
         };
         _process.ErrorDataReceived += (_, e) =>
         {
-            if (e.Data != null) outputLog.AppendLine("[stderr] " + e.Data);
+            if (e.Data == null) return;
+            outputLog.AppendLine("[stderr] " + e.Data);
+            logWriter.WriteLine("[stderr] " + e.Data);
         };
         _process.BeginOutputReadLine();
         _process.BeginErrorReadLine();

@@ -15,41 +15,11 @@ public class SalesTests : MercuriusTestBase
 {
     public SalesTests(MercuriusCollectionFixture fixture) : base(fixture) { }
 
-    private async Task<string> CreateTestProductAsync()
-    {
-        var uniqueCode = $"E2ESALE-{Guid.NewGuid():N}".Substring(0, 16);
-        var uniqueName = $"E2E Sale Product {Guid.NewGuid():N}".Substring(0, 25);
-
-        await Page.GotoAsync("/Products");
-        await Page.ClickAsync("button[data-bs-target='#createProductModal']");
-        await Page.Locator("#createProductModal.show").WaitForAsync(new LocatorWaitForOptions { Timeout = 5000 });
-        await Page.FillAsync("#Create_Name", uniqueName);
-        await Page.FillAsync("#Create_ProductCode", uniqueCode);
-        await Page.FillAsync("#Create_CurrentCostPrice", "5.00");
-        await Page.FillAsync("#Create_CurrentSalePrice", "9.99");
-        // LowStockCount and MarkUpPercentage are non-nullable decimals — an empty input submits
-        // "" and fails model binding outright ("The value '' is invalid"), not just validation.
-        await Page.FillAsync("#Create_LowStockCount", "5");
-        await Page.FillAsync("#Create_MarkUpPercentage", "0");
-        // The create form is an ajax-form: the click fires a fetch, and only on success does the
-        // JS handler do `window.location.href = redirect`. We're already sitting on /Products, so
-        // waiting for a URL "containing /Products" would resolve instantly without ever actually
-        // waiting for that fetch — wait for the POST's own response instead, which only arrives
-        // once the save genuinely completes, then let the resulting redirect finish loading.
-        await Page.RunAndWaitForResponseAsync(
-            async () => await Page.ClickAsync("#createProductModal button:has-text('Save Product')"),
-            resp => resp.Url.Contains("/Products/Create") && resp.Request.Method == "POST",
-            new PageRunAndWaitForResponseOptions { Timeout = 10000 });
-        await Page.WaitForLoadStateAsync(LoadState.Load);
-
-        return uniqueName;
-    }
-
     [Fact]
     public async Task CompleteSale_SucceedsAndRedirectsToInvoiceList()
     {
         await LoginAsAdminAsync();
-        var productName = await CreateTestProductAsync();
+        var productName = await Page.CreateTestProductAsync("E2E Sale Product");
 
         await Page.GotoAsync("/Sales/NewSale");
         await Page.ClickAsync("#openProductModal");

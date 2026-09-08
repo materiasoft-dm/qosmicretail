@@ -28,8 +28,11 @@ public string Filenames { get; set; }
 
     public bool IsActive { get; set; }
 
-    [StringLength(500)]
-public int? PurchaseOrderId { get; set; }
+    // Note: this was previously (incorrectly) decorated with [StringLength(500)] — that attribute
+    // only applies to strings, and calling it on an int threw InvalidCastException the moment
+    // PurchaseOrderId actually had a value, so submitting a shipment linked to a PO always failed
+    // with an unhandled exception. Confirmed via Mercurius.E2ETests.ShipmentTests.
+    public int? PurchaseOrderId { get; set; }
 
     [StringLength(500)]
 public string TrackingNumber { get; set; }

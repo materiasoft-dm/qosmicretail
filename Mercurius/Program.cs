@@ -482,6 +482,30 @@ async Task SeedDataAsync(WebApplication app)
             logger.LogInformation("Seeded InvoiceStatuses");
         }
 
+        // Seed ShipmentArrivalStatuses — same gap as InvoiceStatuses above:
+        // ShipmentArrival.ShipmentArrivalStatus is a required (non-nullable) navigation, so this
+        // being empty meant creating any shipment failed with a FOREIGN KEY constraint violation
+        // on a freshly created database. Confirmed zero rows in ShipmentArrivals live — this
+        // feature had never actually been used successfully.
+        var shipmentStatusRepo = unitOfWork.Repository<ShipmentArrivalStatus>();
+        var existingShipmentStatuses = await shipmentStatusRepo.GetAllAsync();
+        if (!existingShipmentStatuses.Any())
+        {
+            var shipmentStatuses = new[]
+            {
+                new ShipmentArrivalStatus { Id = 1, Name = "Pending", CssClass = "badge-light-warning", IsActive = true },
+                new ShipmentArrivalStatus { Id = 2, Name = "Received", CssClass = "badge-light-success", IsActive = true },
+                new ShipmentArrivalStatus { Id = 3, Name = "Delayed", CssClass = "badge-light-danger", IsActive = true },
+                new ShipmentArrivalStatus { Id = 4, Name = "Damaged", CssClass = "badge-light-dark", IsActive = true },
+            };
+            foreach (var status in shipmentStatuses)
+            {
+                await shipmentStatusRepo.AddAsync(status);
+            }
+            await unitOfWork.SaveChangesAsync();
+            logger.LogInformation("Seeded ShipmentArrivalStatuses");
+        }
+
     }
     catch (Exception ex)
     {

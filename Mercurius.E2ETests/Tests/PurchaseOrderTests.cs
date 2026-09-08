@@ -8,42 +8,6 @@ public class PurchaseOrderTests : MercuriusTestBase
 {
     public PurchaseOrderTests(MercuriusCollectionFixture fixture) : base(fixture) { }
 
-    private async Task<string> CreateTestSupplierAsync()
-    {
-        var name = $"E2E PO Supplier {Guid.NewGuid():N}".Substring(0, 30);
-        await Page.GotoAsync("/Suppliers/Create");
-        await Page.FillAsync("#Name", name);
-        await Page.ClickAsync("input[type=submit][value=Create]");
-        await Page.WaitForURLAsync(url => url.Contains("/Suppliers") && !url.Contains("Create"), new PageWaitForURLOptions { Timeout = 10000 });
-        return name;
-    }
-
-    private async Task<string> CreateTestProductAsync()
-    {
-        var uniqueCode = $"E2EPO-{Guid.NewGuid():N}".Substring(0, 14);
-        var uniqueName = $"E2E PO Product {Guid.NewGuid():N}".Substring(0, 25);
-
-        await Page.GotoAsync("/Products");
-        await Page.ClickAsync("button[data-bs-target='#createProductModal']");
-        await Page.Locator("#createProductModal.show").WaitForAsync(new LocatorWaitForOptions { Timeout = 5000 });
-        await Page.FillAsync("#Create_Name", uniqueName);
-        await Page.FillAsync("#Create_ProductCode", uniqueCode);
-        await Page.FillAsync("#Create_CurrentCostPrice", "5.00");
-        await Page.FillAsync("#Create_CurrentSalePrice", "9.99");
-        await Page.FillAsync("#Create_LowStockCount", "5");
-        await Page.FillAsync("#Create_MarkUpPercentage", "0");
-
-        // We're already on /Products, so a URL-contains wait would resolve before the ajax-form's
-        // fetch actually happens — wait for the POST's own response instead.
-        await Page.RunAndWaitForResponseAsync(
-            async () => await Page.ClickAsync("#createProductModal button:has-text('Save Product')"),
-            resp => resp.Url.Contains("/Products/Create") && resp.Request.Method == "POST",
-            new PageRunAndWaitForResponseOptions { Timeout = 10000 });
-        await Page.WaitForLoadStateAsync(LoadState.Load);
-
-        return uniqueName;
-    }
-
     [Fact]
     public async Task PurchaseOrdersList_Loads()
     {
@@ -56,8 +20,8 @@ public class PurchaseOrderTests : MercuriusTestBase
     public async Task CreatePurchaseOrder_ThenAppearsInListAsPendingApproval()
     {
         await LoginAsAdminAsync();
-        var supplierName = await CreateTestSupplierAsync();
-        var productName = await CreateTestProductAsync();
+        var supplierName = await Page.CreateTestSupplierAsync("E2E PO Supplier");
+        var productName = await Page.CreateTestProductAsync("E2E PO Product");
 
         await Page.GotoAsync("/PurchaseOrders/Create");
 
