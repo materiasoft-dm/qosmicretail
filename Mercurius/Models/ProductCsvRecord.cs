@@ -2,7 +2,7 @@ namespace Mercurius.Models;
 
 public class ProductCsvRecord
 {
-    public string? PartCode { get; set; }
+    public string? ProductCode { get; set; }
     public string? Name { get; set; }
     public string? Description { get; set; }
     public string? Category { get; set; }

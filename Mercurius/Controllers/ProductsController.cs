@@ -20,8 +20,6 @@ using System.IO;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Http.Extensions;
 using Microsoft.AspNetCore.Hosting;
-using RepoColor = Mercurius.Repo.Models.Color;
-using RepoSize = Mercurius.Repo.Models.Size;
 
 namespace Mercurius.Controllers
 {
@@ -31,17 +29,23 @@ namespace Mercurius.Controllers
         private readonly IUnitOfWork _unitOfWork;
         private readonly IWebHostEnvironment _webHostEnvironment;
         private readonly Mercurius.Services.ILoggerService _loggerService;
+        private readonly Mercurius.Services.ImportJobTracker _importJobTracker;
+        private readonly Mercurius.Services.ProductImportQueue _importQueue;
 
         public ProductsController(
             IHttpContextAccessor httpContextAccessor,
             IUnitOfWork unitOfWork,
             IWebHostEnvironment webHostEnvironment,
-            Mercurius.Services.ILoggerService loggerService)
+            Mercurius.Services.ILoggerService loggerService,
+            Mercurius.Services.ImportJobTracker importJobTracker,
+            Mercurius.Services.ProductImportQueue importQueue)
             : base(httpContextAccessor)
         {
             _unitOfWork = unitOfWork;
             _webHostEnvironment = webHostEnvironment;
             _loggerService = loggerService;
+            _importJobTracker = importJobTracker;
+            _importQueue = importQueue;
         }
 
         // GET: Products
@@ -58,7 +62,7 @@ namespace Mercurius.Controllers
         // Server-side endpoint for jQuery DataTables. Honors the standard request
         // shape (draw / start / length / order[0][column] / order[0][dir] / search[value])
         // and replies with { draw, recordsTotal, recordsFiltered, data: [...] }.
-        // All filtering/ordering/paging is pushed down to LiteDB so the browser
+        // All filtering/ordering/paging is pushed down to the database so the browser
         // only ever receives one page of rows.
         [HttpGet]
         public IActionResult DataTable(
@@ -76,52 +80,51 @@ namespace Mercurius.Controllers
             var sortDir = (string?)q["order[0][dir]"] == "desc" ? "desc" : "asc";
             var searchValue = ((string?)q["search[value]"] ?? string.Empty).Trim();
 
-            // Column index → Product field. Matches the `columns` array in Index.cshtml.
-            // 0 = PartCode, 1 = Name, 2 = Category, 3 = CurrentCostPrice,
-            // 4 = CurrentSalePrice, 5 = CurrentStock, 6 = IsActive, 7 = Actions (not sortable).
-            string sortField = sortColumnIndex switch
-            {
-                0 => nameof(Product.PartCode),
-                1 => nameof(Product.Name),
-                3 => nameof(Product.CurrentCostPrice),
-                4 => nameof(Product.CurrentSalePrice),
-                5 => nameof(Product.CurrentStock),
-                6 => nameof(Product.IsActive),
-                _ => nameof(Product.Name) // Category isn't a sortable column on the document
-            };
             if (length < 1) length = 25;
             if (length > 200) length = 200; // hard cap so a malicious client can't ask for the world
 
-            // Grab the underlying LiteDB collection so we can use native indexed paging.
-            // The repository abstraction's GetPagedAsync would force LINQ-to-objects ordering.
-            var collection = _unitOfWork.GetCollection<Product>();
+            // The repository abstraction's GetPagedAsync would force LINQ-to-objects ordering
+            // for a caller-provided orderBy, so query the DbSet directly for native indexed paging.
+            var collection = _unitOfWork.Query<Product>();
 
             // recordsTotal = total in the table, unfiltered.
             var recordsTotal = collection.Count();
 
             // Build the filtered query.
-            var query = collection.Query();
+            var query = collection;
             if (!string.IsNullOrEmpty(searchValue))
             {
                 var s = searchValue.ToLowerInvariant();
-                // LiteDB's expression engine handles Contains case-insensitively when wrapped
-                // in LOWER(); using LINQ here keeps the predicate strongly typed.
                 query = query.Where(p =>
                     (p.Name != null && p.Name.ToLower().Contains(s)) ||
-                    (p.PartCode != null && p.PartCode.ToLower().Contains(s)) ||
+                    (p.ProductCode != null && p.ProductCode.ToLower().Contains(s)) ||
                     (p.Description != null && p.Description.ToLower().Contains(s)));
             }
 
             var recordsFiltered = query.Count();
 
-            // Apply ordering via LiteDB's native OrderBy so it hits the index.
-            // Build BsonExpression by field name — keeps this generic over the column switch above.
-            var bsonField = LiteDB.BsonExpression.Create($"$.{sortField}");
-            query = sortDir == "desc"
-                ? query.OrderByDescending(bsonField)
-                : query.OrderBy(bsonField);
+            // Column index → Product field. Matches the `columns` array in Index.cshtml.
+            // 0 = ProductCode, 1 = Name, 2 = Category, 3 = CurrentCostPrice,
+            // 4 = CurrentSalePrice, 5 = CurrentStock, 6 = IsActive, 7 = Actions (not sortable).
+            bool desc = sortDir == "desc";
+            query = (sortColumnIndex, desc) switch
+            {
+                (0, true) => query.OrderByDescending(p => p.ProductCode),
+                (0, false) => query.OrderBy(p => p.ProductCode),
+                (3, true) => query.OrderByDescending(p => p.CurrentCostPrice),
+                (3, false) => query.OrderBy(p => p.CurrentCostPrice),
+                (4, true) => query.OrderByDescending(p => p.CurrentSalePrice),
+                (4, false) => query.OrderBy(p => p.CurrentSalePrice),
+                (5, true) => query.OrderByDescending(p => p.CurrentStock),
+                (5, false) => query.OrderBy(p => p.CurrentStock),
+                (6, true) => query.OrderByDescending(p => p.IsActive),
+                (6, false) => query.OrderBy(p => p.IsActive),
+                // Category isn't a sortable column on the entity.
+                (_, true) => query.OrderByDescending(p => p.Name),
+                (_, false) => query.OrderBy(p => p.Name)
+            };
 
-            var pageItems = query.Skip(start).Limit(length).ToList();
+            var pageItems = query.Skip(start).Take(length).ToList();
 
             // Resolve category names in one shot (avoids N+1).
             var categoryIds = pageItems
@@ -131,8 +134,8 @@ namespace Mercurius.Controllers
                 .ToList();
             var categoryLookup = categoryIds.Count == 0
                 ? new Dictionary<int, string>()
-                : _unitOfWork.GetCollection<ProductCategory>()
-                    .Find(c => categoryIds.Contains(c.Id))
+                : _unitOfWork.Query<ProductCategory>()
+                    .Where(c => categoryIds.Contains(c.Id))
                     .ToDictionary(c => c.Id, c => c.Name);
 
             // Project each row into plain JSON. All visual decoration (avatar block,
@@ -143,7 +146,7 @@ namespace Mercurius.Controllers
             var data = pageItems.Select(p => new
             {
                 id = p.Id,
-                partCode = p.PartCode ?? string.Empty,
+                productCode = p.ProductCode ?? string.Empty,
                 name = p.Name ?? string.Empty,
                 category = p.ProductCategoryId.HasValue
                     && categoryLookup.TryGetValue(p.ProductCategoryId.Value, out var cn) ? cn : string.Empty,
@@ -177,8 +180,8 @@ namespace Mercurius.Controllers
             if (pageSize < PaginationDefaults.MinPageSize) pageSize = PaginationDefaults.MinPageSize;
             if (pageSize > PaginationDefaults.MaxAllowedPageSize) pageSize = PaginationDefaults.MaxAllowedPageSize;
 
-            var collection = _unitOfWork.GetCollection<Product>();
-            var query = collection.Query().Where(p => p.IsActive);
+            var collection = _unitOfWork.Query<Product>();
+            var query = collection.Where(p => p.IsActive);
 
             // Apply filters
             if (!string.IsNullOrWhiteSpace(search))
@@ -186,7 +189,7 @@ namespace Mercurius.Controllers
                 var s = search.ToLowerInvariant();
                 query = query.Where(p =>
                     (p.Name != null && p.Name.ToLower().Contains(s)) ||
-                    (p.PartCode != null && p.PartCode.ToLower().Contains(s)));
+                    (p.ProductCode != null && p.ProductCode.ToLower().Contains(s)));
             }
 
             if (categoryId.HasValue && categoryId.Value > 0)
@@ -196,17 +199,17 @@ namespace Mercurius.Controllers
 
             var total = query.Count();
             var skip = (page - 1) * pageSize;
-            var items = query.OrderBy(p => p.Name).Skip(skip).Limit(pageSize).ToList();
+            var items = query.OrderBy(p => p.Name).Skip(skip).Take(pageSize).ToList();
 
             // Resolve categories
             var categoryIds = items.Where(p => p.ProductCategoryId.HasValue).Select(p => p.ProductCategoryId!.Value).Distinct().ToList();
             var categories = categoryIds.Count == 0 ? new Dictionary<int, string>()
-                : _unitOfWork.GetCollection<ProductCategory>().Find(c => categoryIds.Contains(c.Id)).ToDictionary(c => c.Id, c => c.Name);
+                : _unitOfWork.Query<ProductCategory>().Where(c => categoryIds.Contains(c.Id)).ToDictionary(c => c.Id, c => c.Name);
 
             var data = items.Select(p => new
             {
                 id = p.Id,
-                partCode = p.PartCode ?? string.Empty,
+                productCode = p.ProductCode ?? string.Empty,
                 name = p.Name ?? string.Empty,
                 categoryId = p.ProductCategoryId,
                 category = p.ProductCategoryId.HasValue && categories.TryGetValue(p.ProductCategoryId.Value, out var cn) ? cn : string.Empty,
@@ -222,8 +225,8 @@ namespace Mercurius.Controllers
         public IActionResult GetCategories(CancellationToken ct = default)
         {
             ct.ThrowIfCancellationRequested();
-            var categories = _unitOfWork.GetCollection<ProductCategory>()
-                .Find(c => c.IsActive)
+            var categories = _unitOfWork.Query<ProductCategory>()
+                .Where(c => c.IsActive)
                 .OrderBy(c => c.Name)
                 .Select(c => new { id = c.Id, name = c.Name })
                 .ToList();
@@ -240,6 +243,9 @@ namespace Mercurius.Controllers
         }
 
         // POST: Products/Import
+        // Only reads/validates the upload here — the actual row-by-row work happens on
+        // ProductImportBackgroundService so a large file doesn't tie up the request, and keeps
+        // running even if the uploader navigates away. The client polls ImportStatus for progress.
         [HttpPost]
         [Authorize(Policy = Common.ModuleRegistry.Pages.PRODUCTS_CREATE)]
         [ValidateAntiForgeryToken]
@@ -248,124 +254,57 @@ namespace Mercurius.Controllers
             ct.ThrowIfCancellationRequested();
             if (csvFile == null || csvFile.Length == 0)
             {
-                ModelState.AddModelError("", "Please select a CSV file to upload.");
-                return View();
+                return BadRequest(new { error = "Please select a CSV file to upload." });
             }
 
             if (!Path.GetExtension(csvFile.FileName).Equals(".csv", StringComparison.OrdinalIgnoreCase))
             {
-                ModelState.AddModelError("", "Please upload a CSV file.");
-                return View();
+                return BadRequest(new { error = "Please upload a CSV file." });
             }
 
-            var importResults = new List<ImportResult>();
-
-            try
+            byte[] fileContent;
+            using (var ms = new MemoryStream())
             {
-                using (var reader = new StreamReader(csvFile.OpenReadStream()))
-                using (var csv = new CsvHelper.CsvReader(reader, CultureInfo.InvariantCulture))
-                {
-                    csv.Context.RegisterClassMap<ProductCsvMap>();
-                    // Ignore missing headers — use default values (0 for price/stock) when columns absent
-                    csv.Context.Configuration.HeaderValidated = null;
-                    csv.Context.Configuration.MissingFieldFound = null;
-                    var records = csv.GetRecords<ProductCsvRecord>().ToList();
-
-                    foreach (var record in records)
-                    {
-                        var result = new ImportResult
-                        {
-                            RowNumber = csv.Context.Parser.Row,
-                            Sku = record.PartCode ?? "",
-                            Name = record.Name ?? "",
-                            Status = "Pending"
-                        };
-
-                        try
-                        {
-                            // Check if product exists
-                            var existingProducts = await _unitOfWork.Repository<Product>()
-                                .FindAsync(p => p.PartCode == record.PartCode, ct);
-                            var existingProduct = existingProducts.FirstOrDefault();
-
-                            if (existingProduct != null && !updateExisting)
-                            {
-                                result.Status = "Skipped - Already Exists";
-                                importResults.Add(result);
-                                continue;
-                            }
-
-                            // Get or create category
-                            ProductCategory? category = null;
-                            if (!string.IsNullOrEmpty(record.Category))
-                            {
-                                var categories = await _unitOfWork.Repository<ProductCategory>()
-                                    .FindAsync(c => c.Name == record.Category, ct);
-                                category = categories.FirstOrDefault();
-
-                                if (category == null)
-                                {
-                                    category = new ProductCategory { Name = record.Category };
-                                    await _unitOfWork.Repository<ProductCategory>().AddAsync(category, ct);
-                                    await _unitOfWork.SaveChangesAsync(ct);
-                                }
-                            }
-
-                            if (existingProduct != null && updateExisting)
-                            {
-                                // Update existing product
-                                existingProduct.Name = record.Name ?? existingProduct.Name;
-                                existingProduct.Description = record.Description ?? existingProduct.Description;
-                                existingProduct.CurrentCostPrice = record.CostPrice;
-                                existingProduct.CurrentSalePrice = record.SalePrice;
-                                existingProduct.CurrentStock = record.StockQuantity;
-                                existingProduct.ProductCategoryId = category?.Id ?? existingProduct.ProductCategoryId;
-                                existingProduct.UpdatedDate = DateTime.UtcNow;
-
-                                await _unitOfWork.Repository<Product>().UpdateAsync(existingProduct, ct);
-                                result.Status = "Updated";
-                            }
-                            else
-                            {
-                                // Create new product
-                                var newProduct = new Product
-                                {
-                                    PartCode = record.PartCode ?? "",
-                                    Name = record.Name ?? "",
-                                    Description = record.Description ?? "",
-                                    CurrentCostPrice = record.CostPrice,
-                                    CurrentSalePrice = record.SalePrice,
-                                    CurrentStock = record.StockQuantity,
-                                    ProductCategoryId = category?.Id,
-                                    IsActive = true,
-                                    CreateDate = DateTime.UtcNow
-                                };
-
-                                await _unitOfWork.Repository<Product>().AddAsync(newProduct, ct);
-                                result.Status = "Created";
-                            }
-
-                            await _unitOfWork.SaveChangesAsync(ct);
-                        }
-                        catch (Exception ex)
-                        {
-                            _loggerService.LogError($"CSV import row failed for PartCode '{record?.PartCode}'", ex);
-                            result.Status = $"Error: {ex.Message}";
-                        }
-
-                        importResults.Add(result);
-                    }
-                }
-
-                ViewBag.ImportResults = importResults;
-                return View(importResults);
+                await csvFile.CopyToAsync(ms, ct);
+                fileContent = ms.ToArray();
             }
-            catch (Exception ex)
+
+            var jobId = Guid.NewGuid().ToString();
+            _importJobTracker.CreateJob(jobId);
+            await _importQueue.EnqueueAsync(new Mercurius.Services.ProductImportJob
             {
-                _loggerService.LogError("CSV import failed", ex);
-                ModelState.AddModelError("", $"Error importing file: {ex.Message}");
-                return View();
+                JobId = jobId,
+                FileContent = fileContent,
+                UpdateExisting = updateExisting
+            }, ct);
+
+            return Json(new { jobId });
+        }
+
+        // GET: Products/ImportStatus?jobId=...
+        // Polled by the progress modal on Views/Products/Import.cshtml.
+        [HttpGet]
+        [Authorize(Policy = Common.ModuleRegistry.Pages.PRODUCTS_CREATE)]
+        public IActionResult ImportStatus(string jobId)
+        {
+            var state = _importJobTracker.Get(jobId);
+            if (state == null)
+            {
+                return NotFound();
             }
+
+            return Json(new
+            {
+                status = state.Status,
+                total = state.Total,
+                processed = state.Processed,
+                created = state.Created,
+                updated = state.Updated,
+                skipped = state.Skipped,
+                errors = state.Errors,
+                log = _importJobTracker.SnapshotLog(state),
+                errorMessage = state.ErrorMessage
+            });
         }
 
         // GET: Products/Details/5
@@ -591,7 +530,7 @@ namespace Mercurius.Controllers
                 return NotFound();
             }
 
-            var qrCodeData = $"PartCode:{product.PartCode}|Name:{product.Name}";
+            var qrCodeData = $"ProductCode:{product.ProductCode}|Name:{product.Name}";
             var qr = QrCode.EncodeText(qrCodeData, QrCode.Ecc.Medium);
 
             var svg = qr.ToSvgString(border: 4);
@@ -602,13 +541,6 @@ namespace Mercurius.Controllers
         {
             var categories = await _unitOfWork.Repository<ProductCategory>().GetAllAsync(ct);
             ViewBag.ProductCategoryId = new SelectList(categories, "Id", "Name");
-
-            var colors = await _unitOfWork.Repository<Mercurius.Repo.Models.Color>().GetAllAsync(ct);
-            ViewBag.ColorId = new SelectList(colors, "Id", "Name");
-
-            var sizes = await _unitOfWork.Repository<Mercurius.Repo.Models.Size>().GetAllAsync(ct);
-            ViewBag.SizeId = new SelectList(sizes, "Id", "Name");
-
         }
 
         /// <summary>

@@ -1,7 +1,7 @@
 using System;
+using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
-using LiteDB;
 
 namespace Mercurius.Repo.Repositories
 {
@@ -14,11 +14,10 @@ namespace Mercurius.Repo.Repositories
         IRepository<T> Repository<T>() where T : class;
 
         /// <summary>
-        /// Gets the underlying LiteDB collection for direct query access.
-        /// Use this for complex queries (filtering, sorting, pagination) that the
-        /// generic repository doesn't support directly.
+        /// Gets a queryable for direct query access (filtering, sorting, pagination) that the
+        /// generic repository doesn't support directly. Backed by the underlying DbSet&lt;T&gt;.
         /// </summary>
-        ILiteCollection<T> GetCollection<T>() where T : class;
+        IQueryable<T> Query<T>() where T : class;
 
         Task SaveChangesAsync(CancellationToken cancellationToken = default);
         Task BeginTransactionAsync(CancellationToken cancellationToken = default);

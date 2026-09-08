@@ -39,25 +39,14 @@ namespace Mercurius.Controllers.Configurations
             var sortDir = (string?)q["order[0][dir]"] == "desc" ? "desc" : "asc";
             var searchValue = ((string?)q["search[value]"] ?? string.Empty).Trim();
 
-            // Column index → ProductCategory field. Matches the `columns` array in Index.cshtml.
-            // 0 = Name, 1 = Description, 2 = CreatedDate, 3 = IsActive, 4 = Actions.
-            string sortField = sortColumnIndex switch
-            {
-                0 => nameof(ProductCategory.Name),
-                1 => nameof(ProductCategory.Description),
-                2 => nameof(ProductCategory.CreatedDate),
-                3 => nameof(ProductCategory.IsActive),
-                _ => nameof(ProductCategory.Name)
-            };
-
             if (length < 1) length = 25;
             if (length > 200) length = 200;
 
-            var collection = _unitOfWork.GetCollection<ProductCategory>();
+            var collection = _unitOfWork.Query<ProductCategory>();
 
             var recordsTotal = collection.Count();
 
-            var query = collection.Query();
+            var query = collection;
             if (!string.IsNullOrEmpty(searchValue))
             {
                 var s = searchValue.ToLowerInvariant();
@@ -68,12 +57,22 @@ namespace Mercurius.Controllers.Configurations
 
             var recordsFiltered = query.Count();
 
-            var bsonField = LiteDB.BsonExpression.Create($"$.{sortField}");
-            query = sortDir == "desc"
-                ? query.OrderByDescending(bsonField)
-                : query.OrderBy(bsonField);
+            // Column index → ProductCategory field. Matches the `columns` array in Index.cshtml.
+            // 0 = Name, 1 = Description, 2 = CreatedDate, 3 = IsActive, 4 = Actions.
+            bool desc = sortDir == "desc";
+            query = (sortColumnIndex, desc) switch
+            {
+                (1, true) => query.OrderByDescending(c => c.Description),
+                (1, false) => query.OrderBy(c => c.Description),
+                (2, true) => query.OrderByDescending(c => c.CreatedDate),
+                (2, false) => query.OrderBy(c => c.CreatedDate),
+                (3, true) => query.OrderByDescending(c => c.IsActive),
+                (3, false) => query.OrderBy(c => c.IsActive),
+                (_, true) => query.OrderByDescending(c => c.Name),
+                (_, false) => query.OrderBy(c => c.Name)
+            };
 
-            var pageItems = query.Skip(start).Limit(length).ToList();
+            var pageItems = query.Skip(start).Take(length).ToList();
             var data = pageItems.Select(c => new
             {
                 id = c.Id,

@@ -122,7 +122,7 @@ namespace Mercurius.Controllers
                                     {
                                         ProductId = product.Id,
                                         ProductName = product.Name,
-                                        ProductPartCode = product.PartCode,
+                                        ProductCode = product.ProductCode,
                                         QuantitySold = qty,
                                         StockAtTimeOfSale = product.CurrentStock,
                                         InvoiceNumber = invoice.InvoiceNumber,

@@ -1,0 +1,58 @@
+@model IEnumerable<Mercurius.Models.BackupFileInfo>
+@{
+    ViewData["Title"] = "Database Backups";
+    Layout = "~/Views/Shared/_Layout.cshtml";
+}
+
+<!-- PAGE TITLE -->
+<div id="kt_app_toolbar" class="app-toolbar py-3 py-lg-6">
+    <div id="kt_app_toolbar_container" class="app-container container-xxl d-flex flex-stack">
+        <div class="page-title d-flex flex-column justify-content-center flex-wrap me-3">
+            <h1 class="page-heading d-flex text-dark fw-bold fs-3 flex-column justify-content-center my-0">Database Backups</h1>
+        </div>
+    </div>
+</div>
+
+<div class="card">
+    <div class="card-header border-0 pt-6">
+        <div class="card-title">
+            <span class="text-muted fs-7">Daily snapshots of the database, kept for a limited number of days.</span>
+        </div>
+    </div>
+    <div class="card-body pt-0">
+        <div class="table-responsive">
+            <table class="table table-hover table-rounded table-striped border gy-7 gs-7">
+                <thead>
+                    <tr class="fw-bold fs-6 text-gray-800 border-bottom border-gray-200">
+                        <th>File Name</th>
+                        <th>Created</th>
+                        <th>Size</th>
+                        <th class="text-end">Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @if (Model.Any())
+                    {
+                        foreach (var backup in Model)
+                        {
+                            <tr>
+                                <td>@backup.FileName</td>
+                                <td>@backup.CreatedDate.ToString("yyyy-MM-dd HH:mm:ss")</td>
+                                <td>@backup.FormattedSize</td>
+                                <td class="text-end">
+                                    <a href="/DatabaseBackups/Download?fileName=@Uri.EscapeDataString(backup.FileName)" class="btn btn-sm btn-light-primary" title="Download">
+                                        <i class="bi bi-download fs-4"></i> Download
+                                    </a>
+                                </td>
+                            </tr>
+                        }
+                    }
+                    else
+                    {
+                        <tr><td colspan="4" class="text-center text-muted">No backups yet.</td></tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>

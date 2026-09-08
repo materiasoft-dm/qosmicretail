@@ -5,7 +5,7 @@
 
 <!-- PAGE TITLE -->
 <div id="kt_app_toolbar" class="app-toolbar py-3 py-lg-6">
-    <div id="kt_app_toolbar_container" class="app-container container-xxl d-flex flex-stack">   
+    <div id="kt_app_toolbar_container" class="app-container container-xxl d-flex flex-stack">
         <div class="page-title d-flex flex-column justify-content-center flex-wrap me-3">
             <h1 class="page-heading d-flex text-dark fw-bold fs-3 flex-column justify-content-center my-0">Import Products</h1>
             <ul class="breadcrumb breadcrumb-separatorless fw-semibold fs-7 my-0 pt-1">
@@ -46,9 +46,9 @@
             <p class="mb-0">You can download a sample CSV file <a href="/sample-products.csv" target="_blank">here</a>.</p>
         </div>
 
-        <form asp-action="Import" method="post" enctype="multipart/form-data">
+        <form id="importForm" enctype="multipart/form-data">
             @Html.AntiForgeryToken()
-            
+
             <div class="row g-5">
                 <div class="col-md-6">
                     <div class="mb-10">
@@ -57,7 +57,7 @@
                         <div class="form-text">Select a CSV file to upload. Maximum file size: 10MB.</div>
                     </div>
                 </div>
-                
+
                 <div class="col-md-6">
                     <div class="mb-10">
                         <label class="form-label">Import Options</label>
@@ -72,18 +72,7 @@
                 </div>
             </div>
 
-            @if (ViewData.ModelState.ErrorCount > 0)
-            {
-                <div class="alert alert-danger">
-                    <h4 class="alert-heading">Errors found:</h4>
-                    <ul>
-                        @foreach (var error in ViewData.ModelState.Values.SelectMany(v => v.Errors))
-                        {
-                            <li>@error.ErrorMessage</li>
-                        }
-                    </ul>
-                </div>
-            }
+            <div id="importFormError" class="alert alert-danger" style="display:none;"></div>
 
             <div class="border-top d-flex flex-stack flex-wrap mt-lg-10 pt-13">
                 <div class="my-1 me-5">
@@ -91,7 +80,7 @@
                 </div>
 
                 <div class="d-flex align-items-center gap-2 gap-lg-3">
-                    <button type="submit" class="btn btn-primary" data-kt-users-modal-action="submit">
+                    <button type="submit" id="importSubmitBtn" class="btn btn-primary">
                         <span class="indicator-label">Import Products</span>
                         <span class="indicator-progress">
                             Please wait...
@@ -104,15 +93,148 @@
     </div>
 </div>
 
+<!-- Import progress modal -->
+<div class="modal fade" id="importProgressModal" data-bs-backdrop="static" data-bs-keyboard="false" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Importing Products</h5>
+                <button type="button" id="importModalCloseBtn" class="btn-close" data-bs-dismiss="modal" style="display:none;"></button>
+            </div>
+            <div class="modal-body">
+                <div class="mb-4">
+                    <div class="d-flex justify-content-between mb-1">
+                        <span id="importStatusText" class="fw-bold">Queued...</span>
+                        <span id="importCountText" class="text-muted"></span>
+                    </div>
+                    <div class="progress" style="height: 20px;">
+                        <div id="importProgressBar" class="progress-bar progress-bar-striped progress-bar-animated" role="progressbar" style="width: 0%">0%</div>
+                    </div>
+                </div>
+
+                <div id="importSummary" class="alert alert-success" style="display:none;"></div>
+
+                <label class="form-label">Activity Log</label>
+                <div id="importLog" class="bg-light rounded p-3" style="height: 260px; overflow-y: auto; font-family: monospace; font-size: 0.85rem; white-space: pre-wrap;"></div>
+            </div>
+        </div>
+    </div>
+</div>
+
 @section Scripts {
     <script>
         $(document).ready(function () {
-            $('form').submit(function () {
-                var submitButton = $(this).find('button[type="submit"]');
-                submitButton.prop('disabled', true);
-                submitButton.find('.indicator-label').hide();
-                submitButton.find('.indicator-progress').show();
+            var IMPORT_JOB_STORAGE_KEY = 'mercurius_import_job_id';
+            var pollTimer = null;
+            var modalEl = document.getElementById('importProgressModal');
+            var modal = new bootstrap.Modal(modalEl);
+
+            function resetModalForNewRun() {
+                $('#importStatusText').text('Queued...').removeClass('text-danger');
+                $('#importCountText').text('');
+                $('#importProgressBar').css('width', '0%').text('0%');
+                $('#importSummary').hide().removeClass('alert-danger').addClass('alert-success').html('');
+                $('#importLog').empty();
+                $('#importModalCloseBtn').hide();
+            }
+
+            function renderState(state) {
+                $('#importStatusText').text(state.status);
+                var pct = state.total > 0 ? Math.round((state.processed / state.total) * 100) : 0;
+                $('#importProgressBar').css('width', pct + '%').text(pct + '%');
+                $('#importCountText').text(state.total > 0 ? (state.processed + ' / ' + state.total) : '');
+
+                var logEl = $('#importLog');
+                logEl.empty();
+                (state.log || []).forEach(function (line) {
+                    logEl.append($('<div></div>').text(line));
+                });
+                logEl.scrollTop(logEl[0].scrollHeight);
+
+                if (state.status === 'Completed') {
+                    $('#importSummary').show().removeClass('alert-danger').addClass('alert-success').text(
+                        'Created: ' + state.created + '   Updated: ' + state.updated +
+                        '   Skipped: ' + state.skipped + '   Errors: ' + state.errors
+                    );
+                } else if (state.status === 'Failed') {
+                    $('#importStatusText').addClass('text-danger');
+                    $('#importSummary').show().removeClass('alert-success').addClass('alert-danger')
+                        .text('Import failed: ' + (state.errorMessage || 'Unknown error.'));
+                }
+            }
+
+            function stopPolling(clearStorage) {
+                if (pollTimer) {
+                    clearInterval(pollTimer);
+                    pollTimer = null;
+                }
+                if (clearStorage) {
+                    localStorage.removeItem(IMPORT_JOB_STORAGE_KEY);
+                }
+                $('#importModalCloseBtn').show();
+            }
+
+            function pollStatus(jobId) {
+                $.get('@Url.Action("ImportStatus", "Products")', { jobId: jobId })
+                    .done(function (state) {
+                        renderState(state);
+                        if (state.status === 'Completed' || state.status === 'Failed') {
+                            stopPolling(true);
+                        }
+                    })
+                    .fail(function (xhr) {
+                        if (xhr.status === 404) {
+                            // Server restarted since this job ran (in-memory tracker) — stop quietly.
+                            stopPolling(true);
+                        }
+                    });
+            }
+
+            function startTracking(jobId, isResume) {
+                localStorage.setItem(IMPORT_JOB_STORAGE_KEY, jobId);
+                if (!isResume) {
+                    resetModalForNewRun();
+                }
+                modal.show();
+                pollStatus(jobId);
+                pollTimer = setInterval(function () { pollStatus(jobId); }, 1000);
+            }
+
+            $('#importForm').on('submit', function (e) {
+                e.preventDefault();
+                $('#importFormError').hide();
+                var formData = new FormData(this);
+
+                var submitBtn = $('#importSubmitBtn');
+                submitBtn.prop('disabled', true);
+                submitBtn.find('.indicator-label').hide();
+                submitBtn.find('.indicator-progress').show();
+
+                $.ajax({
+                    url: '@Url.Action("Import", "Products")',
+                    method: 'POST',
+                    data: formData,
+                    processData: false,
+                    contentType: false
+                }).done(function (result) {
+                    startTracking(result.jobId, false);
+                }).fail(function (xhr) {
+                    var msg = 'Failed to start import.';
+                    try { msg = JSON.parse(xhr.responseText).error || msg; } catch (e) {}
+                    $('#importFormError').text(msg).show();
+                }).always(function () {
+                    submitBtn.prop('disabled', false);
+                    submitBtn.find('.indicator-progress').hide();
+                    submitBtn.find('.indicator-label').show();
+                });
             });
+
+            // If an import was already running when the user navigated to (or reloaded) this
+            // page, resume showing its progress rather than losing track of it.
+            var existingJobId = localStorage.getItem(IMPORT_JOB_STORAGE_KEY);
+            if (existingJobId) {
+                startTracking(existingJobId, true);
+            }
         });
     </script>
 }

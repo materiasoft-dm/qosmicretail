@@ -1,34 +1,43 @@
-using LiteDB;
 using Mercurius.Repo.Models;
 using Mercurius.Repo.Repositories;
+using Microsoft.Data.Sqlite;
+using Microsoft.EntityFrameworkCore;
 using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
-using System.IO;
 using Xunit;
 
 namespace Mercurius.Tests.Integration
 {
     /// <summary>
-    /// Integration tests for the Repository Pattern with LiteDB.
+    /// Integration tests for the Repository Pattern against a real Sqlite database (in-memory,
+    /// kept alive for the test's lifetime via an open connection).
     /// These tests verify that the repository works correctly in a real database scenario.
     /// </summary>
     public class RepositoryIntegrationTests : IDisposable
     {
-        private readonly LiteDatabase _database;
+        private readonly SqliteConnection _connection;
+        private readonly MercuriusDbContext _context;
         private readonly IUnitOfWork _unitOfWork;
 
         public RepositoryIntegrationTests()
         {
-            _database = new LiteDatabase(new MemoryStream());
-            _unitOfWork = new LiteDbUnitOfWork(_database);
+            _connection = new SqliteConnection("Data Source=:memory:");
+            _connection.Open();
+            var options = new DbContextOptionsBuilder<MercuriusDbContext>()
+                .UseSqlite(_connection)
+                .Options;
+            _context = new MercuriusDbContext(options);
+            _context.Database.EnsureCreated();
+            _unitOfWork = new EfUnitOfWork(_context);
         }
 
         public void Dispose()
         {
             _unitOfWork?.Dispose();
-            _database?.Dispose();
+            _context.Dispose();
+            _connection.Dispose();
         }
 
         [Fact]
@@ -42,7 +51,7 @@ namespace Mercurius.Tests.Integration
             {
                 Id = 1,
                 Name = "Integration Test Product",
-                PartCode = "INT-001",
+                ProductCode = "INT-001",
                 CurrentStock = 100,
                 IsActive = true
             };
@@ -69,15 +78,17 @@ namespace Mercurius.Tests.Integration
 
             // Assert - Update
             var updatedProduct = await productRepo.GetByIdAsync(1);
+            Assert.NotNull(updatedProduct);
             Assert.Equal("Updated Product Name", updatedProduct.Name);
 
-            // Act - Delete
+            // Act - Delete (Product has IsActive, so this soft-deletes rather than removing the row)
             await productRepo.DeleteAsync(1);
             await _unitOfWork.SaveChangesAsync();
 
             // Assert - Delete
             var deletedProduct = await productRepo.GetByIdAsync(1);
-            Assert.Null(deletedProduct);
+            Assert.NotNull(deletedProduct);
+            Assert.False(deletedProduct.IsActive);
         }
 
         [Fact]
@@ -88,10 +99,10 @@ namespace Mercurius.Tests.Integration
 
             var products = new List<Product>
             {
-                new Product { Id = 1, Name = "Active Product 1", PartCode = "P001", IsActive = true, CurrentStock = 100 },
-                new Product { Id = 2, Name = "Active Product 2", PartCode = "P002", IsActive = true, CurrentStock = 50 },
-                new Product { Id = 3, Name = "Inactive Product", PartCode = "P003", IsActive = false, CurrentStock = 0 },
-                new Product { Id = 4, Name = "Low Stock Product", PartCode = "P004", IsActive = true, CurrentStock = 5 }
+                new Product { Id = 1, Name = "Active Product 1", ProductCode = "P001", IsActive = true, CurrentStock = 100 },
+                new Product { Id = 2, Name = "Active Product 2", ProductCode = "P002", IsActive = true, CurrentStock = 50 },
+                new Product { Id = 3, Name = "Inactive Product", ProductCode = "P003", IsActive = false, CurrentStock = 0 },
+                new Product { Id = 4, Name = "Low Stock Product", ProductCode = "P004", IsActive = true, CurrentStock = 5 }
             };
 
             foreach (var p in products)
@@ -127,7 +138,7 @@ namespace Mercurius.Tests.Integration
                 {
                     Id = i,
                     Name = $"Product {i}",
-                    PartCode = $"P{i:D3}",
+                    ProductCode = $"P{i:D3}",
                     IsActive = true
                 });
             }
@@ -155,13 +166,14 @@ namespace Mercurius.Tests.Integration
             var productRepo = _unitOfWork.Repository<Product>();
             var customerRepo = _unitOfWork.Repository<Customer>();
             var invoiceRepo = _unitOfWork.Repository<Invoice>();
+            var invoiceStatusRepo = _unitOfWork.Repository<InvoiceStatus>();
 
             // Create related data
             var product = new Product
             {
                 Id = 1,
                 Name = "Test Product",
-                PartCode = "TEST-001",
+                ProductCode = "TEST-001",
                 IsActive = true
             };
 
@@ -173,18 +185,28 @@ namespace Mercurius.Tests.Integration
                 IsActive = true
             };
 
+            // Invoice.StatusId is a required FK (Invoice.Status navigation) — SQLite enforces
+            // it (unlike LiteDB), so a real InvoiceStatus row must exist first.
+            var invoiceStatus = new InvoiceStatus
+            {
+                Id = 1,
+                Name = "Draft"
+            };
+
             var invoice = new Invoice
             {
                 Id = 1,
                 CustomerId = 1,
                 InvoiceNumber = "INV-001",
                 InvoiceDate = DateTime.Now,
-                LocationId = 1
+                LocationId = 1,
+                StatusId = 1
             };
 
             // Act
             await productRepo.AddAsync(product);
             await customerRepo.AddAsync(customer);
+            await invoiceStatusRepo.AddAsync(invoiceStatus);
             await invoiceRepo.AddAsync(invoice);
             await _unitOfWork.SaveChangesAsync();
 
@@ -207,7 +229,7 @@ namespace Mercurius.Tests.Integration
                 {
                     Id = i,
                     Name = $"Bulk Product {i}",
-                    PartCode = $"BULK{i:D4}",
+                    ProductCode = $"BULK{i:D4}",
                     IsActive = true
                 });
             }
@@ -224,65 +246,14 @@ namespace Mercurius.Tests.Integration
             Assert.True((endTime - startTime).TotalSeconds < 5, "Bulk insert should complete in under 5 seconds");
         }
 
-        [Fact]
-        public async Task ConcurrentAccess_ShouldBeThreadSafe()
-        {
-            // Arrange
-            var productRepo = _unitOfWork.Repository<Product>();
-            var tasks = new List<Task>();
+        // Note: a "concurrent writes on one shared repository instance" test existed here under
+        // LiteDB (whose engine has its own internal thread safety). It doesn't port meaningfully
+        // to EF Core: a single DbContext instance is explicitly not safe for concurrent use from
+        // multiple threads — real concurrency safety in this app comes from ASP.NET Core giving
+        // each request its own scoped DbContext, which this repository-level test can't exercise.
 
-            // Act - Simulate concurrent writes
-            for (int i = 1; i <= 10; i++)
-            {
-                var id = i;
-                tasks.Add(Task.Run(async () =>
-                {
-                    await productRepo.AddAsync(new Product
-                    {
-                        Id = id,
-                        Name = $"Concurrent Product {id}",
-                        PartCode = $"CONC{id:D3}",
-                        IsActive = true
-                    });
-                }));
-            }
-
-            await Task.WhenAll(tasks);
-            await _unitOfWork.SaveChangesAsync();
-
-            // Assert
-            var count = await productRepo.CountAsync();
-            Assert.Equal(10, count);
-        }
-
-        [Fact]
-        public async Task Indexing_ShouldImproveQueryPerformance()
-        {
-            // Arrange
-            var productRepo = _unitOfWork.Repository<Product>();
-            var liteDbRepo = (LiteDbRepository<Product>)productRepo;
-
-            // Add products
-            for (int i = 1; i <= 50; i++)
-            {
-                await productRepo.AddAsync(new Product
-                {
-                    Id = i,
-                    Name = $"Product {i}",
-                    PartCode = $"P{i:D3}",
-                    IsActive = i % 2 == 0
-                });
-            }
-            await _unitOfWork.SaveChangesAsync();
-
-            // Create index
-            liteDbRepo.EnsureIndex(p => p.IsActive);
-
-            // Act - Query with index
-            var activeProducts = await productRepo.FindAsync(p => p.IsActive);
-
-            // Assert
-            Assert.Equal(25, activeProducts.Count());
-        }
+        // Note: an "EnsureIndex at runtime" test also existed here under LiteDB. Indexes are now
+        // declared once in MercuriusDbContext.OnModelCreating rather than created imperatively,
+        // so there's nothing runtime-callable left to test at the repository level.
     }
 }

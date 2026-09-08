@@ -11,8 +11,8 @@ public class ProductCsvMap : ClassMap<ProductCsvRecord>
 {
     public ProductCsvMap()
     {
-        // SKU / Part Code
-        Map(m => m.PartCode).Name("SKU", "sku", "PartCode", "partcode", "Part", "Code", "Handle", "Variant SKU");
+        // SKU / Product Code
+        Map(m => m.ProductCode).Name("SKU", "sku", "PartCode", "partcode", "ProductCode", "productcode", "Part", "Code", "Handle", "Variant SKU");
 
         // Name
         Map(m => m.Name).Name("Name", "name", "Product", "product", "ProductName", "Title");

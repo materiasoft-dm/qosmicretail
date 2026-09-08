@@ -33,7 +33,7 @@ namespace Mercurius.Controllers
         // Server-side endpoint for jQuery DataTables. Honors the standard request
         // shape (draw / start / length / order[0][column] / order[0][dir] / search[value])
         // and replies with { draw, recordsTotal, recordsFiltered, data: [...] }.
-        // All filtering/ordering/paging is pushed down to LiteDB so the browser
+        // All filtering/ordering/paging is pushed down to the database so the browser
         // only ever receives one page of rows.
         [HttpGet]
         [Authorize(Policy = Common.ModuleRegistry.Pages.CUSTOMER_LIST)]
@@ -45,34 +45,21 @@ namespace Mercurius.Controllers
             var sortDir = (string?)q["order[0][dir]"] == "desc" ? "desc" : "asc";
             var searchValue = ((string?)q["search[value]"] ?? string.Empty).Trim();
 
-            // Column index → Customer field. Matches the `columns` array in Index.cshtml.
-            // 0 = Id, 1 = FirstName, 2 = LastName, 3 = ContactNumber, 4 = EmailAddress,
-            // 5 = Actions (not sortable).
-            string sortField = sortColumnIndex switch
-            {
-                0 => nameof(Customer.Id),
-                1 => nameof(Customer.FirstName),
-                2 => nameof(Customer.LastName),
-                3 => nameof(Customer.ContactNumber),
-                4 => nameof(Customer.EmailAddress),
-                _ => nameof(Customer.Id)
-            };
             // Preserve the legacy default sort (newest first by Id desc) when no client order specified.
             if (!q.ContainsKey("order[0][column]"))
             {
                 sortColumnIndex = 0;
-                sortField = nameof(Customer.Id);
                 sortDir = "desc";
             }
 
             if (length < 1) length = 25;
             if (length > 200) length = 200;
 
-            var collection = _unitOfWork.GetCollection<Customer>();
+            var collection = _unitOfWork.Query<Customer>();
 
             var recordsTotal = collection.Count();
 
-            var query = collection.Query();
+            var query = collection;
             if (!string.IsNullOrEmpty(searchValue))
             {
                 var s = searchValue.ToLowerInvariant();
@@ -86,12 +73,25 @@ namespace Mercurius.Controllers
 
             var recordsFiltered = query.Count();
 
-            var bsonField = LiteDB.BsonExpression.Create($"$.{sortField}");
-            query = sortDir == "desc"
-                ? query.OrderByDescending(bsonField)
-                : query.OrderBy(bsonField);
+            // Column index → Customer field. Matches the `columns` array in Index.cshtml.
+            // 0 = Id, 1 = FirstName, 2 = LastName, 3 = ContactNumber, 4 = EmailAddress,
+            // 5 = Actions (not sortable).
+            bool desc = sortDir == "desc";
+            query = (sortColumnIndex, desc) switch
+            {
+                (1, true) => query.OrderByDescending(c => c.FirstName),
+                (1, false) => query.OrderBy(c => c.FirstName),
+                (2, true) => query.OrderByDescending(c => c.LastName),
+                (2, false) => query.OrderBy(c => c.LastName),
+                (3, true) => query.OrderByDescending(c => c.ContactNumber),
+                (3, false) => query.OrderBy(c => c.ContactNumber),
+                (4, true) => query.OrderByDescending(c => c.EmailAddress),
+                (4, false) => query.OrderBy(c => c.EmailAddress),
+                (_, true) => query.OrderByDescending(c => c.Id),
+                (_, false) => query.OrderBy(c => c.Id)
+            };
 
-            var pageItems = query.Skip(start).Limit(length).ToList();
+            var pageItems = query.Skip(start).Take(length).ToList();
 
             var data = pageItems.Select(c => new
             {

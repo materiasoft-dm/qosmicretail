@@ -5,7 +5,6 @@ using Mercurius.Repo;
 using Mercurius.Repo.IdentityModel;
 using Mercurius.Repo.Repositories;
 using Mercurius.Repo.Models;
-using Mercurius.Repo.LiteDB;
 using Mercurius.Services;
 using Mercurius.Middleware;
 using Microsoft.AspNetCore.Http;
@@ -13,44 +12,58 @@ using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Identity.UI.Services;
 using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.Data.Sqlite;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Diagnostics.HealthChecks;
 using System.IO;
 using System.Threading.RateLimiting;
-using LiteDB;
 
 var builder = WebApplication.CreateBuilder(args);
 
 // ============================================
 // DATABASE CONFIGURATION
 // ============================================
-// LiteDB is the sole database for all data (business + Identity).
-// LiteDbContext owns the single LiteDatabase instance.
+// EF Core backs all data (business + Identity). Two providers are supported, chosen via
+// "DatabaseProvider" ("Sqlite" [default] or "SqlServer"):
+//   Sqlite    — single local file, from "ConnectionStrings:DefaultConnection" if set, else
+//               MERCURIUS_DB=mercurius → mercurius.sqlite (default);
+//               MERCURIUS_DB=veramay → veramay.sqlite (clean import target for new client).
+//               The daily DatabaseBackupService only makes sense for this provider (it VACUUMs
+//               the local file), so it's only registered when Sqlite is active.
+//   SqlServer — "ConnectionStrings:SqlServer" is used as-is. No local file, so no backup
+//               service — hosting providers typically manage SQL Server backups themselves.
+// Kept as separate keys (rather than both reusing DefaultConnection) so flipping the provider
+// back and forth doesn't require re-entering/losing either connection string.
 // ============================================
 
-// Connection=direct: the LiteDatabase below is registered as a singleton, so there is exactly
-// one in-process holder. Shared mode adds a SharedEngine wrapper that opens/closes the file on
-// every operation and uses a system-wide mutex — that races under concurrent requests (cookie
-// validation + identity store + repo all touch it) and throws "Object synchronization method
-// was called from an unsynchronized block of code" out of LiteDB.SharedEngine.CloseDatabase.
-// MERCURIUS_DB=mercurius  → use mercurius.litedb (default)
-// MERCURIUS_DB=veramay    → use veramay.litedb (clean import target for new client)
+var databaseProvider = builder.Configuration.GetValue<string>("DatabaseProvider") ?? "Sqlite";
+var useSqlServer = string.Equals(databaseProvider, "SqlServer", StringComparison.OrdinalIgnoreCase);
+
 var dbName = Environment.GetEnvironmentVariable("MERCURIUS_DB") ?? "mercurius";
-var liteDbConnectionString = $"Filename={Path.Combine(builder.Environment.ContentRootPath, $"{dbName}.litedb")};Connection=direct";
+var configuredSqliteConnectionString = builder.Configuration.GetConnectionString("DefaultConnection");
+var sqliteConnectionString = string.IsNullOrWhiteSpace(configuredSqliteConnectionString)
+    ? $"Data Source={Path.Combine(builder.Environment.ContentRootPath, $"{dbName}.sqlite")}"
+    : configuredSqliteConnectionString;
+var sqlServerConnectionString = builder.Configuration.GetConnectionString("SqlServer");
 
-// Register LiteDB Context (owns the single LiteDatabase instance)
-builder.Services.AddSingleton<LiteDbContext>(sp =>
-    new LiteDbContext(liteDbConnectionString));
-
-// Expose ILiteDatabase through the LiteDbContext singleton
-builder.Services.AddSingleton<ILiteDatabase>(sp =>
-    sp.GetRequiredService<LiteDbContext>().Database);
+builder.Services.AddDbContext<MercuriusDbContext>(options =>
+{
+    if (useSqlServer)
+    {
+        options.UseSqlServer(sqlServerConnectionString);
+    }
+    else
+    {
+        options.UseSqlite(sqliteConnectionString);
+    }
+});
 
 // Register Unit of Work pattern
 builder.Services.AddScoped<IUnitOfWork>(sp =>
-    sp.GetRequiredService<LiteDbContext>().CreateUnitOfWork());
+    new EfUnitOfWork(sp.GetRequiredService<MercuriusDbContext>()));
 
 // ============================================
-// ASP.NET CORE IDENTITY (LiteDB-backed)
+// ASP.NET CORE IDENTITY (EF Core-backed)
 // ============================================
 
 builder.Services.AddDefaultIdentity<MercuriusUser>(options =>
@@ -66,7 +79,7 @@ builder.Services.AddDefaultIdentity<MercuriusUser>(options =>
     options.Password.RequiredLength = 8;
 })
     .AddRoles<IdentityRole>()
-    .AddLiteDbStores()
+    .AddEntityFrameworkStores<MercuriusDbContext>()
     .AddDefaultTokenProviders()
     .AddClaimsPrincipalFactory<MercuriusClaimsPrincipalFactory>();
 
@@ -103,6 +116,25 @@ builder.Services.AddApiVersioning(options =>
 
 builder.Services.AddTransient<IEmailSender, EmailSender>();
 builder.Services.AddScoped<ILoggerService, LoggerService>();
+
+builder.Services.Configure<DatabaseBackupOptions>(builder.Configuration.GetSection("DatabaseBackup"));
+// Registered as a singleton (not just via AddHostedService) so DatabaseBackupsController can
+// inject the concrete type directly (e.g. to read BackupDirectory) alongside the hosting
+// infrastructure starting/stopping the same instance as an IHostedService. Kept registered
+// regardless of provider so the controller's DI resolves either way; only actually scheduled
+// as a background job when Sqlite is the active provider — the VACUUM INTO snapshot mechanism
+// has no SQL Server equivalent, and hosting providers manage SQL Server backups themselves.
+builder.Services.AddSingleton<DatabaseBackupService>();
+if (!useSqlServer)
+{
+    builder.Services.AddHostedService(sp => sp.GetRequiredService<DatabaseBackupService>());
+}
+
+// Product CSV import runs on a background queue so a large file doesn't block the upload
+// request, and keeps processing even if the uploader navigates away.
+builder.Services.AddSingleton<ImportJobTracker>();
+builder.Services.AddSingleton<ProductImportQueue>();
+builder.Services.AddHostedService<ProductImportBackgroundService>();
 
 // ============================================
 // AUTHORIZATION
@@ -193,18 +225,23 @@ builder.Services.AddRateLimiter(options =>
 // ============================================
 
 builder.Services.AddHealthChecks()
-    .AddCheck("litedb", () =>
+    .AddCheck("database", () =>
     {
         try
         {
             // Simple connectivity check
-            using var db = new LiteDatabase(liteDbConnectionString);
-            db.GetCollection("_health").FindOne(Query.All());
-            return HealthCheckResult.Healthy("LiteDB connection is healthy");
+            using System.Data.Common.DbConnection connection = useSqlServer
+                ? new Microsoft.Data.SqlClient.SqlConnection(sqlServerConnectionString)
+                : new SqliteConnection(sqliteConnectionString);
+            connection.Open();
+            using var command = connection.CreateCommand();
+            command.CommandText = "SELECT 1";
+            command.ExecuteScalar();
+            return HealthCheckResult.Healthy($"{databaseProvider} connection is healthy");
         }
         catch (Exception ex)
         {
-            return HealthCheckResult.Unhealthy("LiteDB connection failed", ex);
+            return HealthCheckResult.Unhealthy($"{databaseProvider} connection failed", ex);
         }
     }, tags: new[] { "db", "ready" });
 
@@ -269,6 +306,18 @@ app.MapControllerRoute(
 app.MapRazorPages();
 
 // ============================================
+// DATABASE SCHEMA
+// ============================================
+// EnsureCreated() (not EF migrations) is deliberate: there is no prior schema to migrate
+// incrementally, so this avoids needing the dotnet-ef CLI or a Migrations/ folder. Introduce
+// real migrations later if/when incremental schema changes matter.
+
+using (var schemaScope = app.Services.CreateScope())
+{
+    schemaScope.ServiceProvider.GetRequiredService<MercuriusDbContext>().Database.EnsureCreated();
+}
+
+// ============================================
 // SEED DATA
 // ============================================
 
@@ -317,6 +366,7 @@ async Task SeedDataAsync(WebApplication app)
 
         var unitOfWork = services.GetRequiredService<IUnitOfWork>();
         var addressRepo = unitOfWork.Repository<Address>();
+        var contactInformationRepo = unitOfWork.Repository<ContactInformation>();
         var locationRepo = unitOfWork.Repository<Location>();
         var userCurrentLocationRepo = unitOfWork.Repository<UserCurrentLocation>();
         var locations = await locationRepo.GetAllAsync();
@@ -327,7 +377,13 @@ async Task SeedDataAsync(WebApplication app)
             await unitOfWork.SaveChangesAsync();
             logger.LogInformation($"Created default address: {defaultAddress.Province}, {defaultAddress.Country}");
 
-            var defaultLocation = new Location { Name = "Branch1", AddressId = defaultAddress.Id };
+            // Location.ContactInformationId is a required FK — create a placeholder record so
+            // seeding succeeds; branches can fill in real contact details via Locations/Edit.
+            var defaultContactInformation = new ContactInformation();
+            await contactInformationRepo.AddAsync(defaultContactInformation);
+            await unitOfWork.SaveChangesAsync();
+
+            var defaultLocation = new Location { Name = "Branch1", AddressId = defaultAddress.Id, ContactInformationId = defaultContactInformation.Id };
             await locationRepo.AddAsync(defaultLocation);
             await unitOfWork.SaveChangesAsync();
             logger.LogInformation($"Created default location: {defaultLocation.Name}");

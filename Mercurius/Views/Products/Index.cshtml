@@ -105,8 +105,8 @@
                                 <input id="Create_Name" name="Name" class="form-control form-control-sm" required maxlength="200" />
                             </div>
                             <div class="col-md-6">
-                                <label class="form-label required" for="Create_PartCode">SKU</label>
-                                <input id="Create_PartCode" name="PartCode" class="form-control form-control-sm" required maxlength="100" />
+                                <label class="form-label required" for="Create_ProductCode">SKU</label>
+                                <input id="Create_ProductCode" name="ProductCode" class="form-control form-control-sm" required maxlength="100" />
                             </div>
                             <div class="col-md-6">
                                 <label class="form-label" for="Create_ProductCategoryId">Category</label>
@@ -237,7 +237,7 @@
             var canDeleteProducts = @(canDeleteProducts ? "true" : "false");
 
             // jQuery-html-escape helper for any string we drop into innerHTML.
-            // (We can't trust Name/PartCode/Category — they come from user input.)
+            // (We can't trust Name/ProductCode/Category — they come from user input.)
             function esc(s) {
                 if (s === null || typeof s === 'undefined') return '';
                 return String(s)
@@ -291,7 +291,7 @@
                         }
                     },
                     columns: [
-                        { data: 'partCode', name: 'PartCode',
+                        { data: 'productCode', name: 'ProductCode',
                             render: function (d) { return esc(d); } },
                         { data: 'name', name: 'Name',
                             render: function (d, type, row) {
@@ -303,7 +303,7 @@
                                        '  </div>' +
                                        '  <div class="d-flex flex-column">' +
                                        '    <span class="text-gray-800 text-hover-primary fw-bold">' + esc(row.name) + '</span>' +
-                                       '    <span class="text-muted fs-7">' + esc(row.partCode) + '</span>' +
+                                       '    <span class="text-muted fs-7">' + esc(row.productCode) + '</span>' +
                                        '  </div>' +
                                        '</div>';
                             }

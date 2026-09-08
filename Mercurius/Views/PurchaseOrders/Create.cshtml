@@ -45,7 +45,7 @@
                             <option value="">-- Search and select product --</option>
                             @if (productList != null) {
                                 foreach (var p in productList) {
-                                    <option value="@p.Id">@p.Name (@p.PartCode) — Stock: @p.CurrentStock</option>
+                                    <option value="@p.Id">@p.Name (@p.ProductCode) — Stock: @p.CurrentStock</option>
                                 }
                             }
                         </select>

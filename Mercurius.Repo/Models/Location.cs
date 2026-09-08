@@ -16,6 +16,8 @@ public string Name { get; set; }
 
     public int ContactInformationId { get; set; }
 public decimal? MetaMonthlyTargetSalesCount { get; set; }
+
+    public bool IsActive { get; set; } = true;
 public virtual Address Address { get; set; }
 public virtual ContactInformation ContactInformation { get; set; }
 }

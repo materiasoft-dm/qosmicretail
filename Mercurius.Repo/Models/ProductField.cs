@@ -23,4 +23,6 @@ public class ProductField
 
     /// <summary>The actual value as a string. Cast/parse based on CategoryField.FieldType.</summary>
     public string Value { get; set; } = "";
+
+    public bool IsActive { get; set; } = true;
 }

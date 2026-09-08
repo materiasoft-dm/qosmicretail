@@ -10,7 +10,7 @@ namespace Mercurius.Common.BusinessModel
     {
         public string ProductDisplayName { get; set; } = "";
         public decimal Quantity { get; set; }
-        public string PartCode { get; set; } = "";
+        public string ProductCode { get; set; } = "";
         public string ItemName { get; set; } = "";
     }
 }

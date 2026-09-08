@@ -34,9 +34,8 @@ namespace Mercurius.Controllers.UserManagement
         }
 
         // GET: Users/DataTable
-        // Server-side endpoint. Identity is LiteDB-backed (LiteDB.Identity package); the user
-        // collection is small enough to materialize, so we filter/sort/page in-memory and
-        // resolve roles per page row (page-bounded, capped at 200).
+        // Server-side endpoint. The user collection is small enough to materialize, so we
+        // filter/sort/page in-memory and resolve roles per page row (page-bounded, capped at 200).
         [HttpGet]
         public async Task<IActionResult> DataTable(int draw = 1, int start = 0, int length = 25, bool showDeactivated = false, CancellationToken ct = default)
         {
@@ -91,8 +90,8 @@ namespace Mercurius.Controllers.UserManagement
 
             var pageItems = sorted.Skip(start).Take(length).ToList();
 
-            // Resolve roles per page row (LiteDB.Identity has no batch user-role join API
-            // exposed through UserManager). Bounded by `length` ≤ 200.
+            // Resolve roles per page row (UserManager has no batch user-role join API).
+            // Bounded by `length` ≤ 200.
             var data = new List<object>(pageItems.Count);
             foreach (var u in pageItems)
             {

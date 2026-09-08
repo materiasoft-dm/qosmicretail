@@ -154,37 +154,6 @@
 
                 @if (Model.CanViewCustomerList || Model.CanAddCustomer)
                 {
-                    
-                @if (User.HasClaim(Mercurius.Common.Constants.MercuriusClaimTypes.AccessPages, Mercurius.Common.ModuleRegistry.Pages.DOCTORS_LIST) ||
-                    User.HasClaim(Mercurius.Common.Constants.MercuriusClaimTypes.AccessPages, Mercurius.Common.ModuleRegistry.Pages.PRESCRIPTIONS_LIST))
-                {
-                <div data-kt-menu-trigger="click" class="menu-item menu-accordion">
-                    <span class="menu-link">
-                        <span class="menu-icon">
-                            <span class="svg-icon svg-icon-2">
-                                <svg width="24" height="24" viewBox="0 0 24 24" fill="none"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 17.93c-3.95-.49-7-3.85-7-7.93 0-.62.08-1.21.21-1.79L9 15v1c0 1.1.9 2 2 2v1.93zm6.9-2.54c-.26-.81-1-1.39-1.9-1.39h-1v-3c0-.55-.45-1-1-1H8v-2h2c.55 0 1-.45 1-1V7h2c1.1 0 2-.9 2-2v-.41c2.93 1.19 5 4.06 5 7.41 0 2.08-.8 3.97-2.1 5.39z" fill="currentColor"/></svg>
-                            </span>
-                        </span>
-                        <span class="menu-title">Pharmacy</span>
-                        <span class="menu-arrow"></span>
-                    </span>
-                    <div class="menu-sub menu-sub-accordion">
-                        @if (User.HasClaim(Mercurius.Common.Constants.MercuriusClaimTypes.AccessPages, Mercurius.Common.ModuleRegistry.Pages.DOCTORS_LIST))
-                        {
-                            <div class="menu-item">
-                                <a class="menu-link" href="/Doctors"><span class="menu-bullet"><span class="bullet bullet-dot"></span></span><span class="menu-title">Doctors</span></a>
-                            </div>
-                        }
-                        @if (User.HasClaim(Mercurius.Common.Constants.MercuriusClaimTypes.AccessPages, Mercurius.Common.ModuleRegistry.Pages.PRESCRIPTIONS_LIST))
-                        {
-                            <div class="menu-item">
-                                <a class="menu-link" href="/Prescriptions"><span class="menu-bullet"><span class="bullet bullet-dot"></span></span><span class="menu-title">Prescriptions</span></a>
-                            </div>
-                        }
-                    </div>
-                </div>
-                }
-
 <div data-kt-menu-trigger="click" class="menu-item menu-accordion">
                         <span class="menu-link">
                             <span class="menu-icon">
@@ -296,28 +265,6 @@
                                     </a>
                                 </div>
                             }
-                            @if (Model.CanViewColors)
-                            {
-                                <div class="menu-item">
-                                    <a class="menu-link" href="/Colors">
-                                        <span class="menu-bullet">
-                                            <span class="bullet bullet-dot"></span>
-                                        </span>
-                                        <span class="menu-title">Colors</span>
-                                    </a>
-                                </div>
-                            }
-                            @if (Model.CanViewSizes)
-                            {
-                                <div class="menu-item">
-                                    <a class="menu-link" href="/Sizes">
-                                        <span class="menu-bullet">
-                                            <span class="bullet bullet-dot"></span>
-                                        </span>
-                                        <span class="menu-title">Sizes</span>
-                                    </a>
-                                </div>
-                            }
                             @if (Model.CanViewSuppliers)
                             {
                                 <div class="menu-item">
@@ -358,18 +305,29 @@
                                     </span>
                                     <span class="menu-title">System Logs</span>
                                 </a>
-                            
-                                                @if (User.HasClaim(Mercurius.Common.Constants.MercuriusClaimTypes.AccessPages, Mercurius.Common.ModuleRegistry.Pages.CONFIG_CATEGORY_FIELDS))
-                                                {
-                                                    <div class="menu-item">
-                                                        <a class="menu-link" href="/Config/CategoryFields">
-                                                            <span class="menu-bullet">
-                                                                <span class="bullet bullet-dot"></span>
-                                                            </span>
-                                                            <span class="menu-title">Category Fields</span>
-                                                        </a>
-                                                    </div>
-                                                }</div>
+                            </div>
+                            @if (User.HasClaim(Mercurius.Common.Constants.MercuriusClaimTypes.AccessPages, Mercurius.Common.ModuleRegistry.Pages.CONFIG_CATEGORY_FIELDS))
+                            {
+                                <div class="menu-item">
+                                    <a class="menu-link" href="/Config/CategoryFields">
+                                        <span class="menu-bullet">
+                                            <span class="bullet bullet-dot"></span>
+                                        </span>
+                                        <span class="menu-title">Category Fields</span>
+                                    </a>
+                                </div>
+                            }
+                            @if (Model.CanViewDatabaseBackups)
+                            {
+                                <div class="menu-item">
+                                    <a class="menu-link" href="/DatabaseBackups">
+                                        <span class="menu-bullet">
+                                            <span class="bullet bullet-dot"></span>
+                                        </span>
+                                        <span class="menu-title">Database Backups</span>
+                                    </a>
+                                </div>
+                            }
                         </div>
                     </div>
                 }

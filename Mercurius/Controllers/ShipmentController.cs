@@ -42,39 +42,26 @@ namespace Mercurius.Controllers
             var sortDir = (string?)q["order[0][dir]"] == "desc" ? "desc" : "asc";
             var searchValue = ((string?)q["search[value]"] ?? string.Empty).Trim();
 
-            // Column index → ShipmentArrival field. Matches the `columns` array in Index.cshtml.
-            // 0 = Id, 1 = Status (sort by StatusId), 2 = Date, 3 = Supplier (sort by SupplierId),
-            // 4 = TrackingNumber.
-            string sortField = sortColumnIndex switch
-            {
-                0 => nameof(ShipmentArrival.Id),
-                1 => nameof(ShipmentArrival.ShipmentArrivalStatusId),
-                2 => nameof(ShipmentArrival.ShipmentArrivalDate),
-                3 => nameof(ShipmentArrival.SupplierId),
-                4 => nameof(ShipmentArrival.TrackingNumber),
-                _ => nameof(ShipmentArrival.ShipmentArrivalDate)
-            };
             // Preserve legacy default sort (newest first) when client doesn't specify one.
             if (!q.ContainsKey("order[0][column]"))
             {
-                sortField = nameof(ShipmentArrival.ShipmentArrivalDate);
+                sortColumnIndex = 2;
                 sortDir = "desc";
             }
 
             if (length < 1) length = 25;
             if (length > 200) length = 200;
 
-            var collection = _unitOfWork.GetCollection<ShipmentArrival>();
+            var collection = _unitOfWork.Query<ShipmentArrival>();
 
             var recordsTotal = collection.Count();
 
-            var query = collection.Query();
+            var query = collection;
             if (!string.IsNullOrEmpty(searchValue))
             {
                 var s = searchValue.ToLowerInvariant();
-                // Searchable: TrackingNumber and Notes. Supplier name would require a
-                // join we can't do in LiteDB's expression engine without first fetching
-                // supplier IDs — skip it; users searching by supplier can filter via the column.
+                // Searchable: TrackingNumber and Notes. Supplier name would require a join —
+                // skip it; users searching by supplier can filter via the column.
                 query = query.Where(sa =>
                     (sa.TrackingNumber != null && sa.TrackingNumber.ToLower().Contains(s)) ||
                     (sa.Notes != null && sa.Notes.ToLower().Contains(s)));
@@ -82,27 +69,40 @@ namespace Mercurius.Controllers
 
             var recordsFiltered = query.Count();
 
-            var bsonField = LiteDB.BsonExpression.Create($"$.{sortField}");
-            query = sortDir == "desc"
-                ? query.OrderByDescending(bsonField)
-                : query.OrderBy(bsonField);
+            // Column index → ShipmentArrival field. Matches the `columns` array in Index.cshtml.
+            // 0 = Id, 1 = Status (sort by StatusId), 2 = Date, 3 = Supplier (sort by SupplierId),
+            // 4 = TrackingNumber.
+            bool desc = sortDir == "desc";
+            query = (sortColumnIndex, desc) switch
+            {
+                (0, true) => query.OrderByDescending(sa => sa.Id),
+                (0, false) => query.OrderBy(sa => sa.Id),
+                (1, true) => query.OrderByDescending(sa => sa.ShipmentArrivalStatusId),
+                (1, false) => query.OrderBy(sa => sa.ShipmentArrivalStatusId),
+                (3, true) => query.OrderByDescending(sa => sa.SupplierId),
+                (3, false) => query.OrderBy(sa => sa.SupplierId),
+                (4, true) => query.OrderByDescending(sa => sa.TrackingNumber),
+                (4, false) => query.OrderBy(sa => sa.TrackingNumber),
+                (_, true) => query.OrderByDescending(sa => sa.ShipmentArrivalDate),
+                (_, false) => query.OrderBy(sa => sa.ShipmentArrivalDate)
+            };
 
-            var pageItems = query.Skip(start).Limit(length).ToList();
+            var pageItems = query.Skip(start).Take(length).ToList();
 
             // Batch-resolve status names + supplier names (avoids N+1).
             var statusIds = pageItems.Select(s => s.ShipmentArrivalStatusId).Distinct().ToList();
             var statusLookup = statusIds.Count == 0
                 ? new Dictionary<int, ShipmentArrivalStatus>()
-                : _unitOfWork.GetCollection<ShipmentArrivalStatus>()
-                    .Find(st => statusIds.Contains(st.Id))
+                : _unitOfWork.Query<ShipmentArrivalStatus>()
+                    .Where(st => statusIds.Contains(st.Id))
                     .ToDictionary(st => st.Id, st => st);
 
             var supplierIds = pageItems.Where(s => s.SupplierId.HasValue)
                 .Select(s => s.SupplierId!.Value).Distinct().ToList();
             var supplierLookup = supplierIds.Count == 0
                 ? new Dictionary<int, string>()
-                : _unitOfWork.GetCollection<Supplier>()
-                    .Find(sp => supplierIds.Contains(sp.Id))
+                : _unitOfWork.Query<Supplier>()
+                    .Where(sp => supplierIds.Contains(sp.Id))
                     .ToDictionary(sp => sp.Id, sp => sp.Name ?? string.Empty);
 
             var data = pageItems.Select(sa =>

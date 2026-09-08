@@ -26,20 +26,6 @@
                     <a href="/Locations" class="btn btn-primary">Manage</a>
                 </div></div></div>
             }
-            @if (user.HasClaim(MercuriusClaimTypes.AccessPages, ModuleRegistry.Pages.CONFIG_COLORS))
-            {
-                <div class="col-md-4"><div class="card card-flush h-100"><div class="card-body text-center">
-                    <h4>Colors</h4><p>Manage product color variants.</p>
-                    <a href="/Colors" class="btn btn-primary">Manage</a>
-                </div></div></div>
-            }
-            @if (user.HasClaim(MercuriusClaimTypes.AccessPages, ModuleRegistry.Pages.CONFIG_SIZES))
-            {
-                <div class="col-md-4"><div class="card card-flush h-100"><div class="card-body text-center">
-                    <h4>Sizes</h4><p>Manage product size variants.</p>
-                    <a href="/Sizes" class="btn btn-primary">Manage</a>
-                </div></div></div>
-            }
             @if (user.HasClaim(MercuriusClaimTypes.AccessPages, ModuleRegistry.Pages.CONFIG_SUPPLIERS))
             {
                 <div class="col-md-4"><div class="card card-flush h-100"><div class="card-body text-center">

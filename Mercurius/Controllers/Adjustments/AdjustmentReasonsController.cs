@@ -36,25 +36,14 @@ namespace Mercurius.Controllers.Adjustments
             var sortDir = (string?)q["order[0][dir]"] == "desc" ? "desc" : "asc";
             var searchValue = ((string?)q["search[value]"] ?? string.Empty).Trim();
 
-            // Column index → AdjustmentReason field. Matches the `columns` array in Index.cshtml.
-            // 0 = Name, 1 = Description, 2 = IsActive, 3 = IsInbound, 4 = Actions (not sortable).
-            string sortField = sortColumnIndex switch
-            {
-                0 => nameof(AdjustmentReason.Name),
-                1 => nameof(AdjustmentReason.Description),
-                2 => nameof(AdjustmentReason.IsActive),
-                3 => nameof(AdjustmentReason.IsInbound),
-                _ => nameof(AdjustmentReason.Name)
-            };
-
             if (length < 1) length = 25;
             if (length > 200) length = 200;
 
-            var collection = _unitOfWork.GetCollection<AdjustmentReason>();
+            var collection = _unitOfWork.Query<AdjustmentReason>();
 
             var recordsTotal = collection.Count();
 
-            var query = collection.Query();
+            var query = collection;
             if (!string.IsNullOrEmpty(searchValue))
             {
                 var s = searchValue.ToLowerInvariant();
@@ -65,12 +54,22 @@ namespace Mercurius.Controllers.Adjustments
 
             var recordsFiltered = query.Count();
 
-            var bsonField = LiteDB.BsonExpression.Create($"$.{sortField}");
-            query = sortDir == "desc"
-                ? query.OrderByDescending(bsonField)
-                : query.OrderBy(bsonField);
+            // Column index → AdjustmentReason field. Matches the `columns` array in Index.cshtml.
+            // 0 = Name, 1 = Description, 2 = IsActive, 3 = IsInbound, 4 = Actions (not sortable).
+            bool desc = sortDir == "desc";
+            query = (sortColumnIndex, desc) switch
+            {
+                (1, true) => query.OrderByDescending(r => r.Description),
+                (1, false) => query.OrderBy(r => r.Description),
+                (2, true) => query.OrderByDescending(r => r.IsActive),
+                (2, false) => query.OrderBy(r => r.IsActive),
+                (3, true) => query.OrderByDescending(r => r.IsInbound),
+                (3, false) => query.OrderBy(r => r.IsInbound),
+                (_, true) => query.OrderByDescending(r => r.Name),
+                (_, false) => query.OrderBy(r => r.Name)
+            };
 
-            var pageItems = query.Skip(start).Limit(length).ToList();
+            var pageItems = query.Skip(start).Take(length).ToList();
             var data = pageItems.Select(r => new
             {
                 id = r.Id,

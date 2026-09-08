@@ -70,25 +70,17 @@ namespace Mercurius.Common
                     ModuleRegistry.Pages.CLIENT_DASHBOARD_ItemsSoldTodayWidget,
                     ModuleRegistry.Pages.CONFIG_PRODUCT_CATEGORIES,
                     ModuleRegistry.Pages.CONFIG_LOCATIONS,
-                    ModuleRegistry.Pages.CONFIG_COLORS,
-                    ModuleRegistry.Pages.CONFIG_SIZES,
                     ModuleRegistry.Pages.CONFIG_SUPPLIERS,
                     ModuleRegistry.Pages.CONFIG_ADJUSTMENT_REASONS,
                     ModuleRegistry.Pages.CONFIG_CATEGORY_FIELDS,
-                    ModuleRegistry.Pages.DOCTORS_LIST,
-                    ModuleRegistry.Pages.DOCTORS_CREATE,
-                    ModuleRegistry.Pages.DOCTORS_EDIT,
-                    ModuleRegistry.Pages.DOCTORS_DELETE,
-                    ModuleRegistry.Pages.PRESCRIPTIONS_LIST,
-                    ModuleRegistry.Pages.PRESCRIPTIONS_CREATE,
-                    ModuleRegistry.Pages.PRESCRIPTIONS_EDIT,
-                    ModuleRegistry.Pages.PRESCRIPTIONS_DELETE,
+                    ModuleRegistry.Pages.CONFIG_DATABASE_BACKUPS,
                     ModuleRegistry.Pages.PURCHASE_ORDERS_LIST,
                     ModuleRegistry.Pages.PURCHASE_ORDERS_CREATE,
                     ModuleRegistry.Pages.PURCHASE_ORDERS_EDIT,
                     ModuleRegistry.Pages.PURCHASE_ORDERS_APPROVE,
                     ModuleRegistry.Pages.ADMIN_ROLES_MANAGEMENT,
                     ModuleRegistry.Pages.ADMIN_USERS_MANAGEMENT,
+                    ModuleRegistry.Pages.ADMIN_DATA_QUERY,
                     ModuleRegistry.Pages.WHOLESALE_INDEX,
                     ModuleRegistry.Pages.WHOLESALE_DELETE,
             ModuleRegistry.Pages.WHOLESALE_VIEW
@@ -159,25 +151,17 @@ namespace Mercurius.Common
             public const string CLIENT_DASHBOARD_ItemsSoldTodayWidget = "Dashboard Widget - Items Sold Today";
             public const string CONFIG_PRODUCT_CATEGORIES = "Configuration - Product Categories";
             public const string CONFIG_LOCATIONS = "Configuration - Locations";
-            public const string CONFIG_COLORS = "Configuration - Colors";
-            public const string CONFIG_SIZES = "Configuration - Sizes";
             public const string CONFIG_SUPPLIERS = "Configuration - Suppliers";
             public const string CONFIG_ADJUSTMENT_REASONS = "Configuration - Adjustment Reasons";
             public const string CONFIG_CATEGORY_FIELDS = "Configuration - Category Custom Fields";
-            public const string DOCTORS_LIST = "Doctor List Page";
-            public const string DOCTORS_CREATE = "Doctor Create Page";
-            public const string DOCTORS_EDIT = "Doctor Edit Page";
-            public const string DOCTORS_DELETE = "Doctor Delete";
-            public const string PRESCRIPTIONS_LIST = "Prescription List Page";
-            public const string PRESCRIPTIONS_CREATE = "Prescription Create Page";
-            public const string PRESCRIPTIONS_EDIT = "Prescription Edit Page";
-            public const string PRESCRIPTIONS_DELETE = "Prescription Delete";
+            public const string CONFIG_DATABASE_BACKUPS = "Configuration - Database Backups";
             public const string PURCHASE_ORDERS_LIST = "Purchase Order List";
             public const string PURCHASE_ORDERS_CREATE = "Purchase Order Create";
             public const string PURCHASE_ORDERS_EDIT = "Purchase Order Edit";
             public const string PURCHASE_ORDERS_APPROVE = "Purchase Order Approve";
             public const string ADMIN_USERS_MANAGEMENT = "ADMIN - User management";
             public const string ADMIN_ROLES_MANAGEMENT = "ADMIN - Roles management";
+            public const string ADMIN_DATA_QUERY = "ADMIN - Data Query";
 
             public const string WHOLESALE_INDEX = "Whole Sale List Page";
             public const string WHOLESALE_DELETE = "Whole Sale Delete";

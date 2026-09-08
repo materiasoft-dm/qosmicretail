@@ -40,24 +40,14 @@ namespace Mercurius.Controllers.Configurations
             var sortDir = (string?)q["order[0][dir]"] == "desc" ? "desc" : "asc";
             var searchValue = ((string?)q["search[value]"] ?? string.Empty).Trim();
 
-            // Column index → Location field. Matches the `columns` array in Index.cshtml.
-            // 0 = Name, 1 = Mobile (sort by ContactInformationId — joined sort would require
-            //                       fetching the full contact list), 2 = Actions.
-            string sortField = sortColumnIndex switch
-            {
-                0 => nameof(Location.Name),
-                1 => nameof(Location.ContactInformationId),
-                _ => nameof(Location.Name)
-            };
-
             if (length < 1) length = 25;
             if (length > 200) length = 200;
 
-            var collection = _unitOfWork.GetCollection<Location>();
+            var collection = _unitOfWork.Query<Location>();
 
             var recordsTotal = collection.Count();
 
-            var query = collection.Query();
+            var query = collection;
             if (!string.IsNullOrEmpty(searchValue))
             {
                 var s = searchValue.ToLowerInvariant();
@@ -66,12 +56,19 @@ namespace Mercurius.Controllers.Configurations
 
             var recordsFiltered = query.Count();
 
-            var bsonField = LiteDB.BsonExpression.Create($"$.{sortField}");
-            query = sortDir == "desc"
-                ? query.OrderByDescending(bsonField)
-                : query.OrderBy(bsonField);
+            // Column index → Location field. Matches the `columns` array in Index.cshtml.
+            // 0 = Name, 1 = Mobile (sort by ContactInformationId — joined sort would require
+            //                       fetching the full contact list), 2 = Actions.
+            bool desc = sortDir == "desc";
+            query = (sortColumnIndex, desc) switch
+            {
+                (1, true) => query.OrderByDescending(l => l.ContactInformationId),
+                (1, false) => query.OrderBy(l => l.ContactInformationId),
+                (_, true) => query.OrderByDescending(l => l.Name),
+                (_, false) => query.OrderBy(l => l.Name)
+            };
 
-            var pageItems = query.Skip(start).Limit(length).ToList();
+            var pageItems = query.Skip(start).Take(length).ToList();
 
             // Batch-resolve ContactInformation phone numbers (1 query, no N+1).
             var contactIds = pageItems
@@ -81,8 +78,8 @@ namespace Mercurius.Controllers.Configurations
                 .ToList();
             var contactLookup = contactIds.Count == 0
                 ? new Dictionary<int, string>()
-                : _unitOfWork.GetCollection<ContactInformation>()
-                    .Find(c => contactIds.Contains(c.Id))
+                : _unitOfWork.Query<ContactInformation>()
+                    .Where(c => contactIds.Contains(c.Id))
                     .ToDictionary(c => c.Id, c => c.MobilePhoneNumber ?? string.Empty);
 
             var data = pageItems.Select(l =>

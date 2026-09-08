@@ -49,48 +49,29 @@ namespace Mercurius.Controllers
             var sortDir = (string?)q["order[0][dir]"] == "desc" ? "desc" : "asc";
             var searchValue = ((string?)q["search[value]"] ?? string.Empty).Trim();
 
-            // Column index → Invoice field. Matches the `columns` array in Index.cshtml.
-            // 0 = Id, 1 = InvoiceNumber, 2 = InvoiceDate, 3 = InvoiceDueDate,
-            // 4 = Customer (sort by CustomerId — sorting by joined name would require
-            //               fetching the full customer list), 5 = Status (sort by StatusId,
-            //               which is workflow order: Draft→Completed→Finalized→Refunded→
-            //               Deleted→DeferredPayment→PartiallyPaid), 6 = PaidAmount.
-            string sortField = sortColumnIndex switch
-            {
-                0 => nameof(Invoice.Id),
-                1 => nameof(Invoice.InvoiceNumber),
-                2 => nameof(Invoice.InvoiceDate),
-                3 => nameof(Invoice.InvoiceDueDate),
-                4 => nameof(Invoice.CustomerId),
-                5 => nameof(Invoice.StatusId),
-                6 => nameof(Invoice.PaidAmount),
-                _ => nameof(Invoice.InvoiceDate)
-            };
             // Preserve the legacy default sort (newest first) when no client order specified.
             if (!q.ContainsKey("order[0][column]"))
             {
-                sortField = nameof(Invoice.InvoiceDate);
+                sortColumnIndex = 2;
                 sortDir = "desc";
             }
 
             if (length < 1) length = 25;
             if (length > 200) length = 200;
 
-            var collection = _unitOfWork.GetCollection<Invoice>();
+            var collection = _unitOfWork.Query<Invoice>();
 
             var recordsTotal = collection.Count();
 
-            var query = collection.Query();
+            var query = collection;
             if (!string.IsNullOrEmpty(searchValue))
             {
                 var s = searchValue.ToLowerInvariant();
 
-                // Customer name search: LiteDB can't join, so look up matching customer IDs
-                // first, then filter invoices by either matching InvoiceNumber OR a matching
-                // CustomerId. Bounded by customer count, and the 350ms debounce limits
-                // how often this runs.
-                var matchingCustomerIds = _unitOfWork.GetCollection<Customer>()
-                    .Find(c =>
+                // Customer name search: look up matching customer IDs first, then filter
+                // invoices by either matching InvoiceNumber OR a matching CustomerId.
+                var matchingCustomerIds = _unitOfWork.Query<Customer>()
+                    .Where(c =>
                         (c.FirstName != null && c.FirstName.ToLower().Contains(s)) ||
                         (c.LastName != null && c.LastName.ToLower().Contains(s)))
                     .Select(c => c.Id)
@@ -111,12 +92,32 @@ namespace Mercurius.Controllers
 
             var recordsFiltered = query.Count();
 
-            var bsonField = LiteDB.BsonExpression.Create($"$.{sortField}");
-            query = sortDir == "desc"
-                ? query.OrderByDescending(bsonField)
-                : query.OrderBy(bsonField);
+            // Column index → Invoice field. Matches the `columns` array in Index.cshtml.
+            // 0 = Id, 1 = InvoiceNumber, 2 = InvoiceDate, 3 = InvoiceDueDate,
+            // 4 = Customer (sort by CustomerId — sorting by joined name would require
+            //               fetching the full customer list), 5 = Status (sort by StatusId,
+            //               which is workflow order: Draft→Completed→Finalized→Refunded→
+            //               Deleted→DeferredPayment→PartiallyPaid), 6 = PaidAmount.
+            bool desc = sortDir == "desc";
+            query = (sortColumnIndex, desc) switch
+            {
+                (0, true) => query.OrderByDescending(i => i.Id),
+                (0, false) => query.OrderBy(i => i.Id),
+                (1, true) => query.OrderByDescending(i => i.InvoiceNumber),
+                (1, false) => query.OrderBy(i => i.InvoiceNumber),
+                (3, true) => query.OrderByDescending(i => i.InvoiceDueDate),
+                (3, false) => query.OrderBy(i => i.InvoiceDueDate),
+                (4, true) => query.OrderByDescending(i => i.CustomerId),
+                (4, false) => query.OrderBy(i => i.CustomerId),
+                (5, true) => query.OrderByDescending(i => i.StatusId),
+                (5, false) => query.OrderBy(i => i.StatusId),
+                (6, true) => query.OrderByDescending(i => i.PaidAmount),
+                (6, false) => query.OrderBy(i => i.PaidAmount),
+                (_, true) => query.OrderByDescending(i => i.InvoiceDate),
+                (_, false) => query.OrderBy(i => i.InvoiceDate)
+            };
 
-            var pageItems = query.Skip(start).Limit(length).ToList();
+            var pageItems = query.Skip(start).Take(length).ToList();
 
             // Batch-resolve customer names (1 query). Customer lookup gives us full name.
             var customerIds = pageItems
@@ -126,8 +127,8 @@ namespace Mercurius.Controllers
                 .ToList();
             var customerLookup = customerIds.Count == 0
                 ? new Dictionary<int, string>()
-                : _unitOfWork.GetCollection<Customer>()
-                    .Find(c => customerIds.Contains(c.Id))
+                : _unitOfWork.Query<Customer>()
+                    .Where(c => customerIds.Contains(c.Id))
                     .ToDictionary(c => c.Id, c => $"{c.FirstName} {c.LastName}".Trim());
 
             // Resolve Status from the enum (no DB hit — Status text is purely derived from StatusId).

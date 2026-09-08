@@ -32,7 +32,7 @@ namespace Mercurius.Controllers
         // Server-side endpoint for jQuery DataTables. Honors the standard request
         // shape (draw / start / length / order[0][column] / order[0][dir] / search[value])
         // and replies with { draw, recordsTotal, recordsFiltered, data: [...] }.
-        // All filtering/ordering/paging is pushed down to LiteDB so the browser
+        // All filtering/ordering/paging is pushed down to the database so the browser
         // only ever receives one page of rows.
         [HttpGet]
         public IActionResult DataTable(int draw = 1, int start = 0, int length = 25, CancellationToken ct = default)
@@ -46,23 +46,15 @@ namespace Mercurius.Controllers
             var sortDir = (string?)q["order[0][dir]"] == "desc" ? "desc" : "asc";
             var searchValue = ((string?)q["search[value]"] ?? string.Empty).Trim();
 
-            // Column index → Supplier field. Matches the `columns` array in Index.cshtml.
-            // 0 = Name, 1 = IsActive, 2 = Actions (not sortable).
-            string sortField = sortColumnIndex switch
-            {
-                0 => nameof(Supplier.Name),
-                1 => nameof(Supplier.IsActive),
-                _ => nameof(Supplier.Name)
-            };
             if (length < 1) length = 25;
             if (length > 200) length = 200; // hard cap so a malicious client can't ask for the world
 
-            var collection = _unitOfWork.GetCollection<Supplier>();
+            var collection = _unitOfWork.Query<Supplier>();
 
             // Match the legacy Index behavior: only active (not soft-deleted) suppliers.
             // recordsTotal counts the active set, not the entire collection, so the
             // "Showing X of Y" footer reflects what the user is actually paging through.
-            var baseQuery = collection.Query().Where(sp => sp.IsActive);
+            var baseQuery = collection.Where(sp => sp.IsActive);
             var recordsTotal = baseQuery.Count();
 
             var query = baseQuery;
@@ -74,12 +66,18 @@ namespace Mercurius.Controllers
 
             var recordsFiltered = query.Count();
 
-            var bsonField = LiteDB.BsonExpression.Create($"$.{sortField}");
-            query = sortDir == "desc"
-                ? query.OrderByDescending(bsonField)
-                : query.OrderBy(bsonField);
+            // Column index → Supplier field. Matches the `columns` array in Index.cshtml.
+            // 0 = Name, 1 = IsActive, 2 = Actions (not sortable).
+            bool desc = sortDir == "desc";
+            query = (sortColumnIndex, desc) switch
+            {
+                (1, true) => query.OrderByDescending(sp => sp.IsActive),
+                (1, false) => query.OrderBy(sp => sp.IsActive),
+                (_, true) => query.OrderByDescending(sp => sp.Name),
+                (_, false) => query.OrderBy(sp => sp.Name)
+            };
 
-            var pageItems = query.Skip(start).Limit(length).ToList();
+            var pageItems = query.Skip(start).Take(length).ToList();
 
             // Project to plain JSON. Visual decoration (status badge, action buttons) is
             // handled client-side in DataTables' columns.render callbacks — see

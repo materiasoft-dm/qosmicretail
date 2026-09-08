@@ -39,11 +39,10 @@ namespace Mercurius.Controllers
                 take = 10;
             }
 
-            var collection = _unitOfWork.GetCollection<Invoice>();
-            var invoices = collection.Query()
-                .OrderByDescending(LiteDB.BsonExpression.Create($"$.{nameof(Invoice.InvoiceDate)}"))
+            var invoices = _unitOfWork.Query<Invoice>()
+                .OrderByDescending(i => i.InvoiceDate)
                 .Skip(skip)
-                .Limit(take)
+                .Take(take)
                 .ToList();
 
             await BatchHydrateInvoicesAsync(invoices, ct);

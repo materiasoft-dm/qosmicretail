@@ -1,0 +1,93 @@
+@{
+    ViewData["Title"] = "Data Query";
+    Layout = "~/Views/Shared/_Layout.cshtml";
+}
+
+<div id="kt_app_toolbar" class="app-toolbar py-3 py-lg-6">
+    <div class="app-container container-xxl d-flex flex-stack">
+        <div class="page-title">
+            <h1 class="page-heading d-flex text-dark fw-bold fs-3 my-0">Data Query</h1>
+        </div>
+    </div>
+</div>
+
+<div class="card">
+    <div class="card-body">
+        <div class="alert alert-danger">
+            <strong>This runs raw SQL directly against the live database — read and write, no undo.</strong>
+            Double-check every statement before running it, especially anything other than SELECT.
+        </div>
+
+        @Html.AntiForgeryToken()
+
+        <div class="mb-3">
+            <label class="form-label">Admin Key</label>
+            <input type="password" id="apiKey" class="form-control form-control-sm" autocomplete="off" placeholder="Required on every request" />
+        </div>
+
+        <div class="mb-3">
+            <label class="form-label">SQL</label>
+            <textarea id="sqlText" class="form-control" rows="8" style="font-family: monospace;" placeholder="SELECT * FROM Products"></textarea>
+        </div>
+
+        <button type="button" id="runBtn" class="btn btn-danger">Run</button>
+        <span id="statusText" class="ms-3 text-muted"></span>
+
+        <div class="separator my-6"></div>
+
+        <div id="errorBox" class="alert alert-danger" style="display:none;"></div>
+        <div class="table-responsive">
+            <table id="resultsTable" class="table table-hover table-rounded border gy-4 gs-4" style="display:none;">
+                <thead><tr id="resultsHeader"></tr></thead>
+                <tbody id="resultsBody"></tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+    <script>
+        $(document).ready(function () {
+            function esc(s) {
+                if (s === null || typeof s === 'undefined') return '<span class="text-muted">NULL</span>';
+                return String(s)
+                    .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+                    .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+            }
+
+            $('#runBtn').on('click', function () {
+                var apiKey = $('#apiKey').val();
+                var sql = $('#sqlText').val();
+                var token = $('input[name="__RequestVerificationToken"]').val();
+
+                $('#errorBox').hide();
+                $('#resultsTable').hide();
+                $('#statusText').text('Running...');
+
+                $.ajax({
+                    url: '@Url.Action("Execute", "DataQuery")',
+                    method: 'POST',
+                    contentType: 'application/json',
+                    headers: { 'RequestVerificationToken': token },
+                    data: JSON.stringify({ apiKey: apiKey, sql: sql })
+                }).done(function (result) {
+                    $('#statusText').text('Rows: ' + result.rows.length + ' — Records affected: ' + result.recordsAffected);
+                    var headerRow = $('#resultsHeader').empty();
+                    result.columns.forEach(function (c) { headerRow.append('<th>' + esc(c) + '</th>'); });
+                    var body = $('#resultsBody').empty();
+                    result.rows.forEach(function (row) {
+                        var tr = $('<tr></tr>');
+                        result.columns.forEach(function (c) { tr.append('<td>' + esc(row[c]) + '</td>'); });
+                        body.append(tr);
+                    });
+                    $('#resultsTable').show();
+                }).fail(function (xhr) {
+                    $('#statusText').text('');
+                    var msg = 'Request failed.';
+                    try { msg = JSON.parse(xhr.responseText).error || msg; } catch (e) {}
+                    $('#errorBox').text(msg).show();
+                });
+            });
+        });
+    </script>
+}

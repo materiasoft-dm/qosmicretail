@@ -244,7 +244,7 @@
                             var stockClass = p.stock <= 0 ? 'bg-danger' : p.stock <= 10 ? 'bg-warning text-dark' : 'bg-success';
                             var row = $('<tr data-product-id="' + p.id + '"></tr>');
                             row.append('<td class="align-middle">' + escapeHtml(p.name) + '</td>');
-                            row.append('<td class="align-middle">' + escapeHtml(p.partCode) + '</td>');
+                            row.append('<td class="align-middle">' + escapeHtml(p.productCode) + '</td>');
                             row.append('<td class="align-middle">' + escapeHtml(p.category) + '</td>');
                             row.append('<td class="text-end align-middle"><span class="badge ' + stockClass + '">' + p.stock.toFixed(0) + '</span></td>');
                             row.append('<td class="text-end align-middle">₱' + p.salePrice.toFixed(2) + '</td>');

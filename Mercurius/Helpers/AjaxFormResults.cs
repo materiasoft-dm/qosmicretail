@@ -14,7 +14,7 @@ namespace Mercurius.Helpers
     /// shaped exactly as the JS handler expects:
     ///
     ///   { ok: true,  redirect: "/Products", message: "Saved." }   — success
-    ///   { ok: false, errors: ["PartCode is required", ...] }       — validation/exception
+    ///   { ok: false, errors: ["ProductCode is required", ...] }       — validation/exception
     /// </summary>
     public static class AjaxFormResults
     {

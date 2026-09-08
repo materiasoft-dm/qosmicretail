@@ -1,14 +1,25 @@
 using Mercurius.Common.Constants;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.Extensions.Configuration;
 using System.Security.Claims;
 
 namespace Mercurius.ViewComponents
 {
     public class SidebarViewComponent : ViewComponent
     {
+        private readonly IConfiguration _configuration;
+
+        public SidebarViewComponent(IConfiguration configuration)
+        {
+            _configuration = configuration;
+        }
+
         public IViewComponentResult Invoke()
         {
             var isSuperAdmin = User.IsInRole("Administrator");
+            // Backups only exist for the Sqlite provider (see Program.cs) — hide the link
+            // entirely when running on SQL Server rather than showing an always-empty page.
+            var isSqliteProvider = !string.Equals(_configuration.GetValue<string>("DatabaseProvider"), "SqlServer", System.StringComparison.OrdinalIgnoreCase);
             var model = new SidebarViewModel
             {
                 CanViewInvoiceList = isSuperAdmin || CheckAccessModule(Common.ModuleRegistry.Pages.INVOICE_INDEX),
@@ -27,18 +38,16 @@ namespace Mercurius.ViewComponents
                                CheckAccessModule(Common.ModuleRegistry.Pages.REPORT_ADJUSTMENTS),
                 CanViewProductCategories = isSuperAdmin || CheckAccessModule(Common.ModuleRegistry.Pages.CONFIG_PRODUCT_CATEGORIES),
                 CanViewLocations = isSuperAdmin || CheckAccessModule(Common.ModuleRegistry.Pages.CONFIG_LOCATIONS),
-                CanViewColors = isSuperAdmin || CheckAccessModule(Common.ModuleRegistry.Pages.CONFIG_COLORS),
-                CanViewSizes = isSuperAdmin || CheckAccessModule(Common.ModuleRegistry.Pages.CONFIG_SIZES),
                 CanViewSuppliers = isSuperAdmin || CheckAccessModule(Common.ModuleRegistry.Pages.CONFIG_SUPPLIERS),
                 CanViewAdjustmentReasons = isSuperAdmin || CheckAccessModule(Common.ModuleRegistry.Pages.CONFIG_ADJUSTMENT_REASONS),
+                CanViewDatabaseBackups = isSqliteProvider && (isSuperAdmin || CheckAccessModule(Common.ModuleRegistry.Pages.CONFIG_DATABASE_BACKUPS)),
                 CanViewSettings = isSuperAdmin || CheckAccessModule(Common.ModuleRegistry.Pages.ADMIN_ROLES_MANAGEMENT) ||
                                   CheckAccessModule(Common.ModuleRegistry.Pages.ADMIN_USERS_MANAGEMENT) ||
                                   CheckAccessModule(Common.ModuleRegistry.Pages.CONFIG_PRODUCT_CATEGORIES) ||
                                   CheckAccessModule(Common.ModuleRegistry.Pages.CONFIG_LOCATIONS) ||
-                                  CheckAccessModule(Common.ModuleRegistry.Pages.CONFIG_COLORS) ||
-                                  CheckAccessModule(Common.ModuleRegistry.Pages.CONFIG_SIZES) ||
                                   CheckAccessModule(Common.ModuleRegistry.Pages.CONFIG_SUPPLIERS) ||
-                                  CheckAccessModule(Common.ModuleRegistry.Pages.CONFIG_ADJUSTMENT_REASONS),
+                                  CheckAccessModule(Common.ModuleRegistry.Pages.CONFIG_ADJUSTMENT_REASONS) ||
+                                  CheckAccessModule(Common.ModuleRegistry.Pages.CONFIG_DATABASE_BACKUPS),
                 CanViewUserList = isSuperAdmin || CheckAccessModule(Common.ModuleRegistry.Pages.ADMIN_USERS_MANAGEMENT)
             };
 
@@ -67,9 +76,8 @@ namespace Mercurius.ViewComponents
         public bool CanViewUserList { get; set; }
         public bool CanViewProductCategories { get; set; }
         public bool CanViewLocations { get; set; }
-        public bool CanViewColors { get; set; }
-        public bool CanViewSizes { get; set; }
         public bool CanViewSuppliers { get; set; }
         public bool CanViewAdjustmentReasons { get; set; }
+        public bool CanViewDatabaseBackups { get; set; }
     }
 }

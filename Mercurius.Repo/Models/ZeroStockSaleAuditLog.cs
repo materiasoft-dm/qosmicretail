@@ -12,7 +12,7 @@ public class ZeroStockSaleAuditLog
 
     public string ProductName { get; set; }
 
-    public string ProductPartCode { get; set; }
+    public string ProductCode { get; set; }
 
     public decimal QuantitySold { get; set; }
 

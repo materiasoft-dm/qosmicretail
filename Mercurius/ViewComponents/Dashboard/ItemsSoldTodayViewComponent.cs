@@ -40,8 +40,8 @@ namespace Mercurius.ViewComponents.Dashboard
                     {
                         ProductDisplayName = product == null
                             ? string.Empty
-                            : $"{product.Name} ({product.PartCode})",
-                        PartCode = product?.PartCode,
+                            : $"{product.Name} ({product.ProductCode})",
+                        ProductCode = product?.ProductCode,
                         ItemName = product?.Name,
                         Quantity = item.Quantity
                     };

@@ -9,6 +9,8 @@
 **/*.litedb
 **/*.db
 **/*.sqlite
+**/*.sqlite-shm
+**/*.sqlite-wal
 identity.db
 
 # Logs
@@ -34,6 +36,13 @@ Thumbs.db
 .vs/
 .vscode/settings.json
 .idea/
+
+# Secrets — real credentials for the live deployment. Never committed to this public repo.
+# appsettings.json in git keeps blank/placeholder values; appsettings.Production.json holds
+# the real ones locally and is picked up by `dotnet publish` from disk without ever being tracked.
+**/appsettings.Production.json
+*.PublishSettings
+ADMIN_DATA_QUERY_ACCESS.md
 
 # Node
 node_modules/

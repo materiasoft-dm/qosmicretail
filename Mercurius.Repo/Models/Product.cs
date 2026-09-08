@@ -11,7 +11,7 @@ public partial class Product
 
     [Required]
 [Display(Name = "SKU")]
-public string PartCode { get; set; }
+public string ProductCode { get; set; }
 public string Description { get; set; }
 
     public int? ProductCategoryId { get; set; }
@@ -29,10 +29,6 @@ public string CustomWarning { get; set; }
     [Required]
 public string Name { get; set; }
 public string Model { get; set; }
-
-    public int? SizeId { get; set; }
-
-    public int? ColorId { get; set; }
 public decimal? CurrentCostPrice { get; set; }
 public decimal? CurrentSalePrice { get; set; }
 
@@ -49,11 +45,9 @@ public decimal MarkUpPercentage { get; set; }
 
 public virtual ICollection<Adjustment> Adjustments { get; set; } = new List<Adjustment>();
 public virtual ICollection<BulkPackage> BulkPackages { get; set; } = new List<BulkPackage>();
-public virtual Color Color { get; set; }
 public virtual ICollection<InvoiceItem> InvoiceItems { get; set; } = new List<InvoiceItem>();
 public virtual ProductCategory ProductCategory { get; set; }
 public virtual ICollection<ShipmentArrivalItem> ShipmentArrivalItems { get; set; } = new List<ShipmentArrivalItem>();
 public virtual ICollection<InvoiceItemRefund> InvoiceItemRefunds { get; set; } = new List<InvoiceItemRefund>();
-public virtual Size Size { get; set; }
 public virtual ICollection<MedicineBatch> MedicineBatches { get; set; } = new List<MedicineBatch>();
 }
