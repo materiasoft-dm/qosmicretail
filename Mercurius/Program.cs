@@ -84,6 +84,33 @@ builder.Services.AddDefaultIdentity<MercuriusUser>(options =>
     .AddClaimsPrincipalFactory<MercuriusClaimsPrincipalFactory>();
 
 // ============================================
+// JWT BEARER AUTH (mobile/API clients)
+// ============================================
+// Added alongside Identity's cookie scheme (the MVC site's default) rather than replacing it —
+// AddAuthentication() with no default-scheme argument here just registers an additional scheme.
+// Api/AuthController issues tokens; Api/SyncController requires this scheme explicitly via
+// [Authorize(AuthenticationSchemes = JwtBearerDefaults.AuthenticationScheme)].
+
+var jwtSection = builder.Configuration.GetSection("Jwt");
+var jwtKey = jwtSection.GetValue<string>("Key") ?? string.Empty;
+
+builder.Services.AddAuthentication()
+    .AddJwtBearer(options =>
+    {
+        options.TokenValidationParameters = new Microsoft.IdentityModel.Tokens.TokenValidationParameters
+        {
+            ValidateIssuer = true,
+            ValidateAudience = true,
+            ValidateLifetime = true,
+            ValidateIssuerSigningKey = true,
+            ValidIssuer = jwtSection.GetValue<string>("Issuer"),
+            ValidAudience = jwtSection.GetValue<string>("Audience"),
+            IssuerSigningKey = new Microsoft.IdentityModel.Tokens.SymmetricSecurityKey(
+                System.Text.Encoding.UTF8.GetBytes(jwtKey))
+        };
+    });
+
+// ============================================
 // MVC & RAZOR PAGES
 // ============================================
 
@@ -438,6 +465,21 @@ async Task SeedDataAsync(WebApplication app)
 
         // Seed pharmacy reference data (categories, custom fields, dosage forms)
         await PharmacySeedData.SeedAsync(unitOfWork, logger);
+
+        // Seed InvoiceStatuses — a required FK on both Invoice and InvoiceItem (StatusId).
+        // This was missing entirely, so any invoice creation (NewSale, sync push) would fail
+        // with a FOREIGN KEY constraint violation on a freshly created database.
+        var invoiceStatusRepo = unitOfWork.Repository<InvoiceStatus>();
+        var existingStatuses = await invoiceStatusRepo.GetAllAsync();
+        if (!existingStatuses.Any())
+        {
+            foreach (var status in Enum.GetValues<Mercurius.Common.Constants.StatusCollection.InvoiceStatus>())
+            {
+                await invoiceStatusRepo.AddAsync(new InvoiceStatus { Id = (int)status, Name = status.ToString() });
+            }
+            await unitOfWork.SaveChangesAsync();
+            logger.LogInformation("Seeded InvoiceStatuses");
+        }
 
     }
     catch (Exception ex)

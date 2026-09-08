@@ -64,6 +64,32 @@ dotnet-ef migrations add <Name> --project "..\Mercurius.Repo\Mercurius.Repo.cspr
 
 The live database was migrated onto this system by wiping its schema (via the Admin Data Query API) and letting `EnsureCreated()` rebuild it one last time, then manually inserting a row into `__EFMigrationsHistory` to mark the generated `InitialCreate` migration as already applied — this let migrations take over without redundantly recreating a schema that already matched. That was a one-time bootstrap; it should never need repeating.
 
+### Mobile sync API (`Api/AuthController`, `Api/SyncController`)
+
+`Product`, `Invoice`, and `InvoiceItem` each carry an additive `SyncId` (Guid) column — a stable
+cross-device identity, independent of the server's int `Id`, for the offline-first `Mercurius.Mobile`
+MAUI app being built alongside this repo. `Api/AuthController.Login` issues a JWT (a second auth
+scheme registered alongside Identity's cookie scheme in `Program.cs`; `Jwt:Key`/`Issuer`/`Audience` in
+config) — note it deliberately does not gate on `MercuriusUser.IsActive`, since that field isn't
+enforced anywhere else in the app either (it's display-only), so checking it here would be an
+inconsistent, surprise restriction. `Api/SyncController` (`[Authorize(AuthenticationSchemes =
+JwtBearerDefaults.AuthenticationScheme)]`) exposes `GET .../pull?since=<utc timestamp>` and `POST
+.../push` for `products` and `invoices`:
+
+- **Products** fully support create-or-update via push (matched by `SyncId`).
+- **Invoices** are create-once/idempotent by `SyncId` — a synced sale is a completed financial
+  record; re-pushing the same `SyncId` is a safe no-op rather than overwriting it. Edits to a
+  submitted sale should go through a refund/void flow, not sync.
+- Conflict resolution is last-write-wins using the **server's own clock**, never a client-supplied
+  timestamp — `UpdatedDate`/`CreatedDate` are always stamped server-side on write acceptance, whether
+  the write came from the admin UI or a sync push. Business-meaning dates the client actually observed
+  (e.g. `InvoiceDate`) are still trusted from the client.
+- Pull cursors use `>=`, not `>`, so a record modified at exactly `since` is returned again rather
+  than silently skipped — harmless, since push/pull both upsert by `SyncId`.
+
+No refresh-token flow exists yet (access tokens are simply long-lived, `Jwt:AccessTokenDays`); add one
+if/when token revocation or shorter lifetimes become a real requirement.
+
 ### Repository pattern — controllers never touch `DbContext` directly
 
 `IUnitOfWork` / `IRepository<T>` (in `Mercurius.Repo/Repositories/`) wrap `MercuriusDbContext`; controllers depend on `IUnitOfWork` (scoped per request), never the context. `IRepository<T>` covers standard CRUD/paging. For DataTables-driven list pages (server-side sort/filter/paging), ~12 controllers instead call `IUnitOfWork.Query<T>()` (returns `IQueryable<T>` straight off the `DbSet`) and compose `.Where()`/`.OrderBy()`/`.Skip()`/`.Take()` directly — this is the pattern to follow for any new paged list page, mirroring `ProductsController.DataTable` as the reference implementation.
@@ -84,7 +110,7 @@ Nothing persists until `IUnitOfWork.SaveChangesAsync()` is called — every `Add
 
 ### Startup seeding
 
-`Program.cs`'s `SeedDataAsync` runs on every startup (idempotent — checks before creating): the three fixed roles, all `ModuleRegistry.Modules` claims on `Administrator`, a default `Address`/`ContactInformation`/`Location`, the admin user from `SeedAdmin:Email`/`SeedAdmin:Password` config, and pharmacy reference data (`PharmacySeedData`: product categories, per-category custom fields, dosage forms).
+`Program.cs`'s `SeedDataAsync` runs on every startup (idempotent — checks before creating): the three fixed roles, all `ModuleRegistry.Modules` claims on `Administrator`, a default `Address`/`ContactInformation`/`Location`, the admin user from `SeedAdmin:Email`/`SeedAdmin:Password` config, pharmacy reference data (`PharmacySeedData`: product categories, per-category custom fields, dosage forms), and `InvoiceStatuses` (from the `StatusCollection.InvoiceStatus` enum — `Invoice.StatusId`/`InvoiceItem.StatusId` are required FKs to this table; it was missing entirely until this was added, which meant creating any invoice on a freshly created database failed with a FOREIGN KEY constraint violation).
 
 ### Legacy artifacts — do not treat as current
 
