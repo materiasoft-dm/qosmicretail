@@ -33,6 +33,11 @@ cd Mercurius.Tests && dotnet test
 
 # Run a single test
 cd Mercurius.Tests && dotnet test --filter "FullyQualifiedName~EfRepositoryTests.AddAsync_ShouldInsertProduct"
+
+# Run the browser-driven end-to-end tests (see "End-to-end tests" below) — requires
+# Mercurius to already be built once
+cd Mercurius && dotnet build
+cd Mercurius.E2ETests && dotnet test
 ```
 
 All four projects target `net9.0` with `TreatWarningsAsErrors=true` — a nullable-reference warning fails the build, not just `dotnet build` locally.
@@ -89,6 +94,36 @@ JwtBearerDefaults.AuthenticationScheme)]`) exposes `GET .../pull?since=<utc time
 
 No refresh-token flow exists yet (access tokens are simply long-lived, `Jwt:AccessTokenDays`); add one
 if/when token revocation or shorter lifetimes become a real requirement.
+
+### End-to-end tests (`Mercurius.E2ETests`)
+
+`Mercurius.Tests` only covers the repository/data layer — nothing in it ever drives an actual HTTP
+request through a controller, which is how the checkout bug above went unnoticed for as long as it
+did. `Mercurius.E2ETests` (Playwright + xUnit) closes that gap by driving a real headless Chromium
+browser against a real instance of the app:
+
+- `Infrastructure/TestServerFixture` launches the **already-built** `Mercurius.dll` (it does not
+  rebuild) on a free port, against a throwaway SQLite database unique to the run
+  (`MERCURIUS_DB=e2e_<guid>`, deleted on teardown) — never the developer's own `mercurius.sqlite`,
+  and never the live site. `ASPNETCORE_ENVIRONMENT` is forced to `Development` so
+  `appsettings.Development.json`'s seed admin credentials actually load (the base
+  `appsettings.json` ships those blank on purpose — see the secrets-splitting note below).
+- One shared server + one shared Chromium instance run for the whole test run
+  (`MercuriusCollectionFixture`); each test method gets its own `IBrowserContext`/`IPage` (its own
+  cookies/session) via `MercuriusTestBase`. Tests run sequentially, not in parallel
+  (`xunit.runner.json`), since they all share one database.
+- Before running for the first time: build `Mercurius` (`dotnet build`, not `dotnet run` — the
+  fixture execs the DLL directly) and install the Chromium binary once via the packaged script,
+  e.g. `pwsh Mercurius.E2ETests/bin/Debug/net9.0/playwright.ps1 install chromium`.
+- `SalesTests.CompleteSale_SucceedsAndRedirectsToInvoiceList` and `RolesManagerTests` exist
+  specifically to catch the two production bugs above if they're ever reintroduced — don't remove
+  or weaken them without a good reason.
+- Gotcha hit while writing these: DataTables' `#searchInput` boxes only react to a real `keyup`
+  DOM event — Playwright's `FillAsync` sets the value directly without dispatching one, so searches
+  silently no-op. Use `Locator.PressSequentiallyAsync` for those. Also, an ajax-form's success
+  redirect can't be awaited with `WaitForURLAsync(url => url.Contains(...))` if you're already
+  sitting on a URL that contains that same substring — it resolves before the underlying fetch
+  even finishes. Wait for the POST's own response instead (`RunAndWaitForResponseAsync`).
 
 ### FIFO batch pricing (`BatchPricingService`)
 
