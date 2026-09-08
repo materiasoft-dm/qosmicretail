@@ -18,7 +18,11 @@ public class PurchaseOrder
     public int SupplierId { get; set; }
 
     /// <summary>Auto-generated order number, e.g. "PO-20260519-001".</summary>
-    [Required]
+    // Not [Required]: this is always server-generated in PurchaseOrdersController.Create, after
+    // ModelState validation already runs — the Create form has no field for it, so it binds to
+    // "" and would fail [Required] before the controller ever gets a chance to set it, silently
+    // stranding the user on the Create page with no visible error (the view has no validation
+    // summary either). Confirmed via Mercurius.E2ETests.PurchaseOrderTests.
     public string OrderNumber { get; set; } = "";
 
     /// <summary>Status: PendingApproval, Approved, OrderSent, ReceivedComplete, ReceivedIncomplete.</summary>

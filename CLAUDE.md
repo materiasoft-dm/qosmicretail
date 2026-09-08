@@ -124,6 +124,15 @@ browser against a real instance of the app:
   redirect can't be awaited with `WaitForURLAsync(url => url.Contains(...))` if you're already
   sitting on a URL that contains that same substring — it resolves before the underlying fetch
   even finishes. Wait for the POST's own response instead (`RunAndWaitForResponseAsync`).
+- Set `E2E_HEADED=1` before `dotnet test` to watch the browser locally instead of running headless
+  (also slows actions down via `SlowMo` so it's actually followable).
+- `PurchaseOrderTests` caught a fourth production bug: `PurchaseOrder.OrderNumber` was `[Required]`
+  but is always server-generated in `PurchaseOrdersController.Create` *after* `ModelState` is
+  already validated — the Create form has no field for it, so it bound to `""`, failed `[Required]`
+  before the controller ever ran, and silently re-rendered the Create page with no visible error
+  (that view has no validation summary). Creating a Purchase Order via the web UI had likely never
+  worked. Fixed by removing `[Required]` from that property (it was never meant to validate
+  user input in the first place) — see the `MakePurchaseOrderNumberNullable` migration.
 
 ### FIFO batch pricing (`BatchPricingService`)
 
