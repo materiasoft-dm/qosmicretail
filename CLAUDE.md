@@ -45,12 +45,24 @@ If a `dotnet run` process is left running, a subsequent `dotnet build` will fail
 
 ### Persistence is provider-switchable
 
-`Program.cs` reads `DatabaseProvider` from configuration (`"Sqlite"` default, or `"SqlServer"`) and configures `MercuriusDbContext` (in `Mercurius.Repo/Repositories/`) accordingly — there are no EF Core migrations; the schema is created via `Database.EnsureCreated()` at startup instead. `MercuriusDbContext.OnModelCreating` does several things that apply regardless of provider and are easy to miss:
+`Program.cs` reads `DatabaseProvider` from configuration (`"Sqlite"` default, or `"SqlServer"`) and configures `MercuriusDbContext` (in `Mercurius.Repo/Repositories/`) accordingly. `MercuriusDbContext.OnModelCreating` does several things that apply regardless of provider and are easy to miss:
 
 - Forces every `string` property without an explicit `[Required]` attribute to be nullable at the EF model level, overriding the convention that infers `NOT NULL` from C#'s non-nullable-reference-type annotation. This mirrors `SuppressImplicitRequiredAttributeForNonNullableReferenceTypes` in `Program.cs`'s MVC config — the two must stay in sync, since many models declare optional fields (`Description`, `Note`, etc.) as non-nullable `string` for convenience.
 - Sets `DeleteBehavior.Restrict` on every foreign key, globally overriding EF's cascade-by-default convention for required relationships. SQL Server refuses to create a schema where two cascade paths converge on the same table (e.g. `InvoiceStatus` → `Invoice` → `InvoiceItem` and `InvoiceStatus` → `InvoiceItem` directly) — SQLite never enforced this, so the failure only surfaces against SQL Server.
 - Gives every `decimal`/`decimal?` property explicit `HasPrecision(18, 4)` — SQL Server requires an explicit precision/scale or defaults silently; SQLite doesn't care.
 - Mirrors the index list from the old LiteDB implementation (see `EnsureCoreIndexes`-style grouping by entity) directly as `HasIndex` calls.
+
+### Schema changes go through EF Core Migrations (Sqlite only)
+
+`Mercurius.Repo/Migrations/` holds versioned migrations, applied via `Database.Migrate()` at startup in `Program.cs` — this preserves existing data, unlike the `EnsureCreated()` approach used earlier in this project's history. The `SqlServer` provider path still calls `EnsureCreated()` instead: that provider is currently dormant (no live SQL Server database exists), so a second migrations assembly for it isn't worth building until it's back in active use.
+
+To add a schema change: edit the model, then from `Mercurius/`, run:
+```
+dotnet-ef migrations add <Name> --project "..\Mercurius.Repo\Mercurius.Repo.csproj" --startup-project "Mercurius.csproj" --output-dir Migrations
+```
+(Use the `dotnet-ef` executable directly, not `dotnet ef` — a stray user-level tool manifest at `C:\Users\<user>\.config\dotnet-tools.json` can make the local-manifest resolution fail with "Run dotnet tool restore" even though the global tool works fine.) Commit the generated migration; it applies automatically on next startup via `Migrate()`, both locally and on publish to the live site.
+
+The live database was migrated onto this system by wiping its schema (via the Admin Data Query API) and letting `EnsureCreated()` rebuild it one last time, then manually inserting a row into `__EFMigrationsHistory` to mark the generated `InitialCreate` migration as already applied — this let migrations take over without redundantly recreating a schema that already matched. That was a one-time bootstrap; it should never need repeating.
 
 ### Repository pattern — controllers never touch `DbContext` directly
 

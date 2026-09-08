@@ -9,6 +9,11 @@ public partial class Product
     [Key]
     public int Id { get; set; }
 
+    // Stable cross-device identity for offline-first sync with the future mobile app. Generated
+    // client-side (or here, server-side) at creation time — independent of the int Id, which is
+    // only ever meaningful to whichever database assigned it.
+    public Guid SyncId { get; set; } = Guid.NewGuid();
+
     [Required]
 [Display(Name = "SKU")]
 public string ProductCode { get; set; }

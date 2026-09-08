@@ -308,13 +308,23 @@ app.MapRazorPages();
 // ============================================
 // DATABASE SCHEMA
 // ============================================
-// EnsureCreated() (not EF migrations) is deliberate: there is no prior schema to migrate
-// incrementally, so this avoids needing the dotnet-ef CLI or a Migrations/ folder. Introduce
-// real migrations later if/when incremental schema changes matter.
+// EF Core Migrations (Migrations/ folder) apply the schema for the actively-used Sqlite
+// provider — Migrate() applies only the delta, so existing data survives future schema changes.
+// The SqlServer path stays on EnsureCreated(): that provider is currently unused (no live SQL
+// Server database exists), and building out a second migrations assembly for a dormant provider
+// isn't worth the complexity until it's actually back in use.
 
 using (var schemaScope = app.Services.CreateScope())
 {
-    schemaScope.ServiceProvider.GetRequiredService<MercuriusDbContext>().Database.EnsureCreated();
+    var db = schemaScope.ServiceProvider.GetRequiredService<MercuriusDbContext>();
+    if (useSqlServer)
+    {
+        db.Database.EnsureCreated();
+    }
+    else
+    {
+        db.Database.Migrate();
+    }
 }
 
 // ============================================

@@ -69,11 +69,13 @@ namespace Mercurius.Repo.Repositories
             builder.Entity<Product>().HasIndex(p => p.Name);
             builder.Entity<Product>().HasIndex(p => p.IsActive);
             builder.Entity<Product>().HasIndex(p => p.CurrentStock);
+            builder.Entity<Product>().HasIndex(p => p.SyncId).IsUnique();
 
             builder.Entity<Invoice>().HasIndex(i => i.InvoiceNumber).IsUnique();
             builder.Entity<Invoice>().HasIndex(i => i.CustomerId);
             builder.Entity<Invoice>().HasIndex(i => i.StatusId);
             builder.Entity<Invoice>().HasIndex(i => i.InvoiceDate);
+            builder.Entity<Invoice>().HasIndex(i => i.SyncId).IsUnique();
 
             builder.Entity<Customer>().HasIndex(c => c.FirstName);
             builder.Entity<Customer>().HasIndex(c => c.LastName);
@@ -81,6 +83,7 @@ namespace Mercurius.Repo.Repositories
             builder.Entity<InvoiceItem>().HasIndex(ii => ii.ProductId);
             builder.Entity<InvoiceItem>().HasIndex(ii => ii.InvoiceId);
             builder.Entity<InvoiceItem>().HasIndex(ii => ii.StatusId);
+            builder.Entity<InvoiceItem>().HasIndex(ii => ii.SyncId).IsUnique();
 
             builder.Entity<MedicineBatch>().HasIndex(mb => mb.ProductId);
             builder.Entity<MedicineBatch>().HasIndex(mb => mb.ExpiryDate);

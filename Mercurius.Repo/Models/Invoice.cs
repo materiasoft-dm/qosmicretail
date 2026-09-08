@@ -8,6 +8,10 @@ public partial class Invoice
 {
     [Key]
     public int Id { get; set; }
+
+    // Stable cross-device identity for offline-first sync with the future mobile app — see
+    // Product.SyncId for the rationale.
+    public Guid SyncId { get; set; } = Guid.NewGuid();
 public DateTime InvoiceDate { get; set; }
 
     public int? CustomerId { get; set; }
