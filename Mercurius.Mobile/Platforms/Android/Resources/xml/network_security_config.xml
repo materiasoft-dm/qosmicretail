@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Android blocks plain HTTP by default (API 28+). The live Mercurius API currently only
+     serves HTTP (site4now.net free-tier hosting has no HTTPS on this slot), so this scopes a
+     cleartext exception to just that one host rather than allowing it app-wide. Remove this
+     once the API is served over HTTPS. -->
+<network-security-config>
+    <domain-config cleartextTrafficPermitted="true">
+        <domain includeSubdomains="false">darkmaster-002-site1.dtempurl.com</domain>
+    </domain-config>
+</network-security-config>

@@ -1,23 +1,36 @@
-﻿namespace Mercurius.Mobile;
+using Mercurius.Mobile.Data;
+using Mercurius.Mobile.Services;
+
+namespace Mercurius.Mobile;
 
 public partial class MainPage : ContentPage
 {
-	int count = 0;
+    private readonly SessionService _sessionService;
+    private readonly LocalDatabase _localDatabase;
 
-	public MainPage()
-	{
-		InitializeComponent();
-	}
+    public MainPage(SessionService sessionService, LocalDatabase localDatabase)
+    {
+        InitializeComponent();
+        _sessionService = sessionService;
+        _localDatabase = localDatabase;
+    }
 
-	private void OnCounterClicked(object? sender, EventArgs e)
-	{
-		count++;
+    protected override async void OnAppearing()
+    {
+        base.OnAppearing();
 
-		if (count == 1)
-			CounterBtn.Text = $"Clicked {count} time";
-		else
-			CounterBtn.Text = $"Clicked {count} times";
+        var fullName = await _sessionService.GetFullNameAsync();
+        GreetingLabel.Text = string.IsNullOrWhiteSpace(fullName) ? "Welcome" : $"Welcome, {fullName.Split(',').Last().Trim()}";
 
-		SemanticScreenReader.Announce(CounterBtn.Text);
-	}
+        var products = await _localDatabase.GetProductsAsync();
+        ProductCountLabel.Text = products.Count.ToString("N0");
+
+        var lastSynced = await _localDatabase.GetLastSyncedAsync("products");
+        LastSyncedLabel.Text = lastSynced.HasValue ? lastSynced.Value.ToLocalTime().ToString("MMM d, h:mm tt") : "Never";
+    }
+
+    private async void OnGoToProductsClicked(object? sender, EventArgs e)
+    {
+        await Shell.Current.GoToAsync("//ProductsPage");
+    }
 }

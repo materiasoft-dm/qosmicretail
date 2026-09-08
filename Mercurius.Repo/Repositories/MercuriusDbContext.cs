@@ -84,6 +84,9 @@ namespace Mercurius.Repo.Repositories
             builder.Entity<InvoiceItem>().HasIndex(ii => ii.InvoiceId);
             builder.Entity<InvoiceItem>().HasIndex(ii => ii.StatusId);
             builder.Entity<InvoiceItem>().HasIndex(ii => ii.SyncId).IsUnique();
+            builder.Entity<InvoiceItem>().HasIndex(ii => ii.MedicineBatchId);
+
+            builder.Entity<MedicineBatch>().HasIndex(mb => new { mb.ProductId, mb.IsActive, mb.ReceivedDate });
 
             builder.Entity<MedicineBatch>().HasIndex(mb => mb.ProductId);
             builder.Entity<MedicineBatch>().HasIndex(mb => mb.ExpiryDate);

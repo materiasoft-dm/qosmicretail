@@ -28,5 +28,18 @@
 	</array>
 	<key>XSAppIconAssets</key>
 	<string>Assets.xcassets/appicon.appiconset</string>
+	<!-- The live Mercurius API is currently HTTP-only (site4now.net free-tier hosting has no
+	     HTTPS on this slot). Scoped exception to just that host; remove once the API has HTTPS. -->
+	<key>NSAppTransportSecurity</key>
+	<dict>
+		<key>NSExceptionDomains</key>
+		<dict>
+			<key>darkmaster-002-site1.dtempurl.com</key>
+			<dict>
+				<key>NSExceptionAllowsInsecureHTTPLoads</key>
+				<true/>
+			</dict>
+		</dict>
+	</dict>
 </dict>
 </plist>

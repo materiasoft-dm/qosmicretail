@@ -11,11 +11,16 @@ namespace Mercurius.Controllers
     public class MedicineBatchesController : BaseController
     {
         private readonly IUnitOfWork _unitOfWork;
+        private readonly Mercurius.Services.BatchPricingService _batchPricingService;
 
-        public MedicineBatchesController(IHttpContextAccessor httpContextAccessor, IUnitOfWork unitOfWork)
+        public MedicineBatchesController(
+            IHttpContextAccessor httpContextAccessor,
+            IUnitOfWork unitOfWork,
+            Mercurius.Services.BatchPricingService batchPricingService)
             : base(httpContextAccessor)
         {
             _unitOfWork = unitOfWork;
+            _batchPricingService = batchPricingService;
         }
 
         /// <summary>List batches for a specific product.</summary>
@@ -54,6 +59,12 @@ namespace Mercurius.Controllers
                     await _unitOfWork.Repository<Product>().UpdateAsync(product, ct);
                     await _unitOfWork.SaveChangesAsync(ct);
                 }
+
+                // Only actually changes the product's displayed price if this new batch turns
+                // out to be the oldest one with stock (e.g. it's the first batch ever, or every
+                // prior batch is already depleted) — otherwise the existing older batch's price
+                // still wins, which is the whole point of FIFO batch pricing.
+                await _batchPricingService.RefreshActivePriceAsync(_unitOfWork, batch.ProductId, ct);
 
                 return RedirectToAction(nameof(Index), new { productId = batch.ProductId });
             }

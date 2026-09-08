@@ -30,7 +30,14 @@ public decimal? CustomTotalPrice { get; set; }
     public bool IsWholeSale { get; set; }
 
     public int? WholeSaleId { get; set; }
+
+    // Which batch this line was actually priced/deducted from — null for products that aren't
+    // batch-tracked (most non-drug items). Lets a refund credit the right batch and a lot recall
+    // trace exactly which sales a given batch went into.
+    public int? MedicineBatchId { get; set; }
+
 public virtual Invoice Invoice { get; set; }
 public virtual Product Product { get; set; }
 public virtual InvoiceStatus Status { get; set; }
+public virtual MedicineBatch? MedicineBatch { get; set; }
 }

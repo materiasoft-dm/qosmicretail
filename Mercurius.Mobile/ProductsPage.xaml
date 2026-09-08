@@ -1,0 +1,118 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<ContentPage xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+             xmlns:data="clr-namespace:Mercurius.Mobile.Data"
+             x:Class="Mercurius.Mobile.ProductsPage"
+             Title="Products">
+
+    <Grid RowDefinitions="Auto,Auto,*" RowSpacing="0">
+
+        <!-- Header -->
+        <VerticalStackLayout Grid.Row="0" BackgroundColor="{StaticResource Secondary}" Padding="20,18">
+            <Label Text="Products" FontSize="22" FontAttributes="Bold" TextColor="{StaticResource White}" />
+            <Label x:Name="SyncStatusLabel" FontSize="12" TextColor="{StaticResource SecondaryDarkText}" Margin="0,2,0,0" />
+        </VerticalStackLayout>
+
+        <!-- Search bar -->
+        <Border Grid.Row="1"
+                StrokeShape="RoundRectangle 12"
+                Stroke="{StaticResource Gray100}"
+                BackgroundColor="{StaticResource White}"
+                Margin="16,14,16,10"
+                Padding="14,0"
+                HeightRequest="46">
+            <Grid ColumnDefinitions="*,Auto">
+                <Entry x:Name="SearchEntry"
+                       Grid.Column="0"
+                       Placeholder="Search by name, SKU, or category"
+                       VerticalOptions="Center"
+                       TextChanged="OnSearchTextChanged" />
+                <ActivityIndicator x:Name="SearchBusyIndicator"
+                                   Grid.Column="1"
+                                   IsVisible="False"
+                                   IsRunning="False"
+                                   Color="{StaticResource Primary}"
+                                   WidthRequest="20" HeightRequest="20"
+                                   VerticalOptions="Center" />
+            </Grid>
+        </Border>
+
+        <!-- List -->
+        <RefreshView Grid.Row="2" x:Name="ProductsRefreshView" Refreshing="OnRefreshing">
+            <Grid>
+                <CollectionView x:Name="ProductsCollectionView"
+                                Margin="16,0,16,16"
+                                SelectionMode="None">
+                    <CollectionView.ItemTemplate>
+                        <DataTemplate x:DataType="data:LocalProduct">
+                            <Border StrokeShape="RoundRectangle 14"
+                                    Stroke="{StaticResource Gray100}"
+                                    BackgroundColor="{StaticResource White}"
+                                    Margin="0,0,0,10"
+                                    Padding="16,14">
+                                <Border.Shadow>
+                                    <Shadow Brush="Black" Opacity="0.06" Radius="10" Offset="0,3" />
+                                </Border.Shadow>
+
+                                <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="14">
+
+                                    <!-- Accent chip -->
+                                    <Border Grid.Column="0"
+                                            StrokeShape="RoundRectangle 10"
+                                            Stroke="Transparent"
+                                            BackgroundColor="{StaticResource Secondary}"
+                                            WidthRequest="44" HeightRequest="44"
+                                            Padding="0"
+                                            VerticalOptions="Center">
+                                        <Label Text="{Binding Name, Converter={StaticResource InitialsConverter}}"
+                                               TextColor="{StaticResource Primary}"
+                                               FontAttributes="Bold"
+                                               FontSize="16"
+                                               HorizontalOptions="Center"
+                                               VerticalOptions="Center" />
+                                    </Border>
+
+                                    <!-- Details -->
+                                    <VerticalStackLayout Grid.Column="1" VerticalOptions="Center" Spacing="2">
+                                        <Label Text="{Binding Name}" FontAttributes="Bold" FontSize="15" LineBreakMode="TailTruncation" />
+                                        <Label FontSize="12" TextColor="{StaticResource Gray400}">
+                                            <Label.FormattedText>
+                                                <FormattedString>
+                                                    <Span Text="{Binding ProductCode}" />
+                                                    <Span Text="  •  " />
+                                                    <Span Text="{Binding CategoryName}" />
+                                                </FormattedString>
+                                            </Label.FormattedText>
+                                        </Label>
+                                        <Label Text="{Binding StockDisplay}"
+                                               FontSize="11"
+                                               FontAttributes="Bold"
+                                               TextColor="{Binding IsLowStock, Converter={StaticResource LowStockColorConverter}}"
+                                               Margin="0,2,0,0" />
+                                    </VerticalStackLayout>
+
+                                    <!-- Price -->
+                                    <Label Grid.Column="2"
+                                           Text="{Binding PriceDisplay}"
+                                           FontAttributes="Bold"
+                                           FontSize="16"
+                                           TextColor="{StaticResource Primary}"
+                                           VerticalOptions="Center" />
+                                </Grid>
+                            </Border>
+                        </DataTemplate>
+                    </CollectionView.ItemTemplate>
+                </CollectionView>
+
+                <VerticalStackLayout x:Name="EmptyStateLayout"
+                                     IsVisible="False"
+                                     VerticalOptions="Center"
+                                     HorizontalOptions="Center"
+                                     Spacing="8">
+                    <Label Text="No products yet" FontAttributes="Bold" FontSize="16" HorizontalOptions="Center" />
+                    <Label Text="Pull down to sync with the server" FontSize="13" TextColor="{StaticResource Gray400}" HorizontalOptions="Center" />
+                </VerticalStackLayout>
+            </Grid>
+        </RefreshView>
+    </Grid>
+</ContentPage>

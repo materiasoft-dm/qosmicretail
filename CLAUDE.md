@@ -90,6 +90,10 @@ JwtBearerDefaults.AuthenticationScheme)]`) exposes `GET .../pull?since=<utc time
 No refresh-token flow exists yet (access tokens are simply long-lived, `Jwt:AccessTokenDays`); add one
 if/when token revocation or shorter lifetimes become a real requirement.
 
+### FIFO batch pricing (`BatchPricingService`)
+
+`MedicineBatch` rows (created via `MedicineBatchesController`, one per stock receipt) each carry their own `UnitCost`/`UnitSalePrice`. A new shipment at a different price is just a new batch queued behind older stock — `SalesController.NewSale` calls `BatchPricingService.FindFulfillingBatchAsync` to pick, oldest first, the first batch whose `RemainingQuantity` alone covers the full line quantity; if the oldest batch falls short, the *whole* line is priced and drawn from the next batch that can cover it rather than splitting across two batches' ledgers (a deliberate simplification, confirmed with the product owner). `InvoiceItem.MedicineBatchId` records which batch a line was actually priced/deducted from, for refund credit and lot-recall tracing. Products with no batches at all (most non-drug items) fall back to `Product.CurrentSalePrice`/`CurrentCostPrice` unchanged — this feature is purely additive. `BatchPricingService.RefreshActivePriceAsync` keeps those flat fields in sync with whichever batch is now the oldest non-depleted one, so every screen that reads them (Products list, DataTables, the mobile sync API) keeps working without knowing batches exist.
+
 ### Repository pattern — controllers never touch `DbContext` directly
 
 `IUnitOfWork` / `IRepository<T>` (in `Mercurius.Repo/Repositories/`) wrap `MercuriusDbContext`; controllers depend on `IUnitOfWork` (scoped per request), never the context. `IRepository<T>` covers standard CRUD/paging. For DataTables-driven list pages (server-side sort/filter/paging), ~12 controllers instead call `IUnitOfWork.Query<T>()` (returns `IQueryable<T>` straight off the `DbSet`) and compose `.Where()`/`.OrderBy()`/`.Skip()`/`.Take()` directly — this is the pattern to follow for any new paged list page, mirroring `ProductsController.DataTable` as the reference implementation.

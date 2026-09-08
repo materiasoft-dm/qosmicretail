@@ -4,11 +4,33 @@
     xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
     xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
     xmlns:local="clr-namespace:Mercurius.Mobile"
-    Title="Mercurius.Mobile">
+    Title="Mercurius"
+    FlyoutBehavior="Flyout"
+    FlyoutBackgroundColor="{StaticResource Secondary}">
 
-    <ShellContent
-        Title="Home"
-        ContentTemplate="{DataTemplate local:MainPage}"
-        Route="MainPage" />
+    <Shell.FlyoutHeader>
+        <VerticalStackLayout Padding="24,48,24,24" Spacing="4" BackgroundColor="{StaticResource Secondary}">
+            <Border StrokeShape="RoundRectangle 14"
+                    Stroke="Transparent"
+                    BackgroundColor="{StaticResource Primary}"
+                    WidthRequest="52" HeightRequest="52"
+                    Padding="0">
+                <Label Text="M" TextColor="{StaticResource White}" FontSize="24" FontAttributes="Bold"
+                       HorizontalOptions="Center" VerticalOptions="Center" />
+            </Border>
+            <Label Text="Mercurius" TextColor="{StaticResource White}" FontSize="20" FontAttributes="Bold" Margin="0,12,0,0" />
+            <Label x:Name="FlyoutUserLabel" TextColor="{StaticResource SecondaryDarkText}" FontSize="12" />
+        </VerticalStackLayout>
+    </Shell.FlyoutHeader>
+
+    <FlyoutItem Title="Dashboard" Route="MainPage">
+        <ShellContent ContentTemplate="{DataTemplate local:MainPage}" Route="MainPage" />
+    </FlyoutItem>
+
+    <FlyoutItem Title="Products" Route="ProductsPage">
+        <ShellContent ContentTemplate="{DataTemplate local:ProductsPage}" Route="ProductsPage" />
+    </FlyoutItem>
+
+    <MenuItem Text="Log Out" Clicked="OnLogoutClicked" />
 
 </Shell>

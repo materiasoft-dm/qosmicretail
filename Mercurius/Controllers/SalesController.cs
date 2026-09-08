@@ -13,11 +13,16 @@ namespace Mercurius.Controllers
     public class SalesController : BaseController
     {
         private readonly IUnitOfWork _unitOfWork;
+        private readonly Mercurius.Services.BatchPricingService _batchPricingService;
 
-        public SalesController(IHttpContextAccessor httpContextAccessor, IUnitOfWork unitOfWork)
+        public SalesController(
+            IHttpContextAccessor httpContextAccessor,
+            IUnitOfWork unitOfWork,
+            Mercurius.Services.BatchPricingService batchPricingService)
             : base(httpContextAccessor)
         {
             _unitOfWork = unitOfWork;
+            _batchPricingService = batchPricingService;
         }
 
         public IActionResult Index(CancellationToken ct = default)
@@ -59,7 +64,7 @@ namespace Mercurius.Controllers
                 CustomerId = customerId > 0 ? customerId : (int?)null,
                 StatusId = (int)StatusCollection.InvoiceStatus.Draft,
                 InvoiceDate = DateTime.UtcNow,
-                InvoiceNumber = $"INV-{DateTime.UtcNow:yyyyMMddHHmmss}",
+                InvoiceNumber = $"INV-{DateTime.UtcNow:yyyyMMddHHmmssfff}",
                 Notes = notes,
                 CreatedDate = DateTime.UtcNow
             };
@@ -89,12 +94,19 @@ namespace Mercurius.Controllers
             try
             {
                 await _unitOfWork.Repository<Invoice>().AddAsync(invoice, ct);
+                // Flush immediately so invoice.Id holds the real database-generated value before
+                // it's read below — EF Core only assigns a temporary placeholder key synchronously
+                // on Add(), and reading that into a plain scalar FK (rather than a tracked
+                // navigation) would otherwise insert invoice items pointing at a value that never
+                // matches any real Invoice row.
+                await _unitOfWork.SaveChangesAsync(ct);
 
                 // Get current user info for audit log
                 var userId = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
                 var userName = User.Identity?.Name ?? "Unknown";
 
                 // Add invoice items
+                var productsWithBatchActivity = new HashSet<int>();
                 if (items != null && items.Any())
                 {
                     foreach (var item in items)
@@ -104,16 +116,32 @@ namespace Mercurius.Controllers
                         {
                             if (productMap.TryGetValue(productId, out var product))
                             {
+                                // Batch-tracked products (see MedicineBatch) price and deduct from
+                                // whichever batch covers the full line quantity, oldest first — a
+                                // product with no batches at all falls back to its flat price
+                                // fields exactly as before.
+                                var batch = await _batchPricingService.FindFulfillingBatchAsync(_unitOfWork, productId, qty, ct);
+
                                 var invoiceItem = new InvoiceItem
                                 {
                                     InvoiceId = invoice.Id,
                                     ProductId = productId,
                                     Quantity = qty,
-                                    SalePrice = product.CurrentSalePrice ?? 0,
-                                    CostPrice = product.CurrentCostPrice ?? 0,
+                                    SalePrice = batch?.UnitSalePrice ?? product.CurrentSalePrice ?? 0,
+                                    CostPrice = batch?.UnitCost ?? product.CurrentCostPrice ?? 0,
+                                    MedicineBatchId = batch?.Id,
                                     StatusId = (int)StatusCollection.InvoiceStatus.Draft
                                 };
                                 await _unitOfWork.Repository<InvoiceItem>().AddAsync(invoiceItem, ct);
+
+                                if (batch != null)
+                                {
+                                    batch.RemainingQuantity -= qty;
+                                    await _unitOfWork.Repository<MedicineBatch>().UpdateAsync(batch, ct);
+                                    product.CurrentStock -= qty;
+                                    await _unitOfWork.Repository<Product>().UpdateAsync(product, ct);
+                                    productsWithBatchActivity.Add(productId);
+                                }
 
                                 // Audit log for zero-stock sales
                                 if (product.CurrentStock <= 0)
@@ -141,6 +169,14 @@ namespace Mercurius.Controllers
                 }
 
                 await _unitOfWork.CommitTransactionAsync(ct);
+
+                // Outside the transaction (it's a read-then-write derived from what was just
+                // committed): roll the product's displayed price over to the next batch if this
+                // sale exactly depleted the one that was active.
+                foreach (var productId in productsWithBatchActivity)
+                {
+                    await _batchPricingService.RefreshActivePriceAsync(_unitOfWork, productId, ct);
+                }
             }
             catch
             {

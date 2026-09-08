@@ -3,6 +3,7 @@ using System;
 using Mercurius.Repo.Repositories;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 
 #nullable disable
@@ -10,9 +11,11 @@ using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 namespace Mercurius.Repo.Migrations
 {
     [DbContext(typeof(MercuriusDbContext))]
-    partial class MercuriusDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260908135306_AddBatchPricing")]
+    partial class AddBatchPricing
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder.HasAnnotation("ProductVersion", "9.0.9");

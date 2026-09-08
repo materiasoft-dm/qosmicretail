@@ -21,6 +21,10 @@ public class MedicineBatch
 
     public decimal UnitCost { get; set; }
 
+    // The sale price locked in for this specific batch. A new shipment at a different price is
+    // just a new batch — it doesn't affect what's charged until FIFO consumption reaches it.
+    public decimal UnitSalePrice { get; set; }
+
     public decimal InitialQuantity { get; set; }
 
     public decimal RemainingQuantity { get; set; }
