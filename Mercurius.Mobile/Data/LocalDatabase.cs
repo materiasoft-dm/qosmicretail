@@ -25,6 +25,8 @@ public class LocalDatabase
             if (_initialized) return;
             await _connection.CreateTableAsync<LocalProduct>();
             await _connection.CreateTableAsync<SyncState>();
+            await _connection.CreateTableAsync<LocalSale>();
+            await _connection.CreateTableAsync<LocalSaleItem>();
             _initialized = true;
         }
         finally
@@ -87,5 +89,65 @@ public class LocalDatabase
         await EnsureInitializedAsync();
         await _connection.DeleteAllAsync<LocalProduct>();
         await _connection.DeleteAllAsync<SyncState>();
+        await _connection.DeleteAllAsync<LocalSale>();
+        await _connection.DeleteAllAsync<LocalSaleItem>();
+    }
+
+    // Records a completed sale immediately — this is what makes checkout work with zero
+    // connectivity. Also decrements the local product cache's stock right away (optimistic;
+    // the server recomputes the authoritative figure from FIFO batches once this sale syncs)
+    // so the POS grid reflects the sale instantly instead of waiting on a round trip.
+    public async Task SaveSaleAsync(LocalSale sale, List<LocalSaleItem> items)
+    {
+        await EnsureInitializedAsync();
+        await _connection.RunInTransactionAsync(conn =>
+        {
+            conn.Insert(sale);
+            foreach (var item in items)
+            {
+                conn.Insert(item);
+
+                var product = conn.Table<LocalProduct>().FirstOrDefault(p => p.SyncId == item.ProductSyncId);
+                if (product != null)
+                {
+                    product.CurrentStock -= item.Quantity;
+                    conn.Update(product);
+                }
+            }
+        });
+    }
+
+    public async Task<List<LocalSale>> GetUnsyncedSalesAsync()
+    {
+        await EnsureInitializedAsync();
+        return await _connection.Table<LocalSale>().Where(s => !s.IsSynced).ToListAsync();
+    }
+
+    public async Task<List<LocalSale>> GetAllSalesAsync()
+    {
+        await EnsureInitializedAsync();
+        var sales = await _connection.Table<LocalSale>().ToListAsync();
+        return sales.OrderByDescending(s => s.InvoiceDate).ToList();
+    }
+
+    public async Task<List<LocalSaleItem>> GetSaleItemsAsync(Guid saleSyncId)
+    {
+        await EnsureInitializedAsync();
+        return await _connection.Table<LocalSaleItem>().Where(i => i.SaleSyncId == saleSyncId).ToListAsync();
+    }
+
+    public async Task MarkSaleSyncedAsync(Guid saleSyncId)
+    {
+        await EnsureInitializedAsync();
+        var sale = await _connection.Table<LocalSale>().Where(s => s.SyncId == saleSyncId).FirstOrDefaultAsync();
+        if (sale == null) return;
+        sale.IsSynced = true;
+        await _connection.UpdateAsync(sale);
+    }
+
+    public async Task<int> GetPendingSaleCountAsync()
+    {
+        await EnsureInitializedAsync();
+        return await _connection.Table<LocalSale>().Where(s => !s.IsSynced).CountAsync();
     }
 }

@@ -152,6 +152,9 @@ namespace Mercurius.Repo.Migrations
                     b.Property<string>("Filenames")
                         .HasColumnType("TEXT");
 
+                    b.Property<int?>("InvoiceItemRefundId")
+                        .HasColumnType("INTEGER");
+
                     b.Property<bool>("IsActive")
                         .HasColumnType("INTEGER");
 
@@ -178,6 +181,8 @@ namespace Mercurius.Repo.Migrations
                         .HasColumnType("TEXT");
 
                     b.HasKey("Id");
+
+                    b.HasIndex("InvoiceItemRefundId");
 
                     b.HasIndex("ProductId");
 
@@ -665,15 +670,26 @@ namespace Mercurius.Repo.Migrations
                         .HasPrecision(18, 4)
                         .HasColumnType("TEXT");
 
+                    b.Property<int>("RefundReasonId")
+                        .HasColumnType("INTEGER");
+
                     b.Property<string>("Remarks")
-                        .IsRequired()
                         .HasColumnType("TEXT");
 
+                    b.Property<bool>("WasRestocked")
+                        .HasColumnType("INTEGER");
+
                     b.HasKey("Id");
+
+                    b.HasIndex("InvoiceId");
+
+                    b.HasIndex("InvoiceItemId");
 
                     b.HasIndex("InvoiceRefundId");
 
                     b.HasIndex("ProductId");
+
+                    b.HasIndex("RefundReasonId");
 
                     b.ToTable("InvoiceItemRefunds");
                 });
@@ -717,6 +733,8 @@ namespace Mercurius.Repo.Migrations
                         .HasColumnType("TEXT");
 
                     b.HasKey("Id");
+
+                    b.HasIndex("InvoiceId");
 
                     b.ToTable("InvoiceRefunds");
                 });
@@ -1173,6 +1191,28 @@ namespace Mercurius.Repo.Migrations
                     b.ToTable("PurchaseOrderItems");
                 });
 
+            modelBuilder.Entity("Mercurius.Repo.Models.RefundReason", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("Description")
+                        .HasColumnType("TEXT");
+
+                    b.Property<bool>("IsActive")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("TEXT");
+
+                    b.HasKey("Id");
+
+                    b.ToTable("RefundReasons");
+                });
+
             modelBuilder.Entity("Mercurius.Repo.Models.RoleModuleAccess", b =>
                 {
                     b.Property<int>("Id")
@@ -1217,7 +1257,6 @@ namespace Mercurius.Repo.Migrations
                         .HasColumnType("TEXT");
 
                     b.Property<int?>("PurchaseOrderId")
-                        .HasMaxLength(500)
                         .HasColumnType("INTEGER");
 
                     b.Property<DateTime>("ShipmentArrivalDate")
@@ -1675,6 +1714,11 @@ namespace Mercurius.Repo.Migrations
 
             modelBuilder.Entity("Mercurius.Repo.Models.Adjustment", b =>
                 {
+                    b.HasOne("Mercurius.Repo.Models.InvoiceItemRefund", "InvoiceItemRefund")
+                        .WithMany()
+                        .HasForeignKey("InvoiceItemRefundId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
                     b.HasOne("Mercurius.Repo.Models.Product", "Product")
                         .WithMany("Adjustments")
                         .HasForeignKey("ProductId")
@@ -1686,6 +1730,8 @@ namespace Mercurius.Repo.Migrations
                         .HasForeignKey("ReasonId")
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
+
+                    b.Navigation("InvoiceItemRefund");
 
                     b.Navigation("Product");
 
@@ -1828,9 +1874,17 @@ namespace Mercurius.Repo.Migrations
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
 
+                    b.HasOne("Mercurius.Repo.Models.RefundReason", "RefundReason")
+                        .WithMany("InvoiceItemRefunds")
+                        .HasForeignKey("RefundReasonId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
                     b.Navigation("InvoiceRefund");
 
                     b.Navigation("Product");
+
+                    b.Navigation("RefundReason");
                 });
 
             modelBuilder.Entity("Mercurius.Repo.Models.Location", b =>
@@ -2096,6 +2150,11 @@ namespace Mercurius.Repo.Migrations
             modelBuilder.Entity("Mercurius.Repo.Models.PurchaseOrder", b =>
                 {
                     b.Navigation("Items");
+                });
+
+            modelBuilder.Entity("Mercurius.Repo.Models.RefundReason", b =>
+                {
+                    b.Navigation("InvoiceItemRefunds");
                 });
 
             modelBuilder.Entity("Mercurius.Repo.Models.ShipmentArrival", b =>

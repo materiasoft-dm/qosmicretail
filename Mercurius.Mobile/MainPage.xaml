@@ -6,55 +6,165 @@
 
     <Grid RowDefinitions="Auto,*">
 
-        <VerticalStackLayout Grid.Row="0" BackgroundColor="{StaticResource Secondary}" Padding="20,18">
-            <Label x:Name="GreetingLabel" FontSize="22" FontAttributes="Bold" TextColor="{StaticResource White}" />
-            <Label Text="Here's what's happening on this device" FontSize="12" TextColor="{StaticResource SecondaryDarkText}" Margin="0,2,0,0" />
-        </VerticalStackLayout>
+        <!-- Header -->
+        <Grid Grid.Row="0" ColumnDefinitions="*,Auto" BackgroundColor="{StaticResource Secondary}" Padding="32,26">
+            <VerticalStackLayout Grid.Column="0" Spacing="2">
+                <Label x:Name="GreetingLabel" FontSize="24" FontAttributes="Bold" TextColor="{StaticResource White}" />
+                <Label Text="Here's what's happening on this device" FontSize="13" TextColor="{StaticResource SecondaryDarkText}" />
+            </VerticalStackLayout>
+
+            <Border Grid.Column="1"
+                    StrokeShape="RoundRectangle 10"
+                    Stroke="Transparent"
+                    BackgroundColor="{StaticResource Primary}"
+                    Padding="18,0"
+                    HeightRequest="44"
+                    VerticalOptions="Center">
+                <Grid ColumnDefinitions="Auto,Auto" ColumnSpacing="8">
+                    <ActivityIndicator x:Name="SyncBusyIndicator" Grid.Column="0"
+                                       IsVisible="False" IsRunning="False"
+                                       Color="{StaticResource White}"
+                                       WidthRequest="16" HeightRequest="16" VerticalOptions="Center" />
+                    <Button x:Name="SyncNowButton" Grid.Column="1"
+                            Text="Sync Now"
+                            BackgroundColor="Transparent"
+                            TextColor="{StaticResource White}"
+                            FontAttributes="Bold"
+                            Padding="0"
+                            MinimumWidthRequest="0"
+                            MinimumHeightRequest="0"
+                            VerticalOptions="Center"
+                            Clicked="OnSyncNowClicked" />
+                </Grid>
+            </Border>
+        </Grid>
 
         <ScrollView Grid.Row="1">
-            <VerticalStackLayout Padding="16" Spacing="12">
+            <VerticalStackLayout Padding="32,28" Spacing="28" MaximumWidthRequest="1100" HorizontalOptions="Center">
 
-                <Border StrokeShape="RoundRectangle 14"
-                        Stroke="{StaticResource Gray100}"
-                        BackgroundColor="{StaticResource White}"
-                        Padding="18">
-                    <Border.Shadow>
-                        <Shadow Brush="Black" Opacity="0.06" Radius="10" Offset="0,3" />
-                    </Border.Shadow>
-                    <Grid ColumnDefinitions="*,Auto">
-                        <VerticalStackLayout Grid.Column="0" Spacing="4">
-                            <Label Text="PRODUCTS SYNCED" FontSize="11" FontAttributes="Bold" TextColor="{StaticResource Gray400}" />
-                            <Label x:Name="ProductCountLabel" Text="0" FontSize="30" FontAttributes="Bold" TextColor="{StaticResource MidnightBlue}" />
+                <Label x:Name="SyncStatusLabel" FontSize="12" TextColor="{StaticResource Gray400}" IsVisible="False" />
+
+                <!-- Stat cards -->
+                <FlexLayout Wrap="Wrap" JustifyContent="Start" Direction="Row">
+
+                    <Border StrokeShape="RoundRectangle 14"
+                            Stroke="{StaticResource Gray100}"
+                            BackgroundColor="{StaticResource White}"
+                            Padding="20"
+                            WidthRequest="260"
+                            Margin="0,0,16,16">
+                        <Border.Shadow>
+                            <Shadow Brush="Black" Opacity="0.06" Radius="10" Offset="0,3" />
+                        </Border.Shadow>
+                        <Grid ColumnDefinitions="*,Auto">
+                            <VerticalStackLayout Grid.Column="0" Spacing="6">
+                                <Label Text="PRODUCTS SYNCED" FontSize="11" FontAttributes="Bold" TextColor="{StaticResource Gray400}" />
+                                <Label x:Name="ProductCountLabel" Text="0" FontSize="32" FontAttributes="Bold" TextColor="{StaticResource MidnightBlue}" />
+                            </VerticalStackLayout>
+                            <Border Grid.Column="1"
+                                    StrokeShape="RoundRectangle 12"
+                                    Stroke="Transparent"
+                                    BackgroundColor="{StaticResource Secondary}"
+                                    WidthRequest="48" HeightRequest="48"
+                                    Padding="0"
+                                    VerticalOptions="Center">
+                                <Label Text="&#9636;" TextColor="{StaticResource Primary}" FontSize="20" HorizontalOptions="Center" VerticalOptions="Center" />
+                            </Border>
+                        </Grid>
+                    </Border>
+
+                    <Border StrokeShape="RoundRectangle 14"
+                            Stroke="{StaticResource Gray100}"
+                            BackgroundColor="{StaticResource White}"
+                            Padding="20"
+                            WidthRequest="260"
+                            Margin="0,0,16,16">
+                        <Border.Shadow>
+                            <Shadow Brush="Black" Opacity="0.06" Radius="10" Offset="0,3" />
+                        </Border.Shadow>
+                        <Grid ColumnDefinitions="*,Auto">
+                            <VerticalStackLayout Grid.Column="0" Spacing="6">
+                                <Label Text="LOW STOCK ITEMS" FontSize="11" FontAttributes="Bold" TextColor="{StaticResource Gray400}" />
+                                <Label x:Name="LowStockCountLabel" Text="0" FontSize="32" FontAttributes="Bold" TextColor="#D32F2F" />
+                            </VerticalStackLayout>
+                            <Border Grid.Column="1"
+                                    StrokeShape="RoundRectangle 12"
+                                    Stroke="Transparent"
+                                    BackgroundColor="#FBE9E9"
+                                    WidthRequest="48" HeightRequest="48"
+                                    Padding="0"
+                                    VerticalOptions="Center">
+                                <Label Text="!" TextColor="#D32F2F" FontSize="20" FontAttributes="Bold" HorizontalOptions="Center" VerticalOptions="Center" />
+                            </Border>
+                        </Grid>
+                    </Border>
+
+                    <Border StrokeShape="RoundRectangle 14"
+                            Stroke="{StaticResource Gray100}"
+                            BackgroundColor="{StaticResource White}"
+                            Padding="20"
+                            WidthRequest="260"
+                            Margin="0,0,16,16">
+                        <Border.Shadow>
+                            <Shadow Brush="Black" Opacity="0.06" Radius="10" Offset="0,3" />
+                        </Border.Shadow>
+                        <VerticalStackLayout Spacing="6">
+                            <Label Text="LAST SYNCED" FontSize="11" FontAttributes="Bold" TextColor="{StaticResource Gray400}" />
+                            <Label x:Name="LastSyncedLabel" Text="Never" FontSize="18" FontAttributes="Bold" TextColor="{StaticResource MidnightBlue}" />
                         </VerticalStackLayout>
-                        <Border Grid.Column="1"
-                                StrokeShape="RoundRectangle 12"
-                                Stroke="Transparent"
-                                BackgroundColor="{StaticResource Secondary}"
-                                WidthRequest="48" HeightRequest="48"
-                                Padding="0"
-                                VerticalOptions="Center">
-                            <Label Text="&#9636;" TextColor="{StaticResource Primary}" FontSize="20" HorizontalOptions="Center" VerticalOptions="Center" />
-                        </Border>
-                    </Grid>
-                </Border>
+                    </Border>
 
-                <Border StrokeShape="RoundRectangle 14"
-                        Stroke="{StaticResource Gray100}"
-                        BackgroundColor="{StaticResource White}"
-                        Padding="18">
-                    <Border.Shadow>
-                        <Shadow Brush="Black" Opacity="0.06" Radius="10" Offset="0,3" />
-                    </Border.Shadow>
-                    <VerticalStackLayout Spacing="4">
-                        <Label Text="LAST SYNCED" FontSize="11" FontAttributes="Bold" TextColor="{StaticResource Gray400}" />
-                        <Label x:Name="LastSyncedLabel" Text="Never" FontSize="16" FontAttributes="Bold" TextColor="{StaticResource MidnightBlue}" />
-                    </VerticalStackLayout>
-                </Border>
+                </FlexLayout>
 
-                <Button Text="Go to Products"
-                        Margin="0,8,0,0"
-                        HeightRequest="48"
-                        Clicked="OnGoToProductsClicked" />
+                <!-- Quick actions + device panel -->
+                <Grid ColumnDefinitions="1.3*,1*" ColumnSpacing="16">
+
+                    <Border Grid.Column="0"
+                            StrokeShape="RoundRectangle 14"
+                            Stroke="{StaticResource Gray100}"
+                            BackgroundColor="{StaticResource White}"
+                            Padding="24">
+                        <Border.Shadow>
+                            <Shadow Brush="Black" Opacity="0.06" Radius="10" Offset="0,3" />
+                        </Border.Shadow>
+                        <VerticalStackLayout Spacing="14">
+                            <Label Text="Quick Actions" FontSize="15" FontAttributes="Bold" TextColor="{StaticResource MidnightBlue}" />
+                            <Button Text="View Products" HeightRequest="46" HorizontalOptions="Fill" Clicked="OnGoToProductsClicked" />
+                            <Button Text="Sync Data Now" HeightRequest="46" HorizontalOptions="Fill"
+                                    BackgroundColor="{StaticResource Secondary}" TextColor="{StaticResource White}"
+                                    Clicked="OnSyncNowClicked" />
+                        </VerticalStackLayout>
+                    </Border>
+
+                    <Border Grid.Column="1"
+                            StrokeShape="RoundRectangle 14"
+                            Stroke="{StaticResource Gray100}"
+                            BackgroundColor="{StaticResource White}"
+                            Padding="24">
+                        <Border.Shadow>
+                            <Shadow Brush="Black" Opacity="0.06" Radius="10" Offset="0,3" />
+                        </Border.Shadow>
+                        <VerticalStackLayout Spacing="12">
+                            <Label Text="This Device" FontSize="15" FontAttributes="Bold" TextColor="{StaticResource MidnightBlue}" />
+                            <Grid ColumnDefinitions="*,Auto">
+                                <Label Grid.Column="0" Text="Platform" FontSize="12" TextColor="{StaticResource Gray400}" VerticalOptions="Center" />
+                                <Label x:Name="PlatformLabel" Grid.Column="1" FontSize="12" FontAttributes="Bold" TextColor="{StaticResource MidnightBlue}" />
+                            </Grid>
+                            <Grid ColumnDefinitions="*,Auto">
+                                <Label Grid.Column="0" Text="Connection" FontSize="12" TextColor="{StaticResource Gray400}" VerticalOptions="Center" />
+                                <Grid Grid.Column="1" ColumnDefinitions="Auto,Auto" ColumnSpacing="6">
+                                    <Ellipse x:Name="ConnectionDot" Grid.Column="0" WidthRequest="8" HeightRequest="8" VerticalOptions="Center" />
+                                    <Label x:Name="ConnectionLabel" Grid.Column="1" FontSize="12" FontAttributes="Bold" TextColor="{StaticResource MidnightBlue}" />
+                                </Grid>
+                            </Grid>
+                            <Grid ColumnDefinitions="*,Auto">
+                                <Label Grid.Column="0" Text="App version" FontSize="12" TextColor="{StaticResource Gray400}" VerticalOptions="Center" />
+                                <Label Grid.Column="1" Text="1.0" FontSize="12" FontAttributes="Bold" TextColor="{StaticResource MidnightBlue}" />
+                            </Grid>
+                        </VerticalStackLayout>
+                    </Border>
+
+                </Grid>
 
             </VerticalStackLayout>
         </ScrollView>

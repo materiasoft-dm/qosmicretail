@@ -2,6 +2,7 @@ using System;
 using System.Globalization;
 using System.IO;
 using System.Linq;
+using System.Text.RegularExpressions;
 using System.Threading;
 using System.Threading.Tasks;
 using Mercurius.Models;
@@ -71,15 +72,33 @@ namespace Mercurius.Services
             using var scope = _scopeFactory.CreateScope();
             var unitOfWork = scope.ServiceProvider.GetRequiredService<IUnitOfWork>();
 
+            // Loyverse (and similar POS) exports decorate several headers with a per-location
+            // suffix, e.g. "Price [Store Name]" / "In stock [Store Name]" instead of a plain
+            // "Price"/"In stock". ProductCsvMap's candidate names (and its own comments) were
+            // written assuming that suffix gets stripped before matching, but nothing actually
+            // configured CsvHelper to do that — every row silently fell through to the mapper's
+            // Default(0m), which is why a real Loyverse export with real prices imported every
+            // product at ₱0.00 sale price with no error. PrepareHeaderForMatch runs on both the
+            // file's header text and the candidate names in ProductCsvMap.Name(...), so stripping
+            // the bracket suffix and normalizing whitespace/case here — instead of also editing
+            // every candidate name — is enough to make "Price [Store Name]" match "Price" and
+            // "In stock [Store Name]" match "Instock".
+            var csvConfig = new CsvHelper.Configuration.CsvConfiguration(CultureInfo.InvariantCulture)
+            {
+                // Ignore missing headers — use default values (0 for price/stock) when columns absent
+                HeaderValidated = null,
+                MissingFieldFound = null,
+                PrepareHeaderForMatch = args => Regex.Replace(args.Header, @"\s*\[[^\]]*\]\s*$", "")
+                    .Replace(" ", "")
+                    .ToLowerInvariant()
+            };
+
             System.Collections.Generic.List<ProductCsvRecord> records;
             using (var ms = new MemoryStream(job.FileContent))
             using (var reader = new StreamReader(ms))
-            using (var csv = new CsvHelper.CsvReader(reader, CultureInfo.InvariantCulture))
+            using (var csv = new CsvHelper.CsvReader(reader, csvConfig))
             {
                 csv.Context.RegisterClassMap<ProductCsvMap>();
-                // Ignore missing headers — use default values (0 for price/stock) when columns absent
-                csv.Context.Configuration.HeaderValidated = null;
-                csv.Context.Configuration.MissingFieldFound = null;
                 records = csv.GetRecords<ProductCsvRecord>().ToList();
             }
 

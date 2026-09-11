@@ -35,10 +35,12 @@ namespace Mercurius.Controllers.Api
     public class SyncController : ControllerBase
     {
         private readonly IUnitOfWork _unitOfWork;
+        private readonly Mercurius.Services.BatchPricingService _batchPricingService;
 
-        public SyncController(IUnitOfWork unitOfWork)
+        public SyncController(IUnitOfWork unitOfWork, Mercurius.Services.BatchPricingService batchPricingService)
         {
             _unitOfWork = unitOfWork;
+            _batchPricingService = batchPricingService;
         }
 
         private Guid CurrentUserId =>
@@ -237,6 +239,13 @@ namespace Mercurius.Controllers.Api
                     await _unitOfWork.Repository<Invoice>().AddAsync(invoice, ct);
                     await _unitOfWork.SaveChangesAsync(ct);
 
+                    // Mirrors SalesController.NewSale's inventory bookkeeping: the price the
+                    // device actually charged is trusted as-is (it's what the customer agreed to
+                    // pay), but which batch it's drawn from — and the resulting stock/COGS
+                    // ledger — is decided here, server-side, same as any web-created sale. Without
+                    // this, a synced mobile sale would record revenue without ever touching
+                    // inventory, silently drifting Product.CurrentStock out of sync with reality.
+                    var productsWithBatchActivity = new HashSet<int>();
                     foreach (var lineItem in item.Items)
                     {
                         var product = (await _unitOfWork.Repository<Product>()
@@ -248,6 +257,8 @@ namespace Mercurius.Controllers.Api
                             continue;
                         }
 
+                        var batch = await _batchPricingService.FindFulfillingBatchAsync(_unitOfWork, product.Id, lineItem.Quantity, ct);
+
                         var invoiceItem = new InvoiceItem
                         {
                             SyncId = lineItem.SyncId,
@@ -256,12 +267,46 @@ namespace Mercurius.Controllers.Api
                             Quantity = lineItem.Quantity,
                             SalePrice = lineItem.SalePrice,
                             CostPrice = lineItem.CostPrice,
+                            MedicineBatchId = batch?.Id,
                             Remarks = lineItem.Remarks ?? "",
                             StatusId = (int)StatusCollection.InvoiceStatus.Draft
                         };
                         await _unitOfWork.Repository<InvoiceItem>().AddAsync(invoiceItem, ct);
+
+                        if (batch != null)
+                        {
+                            batch.RemainingQuantity -= lineItem.Quantity;
+                            await _unitOfWork.Repository<MedicineBatch>().UpdateAsync(batch, ct);
+                        }
+                        product.CurrentStock -= lineItem.Quantity;
+                        await _unitOfWork.Repository<Product>().UpdateAsync(product, ct);
+                        productsWithBatchActivity.Add(product.Id);
+
+                        if (product.CurrentStock <= 0)
+                        {
+                            var auditLog = new ZeroStockSaleAuditLog
+                            {
+                                ProductId = product.Id,
+                                ProductName = product.Name,
+                                ProductCode = product.ProductCode,
+                                QuantitySold = lineItem.Quantity,
+                                StockAtTimeOfSale = product.CurrentStock,
+                                InvoiceNumber = invoice.InvoiceNumber,
+                                InvoiceId = invoice.Id,
+                                SoldByUserId = CurrentUserId,
+                                SoldByUserName = User.Identity?.Name ?? "Unknown",
+                                SaleDate = now,
+                                Notes = $"Zero-stock mobile sale: inventory was {product.CurrentStock} before this sale of {lineItem.Quantity} units"
+                            };
+                            await _unitOfWork.Repository<ZeroStockSaleAuditLog>().AddAsync(auditLog, ct);
+                        }
                     }
                     await _unitOfWork.SaveChangesAsync(ct);
+
+                    foreach (var productId in productsWithBatchActivity)
+                    {
+                        await _batchPricingService.RefreshActivePriceAsync(_unitOfWork, productId, ct);
+                    }
 
                     results.Add(new SyncPushResultItem { SyncId = item.SyncId, Created = true, LastModifiedUtc = now });
                 }

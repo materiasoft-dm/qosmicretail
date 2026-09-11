@@ -13,6 +13,7 @@
 
             <converters:InitialsConverter x:Key="InitialsConverter" />
             <converters:LowStockColorConverter x:Key="LowStockColorConverter" />
+            <converters:CategoryColorConverter x:Key="CategoryColorConverter" />
         </ResourceDictionary>
     </Application.Resources>
 </Application>

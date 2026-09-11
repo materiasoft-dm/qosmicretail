@@ -43,9 +43,14 @@ namespace Mercurius.Controllers
         [HttpPost]
         [Authorize(Policy = Common.ModuleRegistry.Pages.NEWSALE_CREATE)]
         [ValidateAntiForgeryToken]
-        public async Task<IActionResult> NewSale(int customerId, string notes, List<string> items, CancellationToken ct = default)
+        public async Task<IActionResult> NewSale(int customerId, string notes, List<string> items, string paymentMethod, decimal amountReceived, CancellationToken ct = default)
         {
             ct.ThrowIfCancellationRequested();
+            if (items == null || items.Count == 0)
+            {
+                return BadRequest(new { error = "Add at least one item before charging." });
+            }
+
             // Customer is optional - customerId can be 0
             Customer? customer = null;
             if (customerId > 0)
@@ -54,10 +59,18 @@ namespace Mercurius.Controllers
                 customer = customers.FirstOrDefault();
                 if (customer == null)
                 {
-                    ModelState.AddModelError(string.Empty, "Selected customer not found.");
-                    return View();
+                    return BadRequest(new { error = "Selected customer not found." });
                 }
             }
+
+            // Mobile's checkout has no separate notes field — it just stamps Invoice.Notes with
+            // "Paid by cash"/"Paid by card" (see SalesPage.xaml.cs's OnChargeClicked). Web already
+            // has a free-text cashier note, so fold the two together instead of losing one: use
+            // the payment annotation alone when the cashier left Notes blank (matching mobile
+            // exactly), otherwise append it to what they typed.
+            var isCard = string.Equals(paymentMethod, "Card", StringComparison.OrdinalIgnoreCase);
+            var paymentNote = isCard ? "Paid by card" : "Paid by cash";
+            var resolvedNotes = string.IsNullOrWhiteSpace(notes) ? paymentNote : $"{notes} ({paymentNote})";
 
             var invoice = new Invoice
             {
@@ -65,7 +78,8 @@ namespace Mercurius.Controllers
                 StatusId = (int)StatusCollection.InvoiceStatus.Draft,
                 InvoiceDate = DateTime.UtcNow,
                 InvoiceNumber = $"INV-{DateTime.UtcNow:yyyyMMddHHmmssfff}",
-                Notes = notes,
+                Notes = resolvedNotes,
+                PaidAmount = amountReceived,
                 CreatedDate = DateTime.UtcNow
             };
 
@@ -90,6 +104,7 @@ namespace Mercurius.Controllers
                 }
             }
 
+            var grandTotal = 0m;
             await _unitOfWork.BeginTransactionAsync(ct);
             try
             {
@@ -133,15 +148,22 @@ namespace Mercurius.Controllers
                                     StatusId = (int)StatusCollection.InvoiceStatus.Draft
                                 };
                                 await _unitOfWork.Repository<InvoiceItem>().AddAsync(invoiceItem, ct);
+                                grandTotal += invoiceItem.SalePrice * invoiceItem.Quantity;
 
+                                // Stock deducts for every sale, batch-tracked or not — only the
+                                // batch ledger itself is conditional on a batch actually being
+                                // found. Mirrors SyncController.PushInvoices, which already got
+                                // this right; this action used to nest the stock deduction inside
+                                // the `if (batch != null)` block too, so non-batch products (most
+                                // of the catalog) never had CurrentStock reduced by a sale at all.
                                 if (batch != null)
                                 {
                                     batch.RemainingQuantity -= qty;
                                     await _unitOfWork.Repository<MedicineBatch>().UpdateAsync(batch, ct);
-                                    product.CurrentStock -= qty;
-                                    await _unitOfWork.Repository<Product>().UpdateAsync(product, ct);
-                                    productsWithBatchActivity.Add(productId);
                                 }
+                                product.CurrentStock -= qty;
+                                await _unitOfWork.Repository<Product>().UpdateAsync(product, ct);
+                                productsWithBatchActivity.Add(productId);
 
                                 // Audit log for zero-stock sales
                                 if (product.CurrentStock <= 0)
@@ -184,8 +206,14 @@ namespace Mercurius.Controllers
                 throw;
             }
 
-            TempData["Message"] = $"Invoice #{invoice.InvoiceNumber} created with items.";
-            return RedirectToAction("Index", "InvoiceList");
+            return Json(new
+            {
+                success = true,
+                invoiceNumber = invoice.InvoiceNumber,
+                invoiceId = invoice.Id,
+                total = grandTotal,
+                change = isCard ? 0m : amountReceived - grandTotal
+            });
         }
 
     }

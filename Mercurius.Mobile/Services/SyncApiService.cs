@@ -23,4 +23,12 @@ public class SyncApiService
         var products = await response.Content.ReadFromJsonAsync<List<ProductDto>>(cancellationToken: ct);
         return products ?? new List<ProductDto>();
     }
+
+    public async Task<List<SalePushResult>> PushSalesAsync(List<SalePushDto> sales, CancellationToken ct = default)
+    {
+        var response = await _httpClient.PostAsJsonAsync("api/sync/invoices/push", sales, ct);
+        response.EnsureSuccessStatusCode();
+        var results = await response.Content.ReadFromJsonAsync<List<SalePushResult>>(cancellationToken: ct);
+        return results ?? new List<SalePushResult>();
+    }
 }

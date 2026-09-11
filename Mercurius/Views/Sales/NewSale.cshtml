@@ -1,174 +1,160 @@
 @{
     ViewData["Title"] = "New Sale";
     var customers = ViewBag.Customers as List<Mercurius.Repo.Models.Customer>;
-    var products = ViewBag.Products as List<Mercurius.Repo.Models.Product>;
 }
 
 <!-- PAGE TITLE -->
 <div id="kt_app_toolbar" class="app-toolbar py-3 py-lg-6">
-    <div id="kt_app_toolbar_container" class="app-container container-xxl d-flex flex-stack">   
+    <div id="kt_app_toolbar_container" class="app-container container-xxl d-flex flex-stack">
         <div class="page-title d-flex flex-column justify-content-center flex-wrap me-3">
             <h1 class="page-heading d-flex text-dark fw-bold fs-3 flex-column justify-content-center my-0">New Sale</h1>
         </div>
     </div>
 </div>
 
-<div class="card">
-    <div class="card-body p-10">
-        @if (ViewBag.Message != null)
-        {
-            <div class="alert alert-success">@ViewBag.Message</div>
-        }
-        
-        <form asp-action="NewSale" method="post" id="saleForm">
-            @Html.AntiForgeryToken()
-            
-            <!-- Customer & Notes Row -->
-            <div class="row g-5 mb-7">
-                <div class="col-md-6">
-                    <label class="form-label">Customer</label>
-                    <select name="customerId" class="form-select form-select-sm">
-                        <option value="">-- Optional --</option>
-                        @if (customers != null)
-                        {
-                            foreach (var c in customers)
-                            {
-                                <option value="@c.Id">@c.FirstName @c.LastName</option>
-                            }
-                        }
-                    </select>
-                </div>
-                <div class="col-md-6">
-                    <label class="form-label">Notes</label>
-                    <input name="notes" class="form-control form-control-sm" placeholder="Optional notes..." />
-                </div>
-            </div>
-
-            <div class="separator separator-dashed border-secondary my-6"></div>
-
-            <!-- Product Selection -->
-            <div class="d-flex justify-content-between align-items-center mb-4">
-                <h5 class="mb-0">Selected Products</h5>
-                <button type="button" class="btn btn-sm btn-primary" id="openProductModal">
-                    <i class="bi bi-plus"></i> Add Product
-                </button>
-            </div>
-
-            <!-- Selected Items Table -->
-            <div class="table-responsive mb-5" id="selected-products-section">
-                <table class="table table-hover table-sm" id="selected-products-table">
-                    <thead class="table-light">
-                        <tr>
-                            <th>Item</th>
-                            <th class="text-center">Qty</th>
-                            <th class="text-end">Price</th>
-                            <th class="text-end">Total</th>
-                            <th style="width:50px;"></th>
-                        </tr>
-                    </thead>
-                    <tbody id="selected-products-body">
-                        <tr id="no-items-row">
-                            <td colspan="5" class="text-center text-muted py-5">
-                                No products selected. Click "Add Product" to add items.
-                            </td>
-                        </tr>
-                    </tbody>
-                    <tfoot class="table-light border-top fw-bold" id="sale-totals" style="display: none;">
-                        <tr>
-                            <td colspan="2" class="text-end">Total Items:</td>
-                            <td class="text-center" id="total-items">0</td>
-                            <td></td>
-                            <td></td>
-                        </tr>
-                        <tr class="fs-5">
-                            <td colspan="3" class="text-end">Grand Total:</td>
-                            <td class="text-end text-primary" id="grand-total">₱0.00</td>
-                            <td></td>
-                        </tr>
-                    </tfoot>
-                </table>
-            </div>
-
-            <!-- Actions -->
-            <div class="border-top d-flex flex-stack flex-wrap mt-lg-10 pt-8">
-                <div class="my-1 me-5">
-                    <a href="/Sales" class="btn btn-light">Cancel</a>
-                </div>
-                <div class="d-flex align-items-center gap-2 gap-lg-3">
-                    <button type="submit" class="btn btn-primary" id="submitBtn" disabled>
-                        <span class="indicator-label">Create Sale</span>
-                        <span class="indicator-progress">
-                            Please wait... <span class="spinner-border spinner-border-sm align-middle ms-2"></span>
+<div class="row g-5">
+    <!-- Products -->
+    <div class="col-md-8">
+        <div class="card mb-5">
+            <div class="card-body p-5">
+                <div class="d-flex flex-wrap gap-3 align-items-center mb-4">
+                    <div class="position-relative flex-grow-1" style="min-width:220px;">
+                        <span class="svg-icon svg-icon-2 position-absolute ms-3 top-50 translate-middle-y">
+                            <i class="bi bi-search"></i>
                         </span>
-                    </button>
+                        <input type="text" id="productSearch" class="form-control form-control-sm ps-10" placeholder="Search by name or SKU..." />
+                    </div>
+                    <div class="btn-group btn-group-sm" role="group">
+                        <button type="button" id="gridViewBtn" class="btn btn-icon btn-light" title="Grid view"><i class="bi bi-grid-3x3-gap"></i></button>
+                        <button type="button" id="listViewBtn" class="btn btn-icon btn-light" title="List view"><i class="bi bi-list-ul"></i></button>
+                    </div>
+                </div>
+
+                <div id="categoryTabs" class="d-flex flex-nowrap gap-2 mb-4 overflow-auto pb-2"></div>
+
+                <div id="productsHint" class="text-muted small mb-2" style="display:none;"></div>
+                <div id="productsGrid" class="row row-cols-2 row-cols-md-3 row-cols-lg-4 g-3"></div>
+                <div id="productsList" class="d-none"></div>
+                <div id="productsEmpty" class="text-center text-muted py-10" style="display:none;">No products found.</div>
+                <div id="productsLoading" class="text-center py-10 d-none">
+                    <span class="spinner-border spinner-border-sm text-primary" role="status"></span>
                 </div>
             </div>
-        </form>
+        </div>
+    </div>
+
+    <!-- Ticket -->
+    <div class="col-md-4">
+        <div class="card" style="position: sticky; top: 20px;">
+            <div class="card-body p-5">
+                <div class="row g-3 mb-4">
+                    <div class="col-12">
+                        <label class="form-label">Customer</label>
+                        <select id="customerSelect" class="form-select form-select-sm">
+                            <option value="">-- Optional --</option>
+                            @if (customers != null)
+                            {
+                                foreach (var c in customers)
+                                {
+                                    <option value="@c.Id">@c.FirstName @c.LastName</option>
+                                }
+                            }
+                        </select>
+                    </div>
+                    <div class="col-12">
+                        <label class="form-label">Notes</label>
+                        <input id="notesInput" class="form-control form-control-sm" placeholder="Optional notes..." />
+                    </div>
+                </div>
+
+                <div class="separator separator-dashed border-secondary mb-4"></div>
+
+                <div class="d-flex justify-content-between align-items-center mb-3">
+                    <h5 class="mb-0">Ticket</h5>
+                    <span id="cartCountBadge" class="badge badge-light">0 items</span>
+                </div>
+
+                <div id="cartEmpty" class="text-center text-muted py-10">
+                    <div>Ticket is empty</div>
+                    <div class="small">Tap a product to add it</div>
+                </div>
+                <div id="cartLines" style="max-height: 45vh; overflow-y: auto;"></div>
+
+                <div class="separator separator-dashed border-secondary my-4"></div>
+
+                <div class="d-flex justify-content-between align-items-center mb-4">
+                    <span class="fw-bold">Total</span>
+                    <span id="cartTotal" class="fs-4 fw-bold text-primary">₱0.00</span>
+                </div>
+
+                <div class="d-flex gap-2">
+                    <button type="button" id="clearCartBtn" class="btn btn-light flex-grow-1">Clear</button>
+                    <button type="button" id="chargeBtn" class="btn btn-primary flex-grow-1" disabled>Charge</button>
+                </div>
+            </div>
+        </div>
     </div>
 </div>
 
-<!-- Product Search Modal -->
-<div class="modal fade" id="productModal" tabindex="-1" aria-hidden="true">
-    <div class="modal-dialog modal-lg modal-dialog-scrollable">
+<!-- Payment modal -->
+<div class="modal fade" id="paymentModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog">
         <div class="modal-content">
             <div class="modal-header">
-                <h5 class="modal-title">Add Products</h5>
-                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                <h5 class="modal-title">Payment</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
             </div>
-            <div class="modal-body p-0" style="max-height: 60vh; overflow-y: auto;">
-                <!-- Search Fields -->
-                <div class="p-3 border-bottom bg-light" style="position: sticky; top: 0; z-index: 1;">
-                    <div class="row g-3">
-                        <div class="col-md-6">
-                            <label class="form-label">Search Products</label>
-                            <input type="text" id="modalProductSearch" class="form-control form-control-sm" placeholder="Search by name or SKU..." />
-                        </div>
-                        <div class="col-md-6">
-                            <label class="form-label">Category</label>
-                            <select id="modalCategoryFilter" class="form-select form-select-sm">
-                                <option value="">All Categories</option>
-                            </select>
-                        </div>
-                    </div>
+            <div class="modal-body">
+                <div id="paymentError" class="alert alert-danger" style="display:none;"></div>
+
+                <div class="text-center mb-5">
+                    <div id="totalDueLabel" class="fs-1 fw-bold text-dark">₱0.00</div>
+                    <div class="text-muted small">Total amount due</div>
                 </div>
-                
-                <!-- Products List with Pagination -->
-                <div id="modal-products-container" class="table-responsive">
-                    <table id="modalProductsTable" class="table table-hover table-sm table-pointer" style="width:100%">
-                        <thead class="table-light">
-                            <tr>
-                                <th>Name</th>
-                                <th>SKU</th>
-                                <th>Category</th>
-                                <th class="text-end">Stock</th>
-                                <th class="text-end">Price</th>
-                                <th style="width:100px;"></th>
-                            </tr>
-                        </thead>
-                        <tbody id="modal-products-body"></tbody>
-                    </table>
-                    <div id="modal-loading" class="text-center py-3 d-none">
-                        <span class="spinner-border spinner-border-sm text-primary" role="status"></span>
-                        <span class="ms-2">Loading...</span>
-                    </div>
+
+                <div class="mb-3">
+                    <label class="form-label">Cash received</label>
+                    <input type="number" step="0.01" min="0" class="form-control" id="cashReceivedInput" />
+                    <div id="changeLabel" class="small fw-bold mt-1"></div>
                 </div>
-                <!-- Pagination Controls -->
-                <div class="d-flex justify-content-between align-items-center p-3 border-top bg-light" style="position: sticky; bottom: 0;">
-                    <div>
-                        <span id="pagination-info" class="text-muted small"></span>
-                    </div>
-                    <div class="btn-group btn-group-sm">
-                        <button type="button" id="btn-prev-page" class="btn btn-outline-secondary" disabled>
-                            <i class="bi bi-chevron-left"></i> Previous
-                        </button>
-                        <button type="button" id="btn-next-page" class="btn btn-outline-secondary" disabled>
-                            Next <i class="bi bi-chevron-right"></i>
-                        </button>
-                    </div>
+
+                <div id="quickAmountsRow" class="row g-2 mb-4"></div>
+
+                <button type="button" id="chargeCashBtn" class="btn btn-primary w-100 mb-3" disabled>Charge Cash</button>
+                <hr />
+                <button type="button" id="chargeCardBtn" class="btn btn-secondary w-100">Charge Card</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Edit cart-line quantity modal -->
+<div class="modal fade" id="editQtyModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Edit Item</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div class="mb-1 fw-bold fs-5" id="editQtyProductName"></div>
+                <div class="text-muted small mb-4" id="editQtyProductMeta"></div>
+
+                <label class="form-label">Quantity</label>
+                <div class="d-flex align-items-center gap-2 mb-4">
+                    <button type="button" id="editQtyDecrementBtn" class="btn btn-icon btn-light"><i class="bi bi-dash"></i></button>
+                    <input type="number" min="1" step="1" id="editQtyInput" class="form-control text-center" style="max-width:100px;" />
+                    <button type="button" id="editQtyIncrementBtn" class="btn btn-icon btn-light"><i class="bi bi-plus"></i></button>
+                </div>
+
+                <div class="d-flex justify-content-between align-items-center p-3 bg-light rounded">
+                    <span class="text-muted">Item total</span>
+                    <span id="editQtyPreviewTotal" class="fs-4 fw-bold text-primary">₱0.00</span>
                 </div>
             </div>
             <div class="modal-footer">
-                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Done</button>
+                <button type="button" class="btn btn-light" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" id="editQtyUpdateBtn" class="btn btn-primary">Update</button>
             </div>
         </div>
     </div>
@@ -177,274 +163,389 @@
 @section Scripts {
     <script>
         $(document).ready(function () {
-            var saleItems = [];
-            var currentPage = 1;
-            var totalItems = 0;
-            var isLoading = false;
+            // ----------------------------------------------------------------
+            // State
+            // ----------------------------------------------------------------
+            var cart = []; // { productId, name, price, qty, stock, lowStockCount }
+            var selectedCategoryId = '';
             var searchTimeout = null;
-            var totalPages = 1;
-            
-            // Open modal - load products on first open
-            var modalLoaded = false;
-            $('#openProductModal').on('click', function() {
-                var modal = new bootstrap.Modal($('#productModal'));
-                modal.show();
-                if (!modalLoaded) {
-                    modalLoaded = true;
-                    loadProducts(true);
-                }
-            });
-            
-            // Pagination button handlers
-            $('#btn-prev-page').on('click', function() {
-                if (currentPage > 1 && !isLoading) {
-                    currentPage--;
-                    loadProducts(false);
-                }
-            });
-            
-            $('#btn-next-page').on('click', function() {
-                if (currentPage < totalPages && !isLoading) {
-                    currentPage++;
-                    loadProducts(false);
-                }
-            });
-            
-            // Load products from API
-            function loadProducts(reset) {
-                if (isLoading) return;
-                
-                isLoading = true;
-                $('#modal-loading').removeClass('d-none');
-                
-                if (reset) {
-                    currentPage = 1;
-                    $('#modal-products-body').empty();
-                    // Load categories
-                    loadCategories();
-                }
-                
-                var search = $('#modalProductSearch').val();
-                var categoryId = $('#modalCategoryFilter').val();
-                
-                $.get('/Products/GetForSaleModal', {
-                    page: currentPage,
-                    pageSize: 50,
-                    search: search,
-                    categoryId: categoryId || null
-                })
-                .done(function(response) {
-                    $('#modal-products-body').empty();
-                    
-                    totalItems = response.total || 0;
-                    totalPages = Math.max(1, Math.ceil(totalItems / 50));
-                    
-                    if (response.items && response.items.length > 0) {
-                        response.items.forEach(function(p) {
-                            var stockClass = p.stock <= 0 ? 'bg-danger' : p.stock <= 10 ? 'bg-warning text-dark' : 'bg-success';
-                            var row = $('<tr data-product-id="' + p.id + '"></tr>');
-                            row.append('<td class="align-middle">' + escapeHtml(p.name) + '</td>');
-                            row.append('<td class="align-middle">' + escapeHtml(p.productCode) + '</td>');
-                            row.append('<td class="align-middle">' + escapeHtml(p.category) + '</td>');
-                            row.append('<td class="text-end align-middle"><span class="badge ' + stockClass + '">' + p.stock.toFixed(0) + '</span></td>');
-                            row.append('<td class="text-end align-middle">₱' + p.salePrice.toFixed(2) + '</td>');
-                            row.append('<td class="text-end"><button type="button" class="btn btn-sm btn-primary modal-add-btn" data-product-id="' + p.id + '" data-name="' + escapeHtml(p.name) + '" data-price="' + p.salePrice + '" data-stock="' + p.stock + '"><i class="bi bi-plus"></i> Add</button></td>');
-                            $('#modal-products-body').append(row);
-                        });
-                        
-                        // Update cart button states
-                        updateModalButtons();
-                    }
-                    
-                    // Update pagination UI
-                    var startItem = (currentPage - 1) * 50 + 1;
-                    var endItem = Math.min(currentPage * 50, totalItems);
-                    $('#pagination-info').text(totalItems > 0 ? 'Showing ' + startItem + '-' + endItem + ' of ' + totalItems + ' products' : 'No products found');
-                    
-                    $('#btn-prev-page').prop('disabled', currentPage <= 1);
-                    $('#btn-next-page').prop('disabled', currentPage >= totalPages);
-                })
-                .always(function() {
-                    isLoading = false;
-                    $('#modal-loading').addClass('d-none');
-                });
-            }
-            
-            // Load categories for filter
-            function loadCategories() {
-                $.get('/Products/GetCategories')
-                    .done(function(categories) {
-                        $('#modalCategoryFilter').find('option:not(:first)').remove();
-                        categories.forEach(function(c) {
-                            $('#modalCategoryFilter').append('<option value="' + c.id + '">' + escapeHtml(c.name) + '</option>');
-                        });
-                    });
-            }
-            
-            // Escape HTML to prevent XSS
-            function escapeHtml(text) {
-                if (!text) return '';
+            var isGridView = (localStorage.getItem('sell_view_mode') || 'grid') !== 'list';
+
+            function esc(s) {
+                if (s === null || typeof s === 'undefined') return '';
                 var div = document.createElement('div');
-                div.textContent = text;
+                div.textContent = s;
                 return div.innerHTML;
             }
-            
-            // Debounced search
-            $('#modalProductSearch').on('input', function() {
+            function fmtMoney(n) { return '₱' + (Number(n) || 0).toFixed(2); }
+
+            // ----------------------------------------------------------------
+            // Categories
+            // ----------------------------------------------------------------
+            function loadCategories() {
+                $.get('/Products/GetCategories').done(function (categories) {
+                    var wrap = $('#categoryTabs');
+                    wrap.empty();
+                    wrap.append('<button type="button" class="btn btn-sm btn-dark category-tab" data-id="">All</button>');
+                    categories.forEach(function (c) {
+                        wrap.append('<button type="button" class="btn btn-sm btn-light category-tab" data-id="' + c.id + '">' + esc(c.name) + '</button>');
+                    });
+                });
+            }
+
+            $(document).on('click', '.category-tab', function () {
+                selectedCategoryId = $(this).data('id') || '';
+                $('.category-tab').removeClass('btn-dark').addClass('btn-light');
+                $(this).removeClass('btn-light').addClass('btn-dark');
+                loadProducts();
+            });
+
+            // ----------------------------------------------------------------
+            // Products — server-side search reused from the existing sale-modal endpoint,
+            // rendered as tiles/list instead of a table. No pager: request a generous page and
+            // hint if there's more, closer to how the mobile grid just scrolls.
+            // ----------------------------------------------------------------
+            var PAGE_SIZE = 100;
+
+            function loadProducts() {
+                $('#productsLoading').removeClass('d-none');
+                $('#productsEmpty').hide();
+                var search = $('#productSearch').val();
+                $.get('/Products/GetForSaleModal', { page: 1, pageSize: PAGE_SIZE, search: search, categoryId: selectedCategoryId || null })
+                    .done(function (response) {
+                        renderProducts(response.items || [], response.total || 0);
+                    })
+                    .always(function () { $('#productsLoading').addClass('d-none'); });
+            }
+
+            function stockBadgeClass(stock, lowStockCount) {
+                return (Number(stock) <= Number(lowStockCount)) ? 'text-danger' : 'text-success';
+            }
+
+            function cartQtyFor(productId) {
+                var line = cart.find(function (l) { return l.productId === productId; });
+                return line ? line.qty : 0;
+            }
+
+            function renderProducts(items, total) {
+                $('#productsGrid').empty();
+                $('#productsList').empty();
+                $('#productsEmpty').toggle(items.length === 0);
+                $('#productsHint').toggle(total > items.length);
+                if (total > items.length) {
+                    $('#productsHint').text('Showing the first ' + items.length + ' of ' + total + ' — refine your search to narrow this down.');
+                }
+
+                items.forEach(function (p) {
+                    var stockCls = stockBadgeClass(p.stock, p.lowStockCount);
+                    var inCart = cartQtyFor(p.id);
+                    var badge = inCart > 0 ? '<span class="badge badge-primary position-absolute top-0 end-0 m-2">' + inCart + '</span>' : '';
+
+                    // Grid tile
+                    var tile = $(
+                        '<div class="col product-tile-col">' +
+                        '<div class="card h-100 product-tile position-relative" style="cursor:pointer;" data-product-id="' + p.id + '">' +
+                        badge +
+                        '<div class="card-body p-3">' +
+                        '<div class="fw-bold text-truncate" title="' + esc(p.name) + '">' + esc(p.name) + '</div>' +
+                        '<div class="text-muted small text-truncate">' + esc(p.category) + '</div>' +
+                        '<div class="fw-bold text-primary mt-1">' + fmtMoney(p.salePrice) + '</div>' +
+                        '<div class="small ' + stockCls + '">' + Number(p.stock).toFixed(0) + ' in stock</div>' +
+                        '</div></div></div>'
+                    );
+                    $('#productsGrid').append(tile);
+
+                    // List row
+                    var row = $(
+                        '<div class="d-flex align-items-center justify-content-between border-bottom py-2 product-tile" style="cursor:pointer;" data-product-id="' + p.id + '">' +
+                        '<div class="flex-grow-1">' +
+                        '<div class="fw-bold">' + esc(p.name) + (inCart > 0 ? ' <span class="badge badge-light-primary ms-1">' + inCart + ' in cart</span>' : '') + '</div>' +
+                        '<div class="text-muted small">' + esc(p.category) + '</div>' +
+                        '</div>' +
+                        '<div class="text-end me-4"><div class="small ' + stockCls + '">' + Number(p.stock).toFixed(0) + ' in stock</div></div>' +
+                        '<div class="fw-bold text-primary" style="min-width:80px;text-align:right;">' + fmtMoney(p.salePrice) + '</div>' +
+                        '</div>'
+                    );
+                    $('#productsList').append(row);
+                });
+
+                $('.product-tile').data('lookup', items);
+                window.__productLookup = window.__productLookup || {};
+                items.forEach(function (p) { window.__productLookup[p.id] = p; });
+            }
+
+            $(document).on('click', '.product-tile', function () {
+                var productId = $(this).data('product-id');
+                var product = window.__productLookup ? window.__productLookup[productId] : null;
+                if (!product) return;
+                addToCart(product);
+            });
+
+            $('#productSearch').on('input', function () {
                 clearTimeout(searchTimeout);
-                searchTimeout = setTimeout(function() {
-                    loadProducts(true);
-                }, 300);
+                searchTimeout = setTimeout(loadProducts, 300);
             });
-            
-            // Category filter
-            $('#modalCategoryFilter').on('change', function() {
-                loadProducts(true);
-            });
-            
-            // Modal add button - use event delegation
-            $(document).on('click', '.modal-add-btn', function() {
-                var btn = $(this);
-                var productId = btn.data('product-id');
-                var name = btn.data('name');
-                var price = parseFloat(btn.data('price')) || 0;
-                var stock = parseInt(btn.data('stock')) || 0;
-                
-                // Check if already in cart
-                var existing = saleItems.find(function(item) { return item.productId === productId; });
+
+            // ----------------------------------------------------------------
+            // View mode toggle — persisted the same way mobile persists its grid/list choice.
+            // ----------------------------------------------------------------
+            function applyViewMode() {
+                $('#productsGrid').toggleClass('d-none', !isGridView);
+                $('#productsList').toggleClass('d-none', isGridView);
+                $('#gridViewBtn').toggleClass('btn-dark', isGridView).toggleClass('btn-light', !isGridView);
+                $('#listViewBtn').toggleClass('btn-dark', !isGridView).toggleClass('btn-light', isGridView);
+            }
+            $('#gridViewBtn').on('click', function () { isGridView = true; localStorage.setItem('sell_view_mode', 'grid'); applyViewMode(); });
+            $('#listViewBtn').on('click', function () { isGridView = false; localStorage.setItem('sell_view_mode', 'list'); applyViewMode(); });
+            applyViewMode();
+
+            // ----------------------------------------------------------------
+            // Cart — mirrors Mercurius.Mobile/SalesPage.xaml.cs's OnProductTileTapped /
+            // OnIncrementClicked / OnDecrementClicked / OnRemoveLineTapped / OnClearClicked.
+            // ----------------------------------------------------------------
+            function addToCart(product) {
+                var existing = cart.find(function (l) { return l.productId === product.id; });
                 if (existing) {
                     existing.qty++;
-                    renderSelectedProducts();
-                    updateModalButtons();
-                    if (stock <= 0) {
-                        showToast(name + ' quantity increased to ' + existing.qty + ' (ZERO STOCK - will create negative inventory)');
-                    } else {
-                        showToast(name + ' quantity increased to ' + existing.qty);
-                    }
                 } else {
-                    saleItems.push({ productId: productId, name: name, price: price, qty: 1, stock: stock });
-                    renderSelectedProducts();
-                    updateModalButtons();
-                    if (stock <= 0) {
-                        showToast(name + ' added to sale (ZERO STOCK - will create negative inventory)');
-                    } else {
-                        showToast(name + ' added to sale');
-                    }
+                    cart.push({ productId: product.id, name: product.name, price: Number(product.salePrice) || 0, qty: 1, stock: product.stock, lowStockCount: product.lowStockCount });
                 }
-            });
-            
-            // Update modal buttons to show "Added" for items in cart
-            function updateModalButtons() {
-                $('.modal-add-btn').each(function() {
-                    var productId = $(this).data('product-id');
-                    var existing = saleItems.find(function(item) { return item.productId === productId; });
-                    if (existing) {
-                        $(this).removeClass('btn-primary').addClass('btn-success');
-                        $(this).html('<i class="bi bi-check"></i> ' + existing.qty + ' in cart');
-                    } else {
-                        $(this).removeClass('btn-success').addClass('btn-primary');
-                        $(this).html('<i class="bi bi-plus"></i> Add');
+                renderCart();
+                renderCartBadgesOnTiles();
+            }
+
+            function setLineQty(productId, qty) {
+                var line = cart.find(function (l) { return l.productId === productId; });
+                if (!line) return;
+                if (qty <= 0) {
+                    cart = cart.filter(function (l) { return l.productId !== productId; });
+                } else {
+                    line.qty = qty;
+                }
+                renderCart();
+                renderCartBadgesOnTiles();
+            }
+
+            function removeLine(productId) {
+                cart = cart.filter(function (l) { return l.productId !== productId; });
+                renderCart();
+                renderCartBadgesOnTiles();
+            }
+
+            function clearCart() {
+                cart = [];
+                renderCart();
+                renderCartBadgesOnTiles();
+            }
+
+            function cartTotal() {
+                return cart.reduce(function (sum, l) { return sum + l.price * l.qty; }, 0);
+            }
+
+            function renderCartBadgesOnTiles() {
+                // Cheap refresh of the in-cart badges without a full reload.
+                $('.product-tile').each(function () {
+                    var id = $(this).data('product-id');
+                    var qty = cartQtyFor(id);
+                    $(this).find('.badge-primary, .badge-light-primary').remove();
+                    if (qty > 0) {
+                        if ($(this).hasClass('card')) {
+                            $(this).prepend('<span class="badge badge-primary position-absolute top-0 end-0 m-2">' + qty + '</span>');
+                        } else {
+                            $(this).find('.fw-bold').first().append(' <span class="badge badge-light-primary ms-1">' + qty + ' in cart</span>');
+                        }
                     }
                 });
             }
-            
-            // Render selected products table
-            function renderSelectedProducts() {
-                var tbody = $('#selected-products-body');
-                tbody.empty();
-                
-                if (saleItems.length === 0) {
-                    tbody.html('<tr id="no-items-row"><td colspan="5" class="text-center text-muted py-5">No products selected. Click "Add Product" to add items.</td></tr>');
-                    $('#sale-totals').hide();
-                    $('#submitBtn').prop('disabled', true);
-                    return;
-                }
-                
-                var totalItems = 0;
-                var grandTotal = 0;
-                
-                saleItems.forEach(function(item, index) {
-                    var itemTotal = item.price * item.qty;
-                    totalItems += item.qty;
-                    grandTotal += itemTotal;
-                    
-                    tbody.append(
-                        '<tr>' +
-                        '<td class="align-middle">' + escapeHtml(item.name) + '</td>' +
-                        '<td class="align-middle text-center">' +
-                        '<div class="d-flex align-items-center justify-content-center gap-1">' +
-                        '<button type="button" class="btn btn-sm btn-icon btn-light qty-minus" data-index="' + index + '"><i class="bi bi-dash"></i></button>' +
-                        '<span style="min-width: 30px;">' + item.qty + '</span>' +
-                        '<button type="button" class="btn btn-sm btn-icon btn-light qty-plus" data-index="' + index + '"><i class="bi bi-plus"></i></button>' +
+
+            function renderCart() {
+                var totalItems = cart.reduce(function (sum, l) { return sum + l.qty; }, 0);
+                $('#cartCountBadge').text(totalItems === 1 ? '1 item' : totalItems + ' items');
+                $('#cartEmpty').toggle(cart.length === 0);
+
+                var linesEl = $('#cartLines');
+                linesEl.empty();
+                cart.forEach(function (line) {
+                    var lineTotal = line.price * line.qty;
+                    linesEl.append(
+                        '<div class="d-flex justify-content-between align-items-center py-2 border-bottom cart-line" style="cursor:pointer;" data-product-id="' + line.productId + '">' +
+                        '<div class="flex-grow-1 me-2">' +
+                        '<div class="fw-bold text-truncate">' + esc(line.name) + '</div>' +
+                        '<div class="text-muted small mt-1">' + line.qty + ' &times; ' + fmtMoney(line.price) + '</div>' +
                         '</div>' +
-                        '</td>' +
-                        '<td class="align-middle text-end">₱' + item.price.toFixed(2) + '</td>' +
-                        '<td class="align-middle text-end">₱' + itemTotal.toFixed(2) + '</td>' +
-                        '<td class="align-middle text-center">' +
-                        '<button type="button" class="btn btn-sm btn-icon btn-light-danger remove-item" data-index="' + index + '">' +
-                        '<i class="bi bi-trash"></i></button></td>' +
-                        '</tr>'
+                        '<div class="text-end">' +
+                        '<div class="fw-bold">' + fmtMoney(lineTotal) + '</div>' +
+                        '<span class="text-danger cart-remove" data-product-id="' + line.productId + '" style="cursor:pointer;" title="Remove">&#10005;</span>' +
+                        '</div></div>'
                     );
                 });
-                
-                $('#total-items').text(totalItems);
-                $('#grand-total').text('₱' + grandTotal.toFixed(2));
-                $('#sale-totals').show();
-                $('#submitBtn').prop('disabled', false);
+
+                $('#cartTotal').text(fmtMoney(cartTotal()));
+                $('#chargeBtn').prop('disabled', cart.length === 0);
+                $('#chargeBtn').text(cart.length === 0 ? 'Charge' : 'Charge ' + fmtMoney(cartTotal()));
             }
-            
-            // Quantity controls
-            $(document).on('click', '.qty-plus', function() {
-                var index = parseInt($(this).data('index'));
-                var item = saleItems[index];
-                item.qty++;
-                renderSelectedProducts();
-                updateModalButtons();
-                if (item.stock <= 0) {
-                    showToast(item.name + ' quantity increased to ' + item.qty + ' (ZERO STOCK)');
-                }
+
+            $(document).on('click', '.cart-remove', function (e) {
+                e.stopPropagation();
+                removeLine($(this).data('product-id'));
             });
-            
-            $(document).on('click', '.qty-minus', function() {
-                var index = parseInt($(this).data('index'));
-                var item = saleItems[index];
-                if (item.qty > 1) {
-                    item.qty--;
-                    renderSelectedProducts();
-                    updateModalButtons();
+            $(document).on('click', '.cart-line', function () { openEditQtyModal($(this).data('product-id')); });
+            $('#clearCartBtn').on('click', clearCart);
+
+            // ----------------------------------------------------------------
+            // Edit-quantity popup — clicking a ticket line opens this instead of inline +/-
+            // steppers; changes only apply to the cart when Update is clicked.
+            // ----------------------------------------------------------------
+            var editQtyModal = new bootstrap.Modal(document.getElementById('editQtyModal'));
+            var editQtyProductId = null;
+
+            function openEditQtyModal(productId) {
+                var line = cart.find(function (l) { return l.productId === productId; });
+                if (!line) return;
+                editQtyProductId = productId;
+                $('#editQtyProductName').text(line.name);
+                $('#editQtyProductMeta').text(fmtMoney(line.price) + ' each');
+                $('#editQtyInput').val(line.qty);
+                updateEditQtyPreview();
+                editQtyModal.show();
+            }
+
+            function updateEditQtyPreview() {
+                var line = cart.find(function (l) { return l.productId === editQtyProductId; });
+                if (!line) return;
+                var qty = parseInt($('#editQtyInput').val(), 10);
+                if (isNaN(qty) || qty < 1) qty = 1;
+                $('#editQtyPreviewTotal').text(fmtMoney(line.price * qty));
+            }
+
+            $('#editQtyInput').on('input', updateEditQtyPreview);
+            $('#editQtyIncrementBtn').on('click', function () {
+                var qty = parseInt($('#editQtyInput').val(), 10);
+                if (isNaN(qty)) qty = 0;
+                $('#editQtyInput').val(qty + 1);
+                updateEditQtyPreview();
+            });
+            $('#editQtyDecrementBtn').on('click', function () {
+                var qty = parseInt($('#editQtyInput').val(), 10);
+                if (isNaN(qty)) qty = 1;
+                if (qty > 1) $('#editQtyInput').val(qty - 1);
+                updateEditQtyPreview();
+            });
+            $('#editQtyUpdateBtn').on('click', function () {
+                var qty = parseInt($('#editQtyInput').val(), 10);
+                if (isNaN(qty) || qty < 1) qty = 1;
+                setLineQty(editQtyProductId, qty);
+                editQtyModal.hide();
+            });
+
+            // ----------------------------------------------------------------
+            // Payment — mirrors Mercurius.Mobile/PaymentPage.xaml.cs exactly (quick-amount tiers,
+            // live change calculation, Cash vs Card).
+            // ----------------------------------------------------------------
+            var paymentModal = new bootstrap.Modal(document.getElementById('paymentModal'));
+
+            function buildQuickAmounts(total) {
+                var tiers = [20, 50, 100, 500, 1000];
+                var suggestions = [total];
+                tiers.forEach(function (t) {
+                    if (t >= total && suggestions.indexOf(t) === -1) suggestions.push(t);
+                });
+                suggestions = suggestions.filter(function (v, i) { return suggestions.indexOf(v) === i; })
+                    .sort(function (a, b) { return a - b; })
+                    .slice(0, 4);
+
+                var row = $('#quickAmountsRow');
+                row.empty();
+                suggestions.forEach(function (amount) {
+                    var col = $('<div class="col-6"></div>');
+                    var btn = $('<button type="button" class="btn btn-light w-100">' + fmtMoney(amount) + '</button>');
+                    btn.on('click', function () { $('#cashReceivedInput').val(amount.toFixed(2)).trigger('input'); });
+                    col.append(btn);
+                    row.append(col);
+                });
+            }
+
+            $('#chargeBtn').on('click', function () {
+                var total = cartTotal();
+                $('#paymentError').hide();
+                $('#totalDueLabel').text(fmtMoney(total));
+                $('#cashReceivedInput').val('');
+                $('#changeLabel').text('').removeClass('text-success text-danger');
+                $('#chargeCashBtn').prop('disabled', true);
+                buildQuickAmounts(total);
+                paymentModal.show();
+            });
+
+            $('#cashReceivedInput').on('input', function () {
+                var total = cartTotal();
+                var received = parseFloat($(this).val());
+                if (!isNaN(received) && received >= total) {
+                    var change = received - total;
+                    $('#changeLabel').text(change > 0 ? 'Change: ' + fmtMoney(change) : 'Exact amount').removeClass('text-danger').addClass('text-success');
+                    $('#chargeCashBtn').prop('disabled', false);
                 } else {
-                    saleItems.splice(index, 1);
-                    renderSelectedProducts();
-                    updateModalButtons();
+                    $('#changeLabel').text(isNaN(received) ? '' : 'Amount is less than the total due').removeClass('text-success').addClass('text-danger');
+                    $('#chargeCashBtn').prop('disabled', true);
                 }
             });
-            
-            // Remove item
-            $(document).on('click', '.remove-item', function() {
-                var index = parseInt($(this).data('index'));
-                var item = saleItems[index];
-                saleItems.splice(index, 1);
-                renderSelectedProducts();
-                updateModalButtons();
-                showToast(item.name + ' removed');
-            });
-            
-            // Toast notification
-            function showToast(message) {
-                var toast = $('<div class="position-fixed bottom-0 end-0 p-3" style="z-index: 9999;"><div class="toast" role="alert"><div class="toast-body bg-dark text-white rounded">' + escapeHtml(message) + '</div></div></div>');
-                $('body').append(toast);
-                var bsToast = new bootstrap.Toast(toast.find('.toast')[0], { delay: 1500 });
-                bsToast.show();
-                toast.on('hidden.bs.toast', function() { toast.remove(); });
+
+            function submitSale(paymentMethod, amountReceived) {
+                $('#paymentError').hide();
+                var formData = new FormData();
+                formData.append('__RequestVerificationToken', $('input[name="__RequestVerificationToken"]').val());
+                formData.append('customerId', $('#customerSelect').val() || '0');
+                formData.append('notes', $('#notesInput').val() || '');
+                formData.append('paymentMethod', paymentMethod);
+                formData.append('amountReceived', amountReceived);
+                cart.forEach(function (line) { formData.append('items', line.productId + ':' + line.qty); });
+
+                $.ajax({
+                    url: '@Url.Action("NewSale", "Sales")',
+                    method: 'POST',
+                    data: formData,
+                    processData: false,
+                    contentType: false
+                }).done(function (result) {
+                    paymentModal.hide();
+                    var msg = 'Sale complete — Invoice ' + result.invoiceNumber + '.';
+                    if (paymentMethod === 'Cash' && result.change > 0) {
+                        msg += ' Change: ' + fmtMoney(result.change) + '.';
+                    }
+                    showToast(msg);
+                    clearCart();
+                    $('#notesInput').val('');
+                    loadProducts();
+                }).fail(function (xhr) {
+                    var msg = 'Failed to complete sale.';
+                    try { msg = JSON.parse(xhr.responseText).error || msg; } catch (e) {}
+                    $('#paymentError').text(msg).show();
+                });
             }
-            
-            // Form submit
-            $('#saleForm').on('submit', function() {
-                $(this).find('input[name="items"]').remove();
-                saleItems.forEach(function(item) {
-                    $(this).append('<input type="hidden" name="items" value="' + item.productId + ':' + item.qty + '" />');
-                }.bind(this));
+
+            $('#chargeCashBtn').on('click', function () {
+                var received = parseFloat($('#cashReceivedInput').val());
+                if (isNaN(received)) received = cartTotal();
+                submitSale('Cash', received);
             });
+            $('#chargeCardBtn').on('click', function () {
+                submitSale('Card', cartTotal());
+            });
+
+            function showToast(message) {
+                var toast = $('<div class="position-fixed bottom-0 end-0 p-3" style="z-index: 9999;"><div class="toast" role="alert"><div class="toast-body bg-dark text-white rounded">' + esc(message) + '</div></div></div>');
+                $('body').append(toast);
+                var bsToast = new bootstrap.Toast(toast.find('.toast')[0], { delay: 3000 });
+                bsToast.show();
+                toast.on('hidden.bs.toast', function () { toast.remove(); });
+            }
+
+            // ----------------------------------------------------------------
+            // Init
+            // ----------------------------------------------------------------
+            loadCategories();
+            loadProducts();
+            renderCart();
         });
     </script>
+    <form id="antiForgeryHolder" style="display:none;">@Html.AntiForgeryToken()</form>
 }

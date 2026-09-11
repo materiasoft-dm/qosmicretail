@@ -30,10 +30,12 @@ public partial class ProductsPage : ContentPage
         var products = await _localDatabase.GetProductsAsync(searchText);
         ProductsCollectionView.ItemsSource = products;
         EmptyStateLayout.IsVisible = products.Count == 0;
+        ProductCountBadge.Text = products.Count == 1 ? "1 item" : $"{products.Count:N0} items";
     }
 
     private async Task SyncInBackgroundAsync()
     {
+        SetSyncBusy(true);
         SyncStatusLabel.Text = "Syncing…";
         try
         {
@@ -48,6 +50,22 @@ public partial class ProductsPage : ContentPage
             SyncStatusLabel.Text = "Offline — showing cached products";
             System.Diagnostics.Debug.WriteLine($"Sync failed: {ex.Message}");
         }
+        finally
+        {
+            SetSyncBusy(false);
+        }
+    }
+
+    private void SetSyncBusy(bool busy)
+    {
+        SyncButton.IsEnabled = !busy;
+        SyncBusyIndicator.IsVisible = busy;
+        SyncBusyIndicator.IsRunning = busy;
+    }
+
+    private async void OnSyncButtonClicked(object? sender, EventArgs e)
+    {
+        await SyncInBackgroundAsync();
     }
 
     private async void OnRefreshing(object? sender, EventArgs e)

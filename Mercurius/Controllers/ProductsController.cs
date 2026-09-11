@@ -214,7 +214,8 @@ namespace Mercurius.Controllers
                 categoryId = p.ProductCategoryId,
                 category = p.ProductCategoryId.HasValue && categories.TryGetValue(p.ProductCategoryId.Value, out var cn) ? cn : string.Empty,
                 stock = p.CurrentStock,
-                salePrice = p.CurrentSalePrice
+                salePrice = p.CurrentSalePrice,
+                lowStockCount = p.LowStockCount
             });
 
             return Json(new { items = data, hasMore = skip + items.Count < total, total });
@@ -321,6 +322,34 @@ namespace Mercurius.Controllers
             if (product == null)
             {
                 return NotFound();
+            }
+
+            if (product.ProductCategoryId.HasValue)
+            {
+                var categories = await _unitOfWork.Repository<ProductCategory>()
+                    .FindAsync(c => c.Id == product.ProductCategoryId.Value, ct);
+                ViewBag.CategoryName = categories.FirstOrDefault()?.Name;
+            }
+
+            // Category-specific custom fields (Generic Name, Strength, etc.) — same data the
+            // Create/Edit modal shows, but this page had never displayed it at all.
+            if (product.ProductCategoryId.HasValue)
+            {
+                var categoryFields = await _unitOfWork.Repository<CategoryField>()
+                    .FindAsync(f => f.CategoryId == product.ProductCategoryId.Value, ct);
+                var fieldValues = await _unitOfWork.Repository<ProductField>()
+                    .FindAsync(pf => pf.ProductId == product.Id, ct);
+                var valueByFieldId = fieldValues.ToDictionary(pf => pf.CategoryFieldId, pf => pf.Value);
+
+                ViewBag.CustomFields = categoryFields
+                    .OrderBy(f => f.SortOrder)
+                    .Select(f => new
+                    {
+                        f.DisplayLabel,
+                        Value = valueByFieldId.TryGetValue(f.Id, out var v) ? v : null
+                    })
+                    .Where(f => !string.IsNullOrEmpty(f.Value))
+                    .ToList();
             }
 
             return View(product);

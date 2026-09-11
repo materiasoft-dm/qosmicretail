@@ -36,8 +36,15 @@
                         [data-theme="dark"] .image-input-placeholder {
                             background-image: url('/assets/media/svg/files/blank-image-dark.svg');
                         }</style>
-                    <div class="image-input image-input-outline image-input-placeholder" data-kt-image-input="true">    
-                        <div class="image-input-wrapper w-125px h-125px" style="background-image: url(/productimages/@Model.ImageFilename);"></div>
+                    <div class="image-input image-input-outline image-input-placeholder" data-kt-image-input="true">
+                        @if (string.IsNullOrEmpty(Model.ImageFilename))
+                        {
+                            <div class="image-input-wrapper w-125px h-125px"></div>
+                        }
+                        else
+                        {
+                            <div class="image-input-wrapper w-125px h-125px" style="background-image: url(/productimages/@Model.ImageFilename);"></div>
+                        }
                         <label class="btn btn-icon btn-circle btn-active-color-primary w-25px h-25px bg-body shadow" data-kt-image-input-action="change" data-bs-toggle="tooltip" title="Change item photo">
                             <i class="bi bi-pencil-fill fs-7"></i>
                             <input type="file" name="productimage" accept=".png, .jpg, .jpeg" />

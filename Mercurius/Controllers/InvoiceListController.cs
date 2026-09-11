@@ -2,6 +2,7 @@ using System.Threading;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Mercurius.Common.Constants;
+using Mercurius.Models;
 using Mercurius.Repo.Models;
 using Mercurius.Repo.Repositories;
 
@@ -33,6 +34,98 @@ namespace Mercurius.Controllers
         {
             ct.ThrowIfCancellationRequested();
             return View("~/Views/Invoices/Index.cshtml", Enumerable.Empty<Invoice>());
+        }
+
+        // GET: /Invoices/Details/{id}
+        // The receipt view — always reachable regardless of whether it was ever printed, since
+        // "printed" isn't tracked anywhere; every completed sale has an Invoice row. This is also
+        // where refunds are initiated (see RefundsController) and where refund history for this
+        // invoice is shown.
+        [HttpGet("Details/{id:int}")]
+        [Authorize(Policy = Common.ModuleRegistry.Pages.INVOICE_VIEW)]
+        public async Task<IActionResult> Details(int id, CancellationToken ct = default)
+        {
+            ct.ThrowIfCancellationRequested();
+
+            var invoice = await _unitOfWork.Repository<Invoice>().GetByIdAsync(id, ct);
+            if (invoice == null) return NotFound();
+
+            if (invoice.CustomerId.HasValue)
+            {
+                invoice.Customer = await _unitOfWork.Repository<Customer>().GetByIdAsync(invoice.CustomerId.Value, ct);
+            }
+            invoice.Status = await _unitOfWork.Repository<InvoiceStatus>().GetByIdAsync(invoice.StatusId, ct);
+
+            var items = (await _unitOfWork.Repository<InvoiceItem>().FindAsync(ii => ii.InvoiceId == id, ct)).ToList();
+            var productIds = items.Select(ii => ii.ProductId).Distinct().ToList();
+            var productsById = (await _unitOfWork.Repository<Product>().FindAsync(p => productIds.Contains(p.Id), ct))
+                .ToDictionary(p => p.Id);
+
+            var itemIds = items.Select(ii => ii.Id).ToList();
+            var refundLines = (await _unitOfWork.Repository<InvoiceItemRefund>().FindAsync(r => itemIds.Contains(r.InvoiceItemId), ct)).ToList();
+            var refundedQtyByItemId = refundLines
+                .GroupBy(r => r.InvoiceItemId)
+                .ToDictionary(g => g.Key, g => g.Sum(r => r.Quantity));
+
+            var itemRows = items.Select(ii =>
+            {
+                productsById.TryGetValue(ii.ProductId, out var product);
+                refundedQtyByItemId.TryGetValue(ii.Id, out var refundedQty);
+                return new InvoiceItemRow
+                {
+                    InvoiceItemId = ii.Id,
+                    ProductName = product?.Name ?? "(deleted product)",
+                    ProductCode = product?.ProductCode ?? string.Empty,
+                    QuantitySold = ii.Quantity,
+                    QuantityRefunded = refundedQty,
+                    SalePrice = ii.SalePrice
+                };
+            }).ToList();
+
+            // Refund history — reasons + refund numbers batch-resolved (no N+1).
+            var reasonIds = refundLines.Select(r => r.RefundReasonId).Distinct().ToList();
+            var reasonsById = reasonIds.Count == 0
+                ? new Dictionary<int, RefundReason>()
+                : (await _unitOfWork.Repository<RefundReason>().FindAsync(r => reasonIds.Contains(r.Id), ct))
+                    .ToDictionary(r => r.Id);
+            var refundHeaderIds = refundLines.Select(r => r.InvoiceRefundId).Distinct().ToList();
+            var refundHeadersById = refundHeaderIds.Count == 0
+                ? new Dictionary<int, InvoiceRefund>()
+                : (await _unitOfWork.Repository<InvoiceRefund>().FindAsync(r => refundHeaderIds.Contains(r.Id), ct))
+                    .ToDictionary(r => r.Id);
+
+            var refundHistory = refundLines
+                .OrderByDescending(r => r.DateRefunded)
+                .Select(r =>
+                {
+                    productsById.TryGetValue(r.ProductId, out var product);
+                    reasonsById.TryGetValue(r.RefundReasonId, out var reason);
+                    refundHeadersById.TryGetValue(r.InvoiceRefundId, out var header);
+                    return new RefundHistoryRow
+                    {
+                        RefundNumber = header?.RefundNumber ?? string.Empty,
+                        DateRefunded = r.DateRefunded,
+                        ProductName = product?.Name ?? "(deleted product)",
+                        Quantity = r.Quantity,
+                        ReasonName = reason?.Name ?? "(deleted reason)",
+                        Remarks = r.Remarks,
+                        WasRestocked = r.WasRestocked
+                    };
+                }).ToList();
+
+            var activeReasons = (await _unitOfWork.Repository<RefundReason>().FindAsync(r => r.IsActive, ct))
+                .OrderBy(r => r.Name)
+                .ToList();
+
+            var model = new InvoiceDetailsViewModel
+            {
+                Invoice = invoice,
+                Items = itemRows,
+                RefundHistory = refundHistory,
+                ActiveRefundReasons = activeReasons
+            };
+
+            return View("~/Views/Invoices/Details.cshtml", model);
         }
 
         // GET: /Invoices/DataTable

@@ -48,6 +48,7 @@
                         <th>Customer</th>
                         <th>Status</th>
                         <th class="text-end">Paid Amount</th>
+                        <th class="text-end">Actions</th>
                     </tr>
                 </thead>
                 <tbody></tbody>
@@ -165,6 +166,11 @@
                             render: function (d, type) {
                                 if (type !== 'display') return d;
                                 return fmtPrice(d);
+                            }
+                        },
+                        { data: null, orderable: false, searchable: false, className: 'text-end',
+                            render: function (_d, _type, row) {
+                                return '<a href="/Invoices/Details/' + encodeURIComponent(row.id) + '" class="btn btn-sm btn-icon btn-light-primary" title="View"><i class="bi bi-eye fs-4"></i></a>';
                             }
                         }
                     ],

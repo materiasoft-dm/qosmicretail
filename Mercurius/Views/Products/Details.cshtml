@@ -23,7 +23,14 @@
             <div class="col-sm-6 col-xs-12">
                 <label class="form-label">Item Photo</label>
                 <div>
-                    <img src="/productimages/@Model.ImageFilename" class="img-thumbnail img-150" alt="..." />
+                    @if (string.IsNullOrEmpty(Model.ImageFilename))
+                    {
+                        <img src="/assets/media/svg/files/blank-image.svg" class="img-thumbnail img-150" alt="No photo set" />
+                    }
+                    else
+                    {
+                        <img src="/productimages/@Model.ImageFilename" class="img-thumbnail img-150" alt="@Model.Name" />
+                    }
                 </div>
             </div>
 
@@ -55,12 +62,36 @@
 
         <div class="row g-5 row-cols-1 row-cols-sm-2 row-cols-md-3">
             <div class="col">
+                <label class="form-label">@Html.DisplayNameFor(model => model.Name)</label>
+                <div>@Html.DisplayFor(model => model.Name)</div>
+            </div>
+            <div class="col">
                 <label class="form-label">@Html.DisplayNameFor(model => model.ProductCode)</label>
                 <div>@Html.DisplayFor(model => model.ProductCode)</div>
             </div>
             <div class="col">
+                <label class="form-label">Category</label>
+                <div>@(ViewBag.CategoryName ?? "—")</div>
+            </div>
+            <div class="col">
+                <label class="form-label">@Html.DisplayNameFor(model => model.Model)</label>
+                <div>@(string.IsNullOrEmpty(Model.Model) ? "—" : Model.Model)</div>
+            </div>
+            <div class="col">
                 <label class="form-label">@Html.DisplayNameFor(model => model.Description)</label>
-                <div>@Html.DisplayFor(model => model.Description)</div>
+                <div>@(string.IsNullOrEmpty(Model.Description) ? "—" : Model.Description)</div>
+            </div>
+            <div class="col">
+                <label class="form-label">@Html.DisplayNameFor(model => model.CurrentCostPrice)</label>
+                <div>@(Model.CurrentCostPrice?.ToString("C") ?? "—")</div>
+            </div>
+            <div class="col">
+                <label class="form-label">@Html.DisplayNameFor(model => model.CurrentSalePrice)</label>
+                <div>@(Model.CurrentSalePrice?.ToString("C") ?? "—")</div>
+            </div>
+            <div class="col">
+                <label class="form-label">@Html.DisplayNameFor(model => model.MarkUpPercentage)</label>
+                <div>@Model.MarkUpPercentage.ToString("0.##")%</div>
             </div>
             <div class="col">
                 <label class="form-label">@Html.DisplayNameFor(model => model.CurrentStock)</label>
@@ -68,20 +99,12 @@
                 <div>@Model.CurrentStock.ToString("0.##")</div>
             </div>
             <div class="col">
-                <label class="form-label">@Html.DisplayNameFor(model => model.CreateDate)</label>
-                <div>@Html.DisplayFor(model => model.CreateDate)</div>
+                <label class="form-label">@Html.DisplayNameFor(model => model.LowStockCount)</label>
+                <div>@Model.LowStockCount.ToString("0.##")</div>
             </div>
             <div class="col">
-                <label class="form-label">@Html.DisplayNameFor(model => model.CreatedBy)</label>
-                <div>@Html.DisplayFor(model => model.CreatedBy)</div>
-            </div>
-            <div class="col">
-                <label class="form-label">@Html.DisplayNameFor(model => model.UpdatedDate)</label>
-                <div>@Html.DisplayFor(model => model.UpdatedDate)</div>
-            </div>
-            <div class="col">
-                <label class="form-label">@Html.DisplayNameFor(model => model.UpdatedBy)</label>
-                <div>@Html.DisplayFor(model => model.UpdatedBy)</div>
+                <label class="form-label">@Html.DisplayNameFor(model => model.LeadTimeDays)</label>
+                <div>@(Model.LeadTimeDays?.ToString() ?? "—")</div>
             </div>
             <div class="col">
                 <label class="form-label">@Html.DisplayNameFor(model => model.IsActive)</label>
@@ -89,17 +112,36 @@
             </div>
             <div class="col">
                 <label class="form-label">@Html.DisplayNameFor(model => model.Note)</label>
-                <div>@Html.DisplayFor(model => model.Note)</div>
+                <div>@(string.IsNullOrEmpty(Model.Note) ? "—" : Model.Note)</div>
             </div>
             <div class="col">
                 <label class="form-label">@Html.DisplayNameFor(model => model.CustomWarning)</label>
-                <div>@Html.DisplayFor(model => model.CustomWarning)</div>
+                <div>@(string.IsNullOrEmpty(Model.CustomWarning) ? "—" : Model.CustomWarning)</div>
             </div>
             <div class="col">
-                <label class="form-label">@Html.DisplayNameFor(model => model.ProductCategory)</label>
-                <div>@Html.DisplayFor(model => model.ProductCategory.Name)</div>
+                <label class="form-label">@Html.DisplayNameFor(model => model.CreateDate)</label>
+                <div>@Html.DisplayFor(model => model.CreateDate)</div>
+            </div>
+            <div class="col">
+                <label class="form-label">@Html.DisplayNameFor(model => model.UpdatedDate)</label>
+                <div>@(Model.UpdatedDate?.ToString() ?? "—")</div>
             </div>
         </div>
+
+        @if (ViewBag.CustomFields != null && ViewBag.CustomFields.Count > 0)
+        {
+            <div class="separator separator-dashed border-secondary my-8"></div>
+            <h6 class="text-muted mb-3">Additional Details</h6>
+            <div class="row g-5 row-cols-1 row-cols-sm-2 row-cols-md-3">
+                @foreach (var field in ViewBag.CustomFields)
+                {
+                    <div class="col">
+                        <label class="form-label">@field.DisplayLabel</label>
+                        <div>@field.Value</div>
+                    </div>
+                }
+            </div>
+        }
 
             <div class="border-top d-flex flex-stack flex-wrap mt-lg-10 pt-13">
                 <div class="my-1 me-5">

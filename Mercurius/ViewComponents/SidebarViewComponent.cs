@@ -40,6 +40,7 @@ namespace Mercurius.ViewComponents
                 CanViewLocations = isSuperAdmin || CheckAccessModule(Common.ModuleRegistry.Pages.CONFIG_LOCATIONS),
                 CanViewSuppliers = isSuperAdmin || CheckAccessModule(Common.ModuleRegistry.Pages.CONFIG_SUPPLIERS),
                 CanViewAdjustmentReasons = isSuperAdmin || CheckAccessModule(Common.ModuleRegistry.Pages.CONFIG_ADJUSTMENT_REASONS),
+                CanViewRefundReasons = isSuperAdmin || CheckAccessModule(Common.ModuleRegistry.Pages.CONFIG_REFUND_REASONS),
                 CanViewDatabaseBackups = isSqliteProvider && (isSuperAdmin || CheckAccessModule(Common.ModuleRegistry.Pages.CONFIG_DATABASE_BACKUPS)),
                 CanViewSettings = isSuperAdmin || CheckAccessModule(Common.ModuleRegistry.Pages.ADMIN_ROLES_MANAGEMENT) ||
                                   CheckAccessModule(Common.ModuleRegistry.Pages.ADMIN_USERS_MANAGEMENT) ||
@@ -47,6 +48,7 @@ namespace Mercurius.ViewComponents
                                   CheckAccessModule(Common.ModuleRegistry.Pages.CONFIG_LOCATIONS) ||
                                   CheckAccessModule(Common.ModuleRegistry.Pages.CONFIG_SUPPLIERS) ||
                                   CheckAccessModule(Common.ModuleRegistry.Pages.CONFIG_ADJUSTMENT_REASONS) ||
+                                  CheckAccessModule(Common.ModuleRegistry.Pages.CONFIG_REFUND_REASONS) ||
                                   CheckAccessModule(Common.ModuleRegistry.Pages.CONFIG_DATABASE_BACKUPS),
                 CanViewUserList = isSuperAdmin || CheckAccessModule(Common.ModuleRegistry.Pages.ADMIN_USERS_MANAGEMENT)
             };
@@ -78,6 +80,7 @@ namespace Mercurius.ViewComponents
         public bool CanViewLocations { get; set; }
         public bool CanViewSuppliers { get; set; }
         public bool CanViewAdjustmentReasons { get; set; }
+        public bool CanViewRefundReasons { get; set; }
         public bool CanViewDatabaseBackups { get; set; }
     }
 }

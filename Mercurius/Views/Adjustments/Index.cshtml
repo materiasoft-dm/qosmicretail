@@ -43,6 +43,7 @@
                         <th>Date</th>
                         <th>Reason</th>
                         <th class="text-end">Quantity</th>
+                        <th class="text-end">Refund</th>
                     </tr>
                 </thead>
                 <tbody></tbody>
@@ -134,6 +135,13 @@
                             render: function (d, type) {
                                 if (type !== 'display') return d;
                                 return fmtQty(d);
+                            }
+                        },
+                        { data: 'invoiceId', orderable: false, searchable: false, className: 'text-end',
+                            render: function (invoiceId, type) {
+                                if (type !== 'display') return invoiceId || '';
+                                if (!invoiceId) return '';
+                                return '<a href="/Invoices/Details/' + encodeURIComponent(invoiceId) + '" class="btn btn-sm btn-icon btn-light-primary" title="View refund"><i class="bi bi-arrow-counterclockwise fs-4"></i></a>';
                             }
                         }
                     ],

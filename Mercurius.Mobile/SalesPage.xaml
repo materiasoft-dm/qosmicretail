@@ -1,0 +1,279 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<ContentPage xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+             xmlns:data="clr-namespace:Mercurius.Mobile.Data"
+             xmlns:models="clr-namespace:Mercurius.Mobile.Models"
+             x:Class="Mercurius.Mobile.SalesPage"
+             Title="Sell">
+
+    <Grid RowDefinitions="Auto,Auto,*" RowSpacing="0">
+
+        <!-- Header -->
+        <Grid Grid.Row="0" ColumnDefinitions="*,Auto,Auto" BackgroundColor="{StaticResource Secondary}" Padding="24,20">
+            <VerticalStackLayout Grid.Column="0" Spacing="2">
+                <Label Text="Sell" FontSize="22" FontAttributes="Bold" TextColor="{StaticResource White}" />
+                <Label x:Name="PendingSyncLabel" AutomationId="PendingSyncLabel" FontSize="12" TextColor="{StaticResource SecondaryDarkText}" />
+            </VerticalStackLayout>
+
+            <Border Grid.Column="1"
+                    StrokeShape="RoundRectangle 10"
+                    Stroke="{StaticResource Gray100}"
+                    BackgroundColor="{StaticResource White}"
+                    Padding="14,0"
+                    HeightRequest="42"
+                    WidthRequest="280"
+                    Margin="0,0,12,0"
+                    VerticalOptions="Center">
+                <Entry x:Name="SearchEntry"
+                       AutomationId="ProductSearchEntry"
+                       Placeholder="Search products..."
+                       VerticalOptions="Center"
+                       TextChanged="OnSearchTextChanged" />
+            </Border>
+
+            <Border Grid.Column="2"
+                    StrokeShape="RoundRectangle 10"
+                    Stroke="Transparent"
+                    BackgroundColor="#242840"
+                    WidthRequest="42" HeightRequest="42"
+                    Padding="0"
+                    VerticalOptions="Center">
+                <Label x:Name="ViewToggleLabel"
+                       AutomationId="ViewToggleButton"
+                       Text="&#9638;"
+                       FontSize="18"
+                       TextColor="{StaticResource Primary}"
+                       HorizontalOptions="Center" VerticalOptions="Center">
+                    <Label.GestureRecognizers>
+                        <TapGestureRecognizer Tapped="OnViewToggleClicked" />
+                    </Label.GestureRecognizers>
+                </Label>
+            </Border>
+        </Grid>
+
+        <!-- Category tabs -->
+        <Grid Grid.Row="1" BackgroundColor="{StaticResource White}" Padding="20,12">
+            <!-- A plain BoxView, not a Border — see the Ticket panel's comment further down for
+                 why: Border silently drops its content on Android given a one-sided StrokeThickness. -->
+            <BoxView Color="{StaticResource Gray100}" HeightRequest="1" VerticalOptions="End" />
+            <CollectionView x:Name="CategoriesCollectionView"
+                             ItemsLayout="HorizontalList"
+                             SelectionMode="Single"
+                             SelectionChanged="OnCategorySelected"
+                             HeightRequest="44">
+                <CollectionView.ItemTemplate>
+                    <DataTemplate x:DataType="x:String">
+                        <Border StrokeShape="RoundRectangle 18"
+                                Stroke="{StaticResource Gray100}"
+                                BackgroundColor="{StaticResource White}"
+                                Padding="18,0"
+                                Margin="0,0,10,0"
+                                HeightRequest="36">
+                            <Label Text="{Binding .}" FontSize="13" FontAttributes="Bold"
+                                   TextColor="{StaticResource Gray500}"
+                                   VerticalOptions="Center" HorizontalOptions="Center" />
+                            <VisualStateManager.VisualStateGroups>
+                                <VisualStateGroupList>
+                                    <VisualStateGroup x:Name="CommonStates">
+                                        <VisualState x:Name="Normal" />
+                                        <VisualState x:Name="Selected">
+                                            <VisualState.Setters>
+                                                <Setter Property="BackgroundColor" Value="{StaticResource Secondary}" />
+                                                <Setter Property="Stroke" Value="{StaticResource Secondary}" />
+                                            </VisualState.Setters>
+                                        </VisualState>
+                                    </VisualStateGroup>
+                                </VisualStateGroupList>
+                            </VisualStateManager.VisualStateGroups>
+                        </Border>
+                    </DataTemplate>
+                </CollectionView.ItemTemplate>
+            </CollectionView>
+        </Grid>
+
+        <!-- Main content: product area + ticket -->
+        <Grid Grid.Row="2" ColumnDefinitions="2.3*,1*" ColumnSpacing="0">
+
+            <!-- Products -->
+            <Grid Grid.Column="0" BackgroundColor="#F5F6F8">
+
+                <!-- Grid (thumbnail) view -->
+                <CollectionView x:Name="ProductsGridView"
+                                 AutomationId="ProductsGridView"
+                                 IsVisible="True"
+                                 Margin="16"
+                                 SelectionMode="None">
+                    <CollectionView.ItemsLayout>
+                        <GridItemsLayout Orientation="Vertical" Span="{OnIdiom Phone=2, Tablet=4, Desktop=4, Default=3}" HorizontalItemSpacing="12" VerticalItemSpacing="12" />
+                    </CollectionView.ItemsLayout>
+                    <CollectionView.ItemTemplate>
+                        <DataTemplate x:DataType="data:LocalProduct">
+                            <Border AutomationId="{Binding ProductCode, StringFormat='ProductTile_{0}'}"
+                                    StrokeShape="RoundRectangle 14"
+                                    Stroke="Transparent"
+                                    BackgroundColor="{StaticResource White}"
+                                    Padding="0"
+                                    HeightRequest="172">
+                                <Border.Shadow>
+                                    <Shadow Brush="Black" Opacity="0.05" Radius="8" Offset="0,2" />
+                                </Border.Shadow>
+                                <Border.GestureRecognizers>
+                                    <TapGestureRecognizer Tapped="OnProductTileTapped" CommandParameter="{Binding .}" />
+                                </Border.GestureRecognizers>
+                                <Grid RowDefinitions="*,Auto">
+                                    <Border Grid.Row="0"
+                                            StrokeShape="RoundRectangle 14,14,0,0"
+                                            Stroke="Transparent"
+                                            BackgroundColor="{Binding CategoryName, Converter={StaticResource CategoryColorConverter}}"
+                                            Padding="0">
+                                        <Label Text="{Binding Name, Converter={StaticResource InitialsConverter}}"
+                                               TextColor="{StaticResource White}"
+                                               FontAttributes="Bold"
+                                               FontSize="28"
+                                               HorizontalOptions="Center"
+                                               VerticalOptions="Center"
+                                               Opacity="0.85" />
+                                    </Border>
+                                    <VerticalStackLayout Grid.Row="1" Padding="10,8" Spacing="2">
+                                        <Label Text="{Binding Name}" FontSize="12" FontAttributes="Bold"
+                                               TextColor="{StaticResource MidnightBlue}"
+                                               LineBreakMode="TailTruncation" MaxLines="1" />
+                                        <Label Text="{Binding PriceDisplay}" AutomationId="{Binding ProductCode, StringFormat='ProductPrice_{0}'}" FontSize="13" FontAttributes="Bold"
+                                               TextColor="{StaticResource Primary}" />
+                                        <Label Text="{Binding StockDisplay}" AutomationId="{Binding ProductCode, StringFormat='ProductStock_{0}'}" FontSize="10" FontAttributes="Bold"
+                                               TextColor="{Binding IsLowStock, Converter={StaticResource LowStockColorConverter}}" />
+                                    </VerticalStackLayout>
+                                </Grid>
+                            </Border>
+                        </DataTemplate>
+                    </CollectionView.ItemTemplate>
+                </CollectionView>
+
+                <!-- List view -->
+                <CollectionView x:Name="ProductsListView"
+                                 AutomationId="ProductsListView"
+                                 IsVisible="False"
+                                 Margin="16"
+                                 SelectionMode="None">
+                    <CollectionView.ItemTemplate>
+                        <DataTemplate x:DataType="data:LocalProduct">
+                            <Border AutomationId="{Binding ProductCode, StringFormat='ProductTile_{0}'}"
+                                    StrokeShape="RoundRectangle 10"
+                                    Stroke="{StaticResource Gray100}"
+                                    BackgroundColor="{StaticResource White}"
+                                    Padding="14,10"
+                                    Margin="0,0,0,8">
+                                <Border.GestureRecognizers>
+                                    <TapGestureRecognizer Tapped="OnProductTileTapped" CommandParameter="{Binding .}" />
+                                </Border.GestureRecognizers>
+                                <Grid ColumnDefinitions="Auto,*,Auto,Auto" ColumnSpacing="12">
+                                    <Border Grid.Column="0"
+                                            StrokeShape="RoundRectangle 8"
+                                            Stroke="Transparent"
+                                            BackgroundColor="{Binding CategoryName, Converter={StaticResource CategoryColorConverter}}"
+                                            WidthRequest="36" HeightRequest="36"
+                                            Padding="0">
+                                        <Label Text="{Binding Name, Converter={StaticResource InitialsConverter}}"
+                                               TextColor="{StaticResource White}" FontAttributes="Bold" FontSize="13"
+                                               HorizontalOptions="Center" VerticalOptions="Center" />
+                                    </Border>
+                                    <VerticalStackLayout Grid.Column="1" VerticalOptions="Center" Spacing="1">
+                                        <Label Text="{Binding Name}" FontSize="14" FontAttributes="Bold" TextColor="{StaticResource MidnightBlue}" LineBreakMode="TailTruncation" />
+                                        <Label Text="{Binding CategoryName}" FontSize="11" TextColor="{StaticResource Gray400}" />
+                                    </VerticalStackLayout>
+                                    <Label Grid.Column="2" Text="{Binding StockDisplay}" AutomationId="{Binding ProductCode, StringFormat='ProductStock_{0}'}" FontSize="11" FontAttributes="Bold"
+                                           TextColor="{Binding IsLowStock, Converter={StaticResource LowStockColorConverter}}" VerticalOptions="Center" />
+                                    <Label Grid.Column="3" Text="{Binding PriceDisplay}" AutomationId="{Binding ProductCode, StringFormat='ProductPrice_{0}'}" FontSize="14" FontAttributes="Bold" TextColor="{StaticResource Primary}" VerticalOptions="Center" />
+                                </Grid>
+                            </Border>
+                        </DataTemplate>
+                    </CollectionView.ItemTemplate>
+                </CollectionView>
+
+                <VerticalStackLayout x:Name="EmptyStateLayout" IsVisible="False" VerticalOptions="Center" HorizontalOptions="Center" Spacing="6">
+                    <Label Text="No products found" FontAttributes="Bold" FontSize="15" HorizontalOptions="Center" />
+                    <Label Text="Try a different search or category" FontSize="12" TextColor="{StaticResource Gray400}" HorizontalOptions="Center" />
+                </VerticalStackLayout>
+            </Grid>
+
+            <!-- Ticket -->
+            <Grid Grid.Column="1" BackgroundColor="{StaticResource White}">
+                <!-- A plain BoxView, not a Border — MAUI's Border silently fails to render any
+                     content on Android when given a one-sided (non-uniform) StrokeThickness like
+                     "1,0,0,0"; swapping to a Grid + this divider sidesteps that platform bug. -->
+                <BoxView Color="{StaticResource Gray100}" WidthRequest="1" HorizontalOptions="Start" />
+                <Grid RowDefinitions="Auto,*,Auto">
+
+                    <VerticalStackLayout Grid.Row="0" Padding="20,16" Spacing="2">
+                        <Grid ColumnDefinitions="*,Auto">
+                            <Label Grid.Column="0" Text="Ticket" FontSize="17" FontAttributes="Bold" TextColor="{StaticResource MidnightBlue}" />
+                            <Border Grid.Column="1"
+                                    StrokeShape="RoundRectangle 8"
+                                    Stroke="Transparent"
+                                    BackgroundColor="{StaticResource Gray100}"
+                                    Padding="10,2"
+                                    VerticalOptions="Center">
+                                <Label x:Name="CartCountLabel" AutomationId="CartCountLabel" Text="0 items" FontSize="11" FontAttributes="Bold" TextColor="{StaticResource Gray500}" />
+                            </Border>
+                        </Grid>
+                    </VerticalStackLayout>
+
+                    <Grid Grid.Row="1">
+                        <CollectionView x:Name="CartCollectionView" Margin="16,0" SelectionMode="None">
+                            <CollectionView.ItemTemplate>
+                                <DataTemplate x:DataType="models:CartLine">
+                                    <Grid AutomationId="{Binding Name, StringFormat='CartLine_{0}'}" Padding="0,10" ColumnDefinitions="*,Auto" RowDefinitions="Auto,Auto">
+                                        <Label Grid.Row="0" Grid.Column="0" Text="{Binding Name}" FontSize="13" FontAttributes="Bold"
+                                               TextColor="{StaticResource MidnightBlue}" LineBreakMode="TailTruncation" />
+                                        <Label Grid.Row="0" Grid.Column="1" Text="{Binding LineTotalDisplay}" AutomationId="{Binding Name, StringFormat='CartLineTotal_{0}'}" FontSize="13" FontAttributes="Bold" TextColor="{StaticResource MidnightBlue}" />
+
+                                        <Grid Grid.Row="1" Grid.Column="0" Grid.ColumnSpan="2" ColumnDefinitions="Auto,Auto,Auto,*,Auto" ColumnSpacing="8" Margin="0,4,0,0">
+                                            <Border Grid.Column="0" StrokeShape="RoundRectangle 6" Stroke="{StaticResource Gray100}" WidthRequest="26" HeightRequest="26" Padding="0">
+                                                <Button AutomationId="{Binding Name, StringFormat='Decrement_{0}'}" Text="-" FontSize="14" Padding="0" BackgroundColor="Transparent" TextColor="{StaticResource Gray500}"
+                                                        MinimumWidthRequest="0" MinimumHeightRequest="0"
+                                                        Clicked="OnDecrementClicked" CommandParameter="{Binding .}" />
+                                            </Border>
+                                            <Label Grid.Column="1" Text="{Binding QuantityDisplay}" AutomationId="{Binding Name, StringFormat='Quantity_{0}'}" FontSize="12" VerticalOptions="Center" HorizontalOptions="Center" WidthRequest="20" />
+                                            <Border Grid.Column="2" StrokeShape="RoundRectangle 6" Stroke="{StaticResource Gray100}" WidthRequest="26" HeightRequest="26" Padding="0">
+                                                <Button AutomationId="{Binding Name, StringFormat='Increment_{0}'}" Text="+" FontSize="14" Padding="0" BackgroundColor="Transparent" TextColor="{StaticResource Gray500}"
+                                                        MinimumWidthRequest="0" MinimumHeightRequest="0"
+                                                        Clicked="OnIncrementClicked" CommandParameter="{Binding .}" />
+                                            </Border>
+                                            <Label Grid.Column="3" Text="{Binding PriceDisplay}" FontSize="11" TextColor="{StaticResource Gray400}" VerticalOptions="Center" HorizontalOptions="End" />
+                                            <Label AutomationId="{Binding Name, StringFormat='Remove_{0}'}" Text="&#10005;" FontSize="12" TextColor="#D32F2F" VerticalOptions="Center">
+                                                <Label.GestureRecognizers>
+                                                    <TapGestureRecognizer Tapped="OnRemoveLineTapped" CommandParameter="{Binding .}" />
+                                                </Label.GestureRecognizers>
+                                            </Label>
+                                        </Grid>
+
+                                        <BoxView Grid.Row="1" Grid.Column="0" Grid.ColumnSpan="2" HeightRequest="1" Color="#F0F0F2" VerticalOptions="End" Margin="0,10,0,-10" />
+                                    </Grid>
+                                </DataTemplate>
+                            </CollectionView.ItemTemplate>
+                        </CollectionView>
+
+                        <VerticalStackLayout x:Name="EmptyCartLayout" IsVisible="True" VerticalOptions="Center" HorizontalOptions="Center" Spacing="6" Padding="20">
+                            <Label Text="Ticket is empty" FontAttributes="Bold" FontSize="14" HorizontalOptions="Center" />
+                            <Label Text="Tap a product to add it" FontSize="12" TextColor="{StaticResource Gray400}" HorizontalOptions="Center" />
+                        </VerticalStackLayout>
+                    </Grid>
+
+                    <VerticalStackLayout Grid.Row="2" Padding="20,14" Spacing="12" BackgroundColor="#FAFAFB">
+                        <Grid ColumnDefinitions="*,Auto">
+                            <Label Grid.Column="0" Text="Total" FontSize="15" FontAttributes="Bold" TextColor="{StaticResource MidnightBlue}" />
+                            <Label Grid.Column="1" x:Name="TotalLabel" AutomationId="TotalLabel" Text="₱0.00" FontSize="20" FontAttributes="Bold" TextColor="{StaticResource Primary}" />
+                        </Grid>
+                        <Grid ColumnDefinitions="1*,1.4*" ColumnSpacing="10">
+                            <Button Grid.Column="0" x:Name="ClearButton" AutomationId="ClearButton" Text="Clear" HeightRequest="48"
+                                    BackgroundColor="{StaticResource Gray100}" TextColor="{StaticResource Gray500}"
+                                    Clicked="OnClearClicked" />
+                            <Button Grid.Column="1" x:Name="ChargeButton" AutomationId="ChargeButton" Text="Charge" HeightRequest="48" FontAttributes="Bold"
+                                    IsEnabled="False" Clicked="OnChargeClicked" />
+                        </Grid>
+                    </VerticalStackLayout>
+                </Grid>
+            </Grid>
+        </Grid>
+    </Grid>
+</ContentPage>

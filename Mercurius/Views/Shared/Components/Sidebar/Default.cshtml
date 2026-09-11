@@ -287,6 +287,17 @@
                                     </a>
                                 </div>
                             }
+                            @if (Model.CanViewRefundReasons)
+                            {
+                                <div class="menu-item">
+                                    <a class="menu-link" href="/RefundReasons">
+                                        <span class="menu-bullet">
+                                            <span class="bullet bullet-dot"></span>
+                                        </span>
+                                        <span class="menu-title">Refund Reasons</span>
+                                    </a>
+                                </div>
+                            }
                             @if (Model.CanViewUserList)
                             {
                                 <div class="menu-item">

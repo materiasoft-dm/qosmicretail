@@ -1,4 +1,5 @@
 using Mercurius.Mobile.Data;
+using Mercurius.Mobile.Models;
 
 namespace Mercurius.Mobile.Services;
 
@@ -51,5 +52,51 @@ public class SyncService
         await _localDatabase.SetLastSyncedAsync(ProductsEntityName, newCursor);
 
         return changed.Count;
+    }
+
+    // Pushes every sale still sitting in the local queue (created while offline, or simply not
+    // yet synced) to the server. Each sale is idempotent by SyncId on the server side, so a sale
+    // that partially succeeds — or gets retried after a dropped connection — never double-charges
+    // inventory; we only flip a sale's local IsSynced flag once the server confirms it, so a
+    // failed push just leaves it queued for the next attempt.
+    public async Task<int> SyncSalesAsync(CancellationToken ct = default)
+    {
+        var pending = await _localDatabase.GetUnsyncedSalesAsync();
+        if (pending.Count == 0) return 0;
+
+        var dtos = new List<SalePushDto>();
+        foreach (var sale in pending)
+        {
+            var items = await _localDatabase.GetSaleItemsAsync(sale.SyncId);
+            dtos.Add(new SalePushDto
+            {
+                SyncId = sale.SyncId,
+                InvoiceDate = sale.InvoiceDate,
+                CustomerId = sale.CustomerId,
+                LocationId = sale.LocationId,
+                Notes = sale.Notes,
+                PaidAmount = sale.PaidAmount,
+                Items = items.Select(i => new SaleItemPushDto
+                {
+                    SyncId = i.SyncId,
+                    ProductSyncId = i.ProductSyncId,
+                    Quantity = i.Quantity,
+                    SalePrice = i.SalePrice,
+                    CostPrice = i.CostPrice
+                }).ToList()
+            });
+        }
+
+        var results = await _syncApiService.PushSalesAsync(dtos, ct);
+        var syncedCount = 0;
+        foreach (var result in results)
+        {
+            if (string.IsNullOrEmpty(result.Error))
+            {
+                await _localDatabase.MarkSaleSyncedAsync(result.SyncId);
+                syncedCount++;
+            }
+        }
+        return syncedCount;
     }
 }

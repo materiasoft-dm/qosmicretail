@@ -144,6 +144,7 @@ builder.Services.AddApiVersioning(options =>
 builder.Services.AddTransient<IEmailSender, EmailSender>();
 builder.Services.AddScoped<ILoggerService, LoggerService>();
 builder.Services.AddScoped<Mercurius.Services.BatchPricingService>();
+builder.Services.AddScoped<Mercurius.Services.AdjustmentService>();
 
 builder.Services.Configure<DatabaseBackupOptions>(builder.Configuration.GetSection("DatabaseBackup"));
 // Registered as a singleton (not just via AddHostedService) so DatabaseBackupsController can

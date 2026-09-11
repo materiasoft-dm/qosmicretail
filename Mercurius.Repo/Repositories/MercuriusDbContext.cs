@@ -45,6 +45,7 @@ namespace Mercurius.Repo.Repositories
         public DbSet<Province> Provinces => Set<Province>();
         public DbSet<PurchaseOrder> PurchaseOrders => Set<PurchaseOrder>();
         public DbSet<PurchaseOrderItem> PurchaseOrderItems => Set<PurchaseOrderItem>();
+        public DbSet<RefundReason> RefundReasons => Set<RefundReason>();
         public DbSet<RoleModuleAccess> RoleModuleAccesses => Set<RoleModuleAccess>();
         public DbSet<ShipmentArrival> ShipmentArrivals => Set<ShipmentArrival>();
         public DbSet<ShipmentArrivalItem> ShipmentArrivalItems => Set<ShipmentArrivalItem>();
@@ -111,6 +112,15 @@ namespace Mercurius.Repo.Repositories
             builder.Entity<ZeroStockSaleAuditLog>().HasIndex(z => z.ProductId);
             builder.Entity<ZeroStockSaleAuditLog>().HasIndex(z => z.InvoiceId);
             builder.Entity<ZeroStockSaleAuditLog>().HasIndex(z => z.SaleDate);
+
+            builder.Entity<InvoiceItemRefund>().HasIndex(r => r.InvoiceId);
+            builder.Entity<InvoiceItemRefund>().HasIndex(r => r.InvoiceItemId);
+            builder.Entity<InvoiceItemRefund>().HasIndex(r => r.InvoiceRefundId);
+            builder.Entity<InvoiceItemRefund>().HasIndex(r => r.RefundReasonId);
+            builder.Entity<InvoiceRefund>().HasIndex(r => r.InvoiceId);
+            builder.Entity<Adjustment>().HasIndex(a => a.ProductId);
+            builder.Entity<Adjustment>().HasIndex(a => a.ReasonId);
+            builder.Entity<Adjustment>().HasIndex(a => a.InvoiceItemRefundId);
 
             // The models declare many optional text fields (Description, Note, ImageFilename,
             // etc.) as non-nullable `string` for convenience under <Nullable>enable</Nullable>,

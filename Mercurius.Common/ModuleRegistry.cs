@@ -72,6 +72,8 @@ namespace Mercurius.Common
                     ModuleRegistry.Pages.CONFIG_LOCATIONS,
                     ModuleRegistry.Pages.CONFIG_SUPPLIERS,
                     ModuleRegistry.Pages.CONFIG_ADJUSTMENT_REASONS,
+                    ModuleRegistry.Pages.CONFIG_REFUND_REASONS,
+                    ModuleRegistry.Pages.REFUND_CREATE,
                     ModuleRegistry.Pages.CONFIG_CATEGORY_FIELDS,
                     ModuleRegistry.Pages.CONFIG_DATABASE_BACKUPS,
                     ModuleRegistry.Pages.PURCHASE_ORDERS_LIST,
@@ -153,6 +155,8 @@ namespace Mercurius.Common
             public const string CONFIG_LOCATIONS = "Configuration - Locations";
             public const string CONFIG_SUPPLIERS = "Configuration - Suppliers";
             public const string CONFIG_ADJUSTMENT_REASONS = "Configuration - Adjustment Reasons";
+            public const string CONFIG_REFUND_REASONS = "Configuration - Refund Reasons";
+            public const string REFUND_CREATE = "Refund Create";
             public const string CONFIG_CATEGORY_FIELDS = "Configuration - Category Custom Fields";
             public const string CONFIG_DATABASE_BACKUPS = "Configuration - Database Backups";
             public const string PURCHASE_ORDERS_LIST = "Purchase Order List";

@@ -53,6 +53,8 @@ public static class MauiProgram
 		builder.Services.AddTransient<AppShell>();
 		builder.Services.AddTransient<MainPage>();
 		builder.Services.AddTransient<ProductsPage>();
+		builder.Services.AddTransient<SalesPage>();
+		builder.Services.AddTransient<ReceiptsPage>();
 
 		return builder.Build();
 	}

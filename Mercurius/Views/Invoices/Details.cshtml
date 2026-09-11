@@ -1,0 +1,247 @@
+@model Mercurius.Models.InvoiceDetailsViewModel
+@{
+    ViewData["Title"] = "Invoice " + Model.Invoice.InvoiceNumber;
+    Layout = "~/Views/Shared/_Layout.cshtml";
+
+    string StatusBadgeClass(int statusId) => statusId switch
+    {
+        1 => "badge-light-secondary", // Draft
+        2 => "badge-light-success",   // Completed
+        3 => "badge-light-primary",   // Finalized
+        4 => "badge-light-danger",    // Refunded
+        5 => "badge-light-dark",      // Deleted
+        6 => "badge-light-warning",   // DeferredPayment
+        7 => "badge-light-info",      // PartiallyPaid
+        _ => "badge-light"
+    };
+}
+
+<!-- PAGE TITLE -->
+<div id="kt_app_toolbar" class="app-toolbar py-3 py-lg-6">
+    <div id="kt_app_toolbar_container" class="app-container container-xxl d-flex flex-stack">
+        <div class="page-title d-flex flex-column justify-content-center flex-wrap me-3">
+            <h1 class="page-heading d-flex text-dark fw-bold fs-3 flex-column justify-content-center my-0">Invoice @Model.Invoice.InvoiceNumber</h1>
+        </div>
+        <div class="d-flex align-items-center gap-2 gap-lg-3">
+            <a href="/Invoices" class="btn btn-light">Back to Invoices</a>
+        </div>
+    </div>
+</div>
+
+<div class="card mb-6">
+    <div class="card-body">
+        <div class="row g-5">
+            <div class="col-md-3">
+                <div class="text-muted fs-7">Date</div>
+                <div class="fw-bold">@Model.Invoice.InvoiceDate.ToString("yyyy-MM-dd")</div>
+            </div>
+            <div class="col-md-3">
+                <div class="text-muted fs-7">Customer</div>
+                <div class="fw-bold">@(Model.Invoice.Customer != null ? $"{Model.Invoice.Customer.FirstName} {Model.Invoice.Customer.LastName}" : "(no customer)")</div>
+            </div>
+            <div class="col-md-3">
+                <div class="text-muted fs-7">Status</div>
+                <div>
+                    <span class="badge @StatusBadgeClass(Model.Invoice.StatusId)">@(Model.Invoice.Status?.Name ?? "Unknown")</span>
+                    @if (Model.Invoice.HasRefund)
+                    {
+                        <i class="bi bi-arrow-counterclockwise text-danger ms-1" title="Has refund"></i>
+                    }
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="text-muted fs-7">Paid Amount</div>
+                <div class="fw-bold">@Model.Invoice.PaidAmount.ToString("C2")</div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="card mb-6">
+    <div class="card-header">
+        <div class="card-title">Items</div>
+    </div>
+    <div class="card-body pt-0">
+        <div class="table-responsive">
+            <table class="table table-hover table-rounded table-striped border gy-7 gs-7">
+                <thead>
+                    <tr class="fw-bold fs-6 text-gray-800 border-bottom border-gray-200">
+                        <th>Product</th>
+                        <th class="text-end">Qty Sold</th>
+                        <th class="text-end">Qty Refunded</th>
+                        <th class="text-end">Remaining</th>
+                        <th class="text-end">Unit Price</th>
+                        <th class="text-end">Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var item in Model.Items)
+                    {
+                        <tr>
+                            <td>@item.ProductName <span class="text-muted">(@item.ProductCode)</span></td>
+                            <td class="text-end">@item.QuantitySold.ToString("0.##")</td>
+                            <td class="text-end">@item.QuantityRefunded.ToString("0.##")</td>
+                            <td class="text-end">@item.QuantityRemaining.ToString("0.##")</td>
+                            <td class="text-end">@item.SalePrice.ToString("C2")</td>
+                            <td class="text-end">
+                                @if (item.QuantityRemaining > 0)
+                                {
+                                    <button type="button" class="btn btn-sm btn-light-danger refund-btn"
+                                            data-invoice-item-id="@item.InvoiceItemId"
+                                            data-product-name="@item.ProductName"
+                                            data-remaining="@item.QuantityRemaining.ToString(System.Globalization.CultureInfo.InvariantCulture)">
+                                        Refund
+                                    </button>
+                                }
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<div class="card">
+    <div class="card-header">
+        <div class="card-title">Refund History</div>
+    </div>
+    <div class="card-body pt-0">
+        <div class="table-responsive">
+            <table class="table table-hover table-rounded table-striped border gy-7 gs-7">
+                <thead>
+                    <tr class="fw-bold fs-6 text-gray-800 border-bottom border-gray-200">
+                        <th>Refund #</th>
+                        <th>Date</th>
+                        <th>Product</th>
+                        <th class="text-end">Quantity</th>
+                        <th>Reason</th>
+                        <th>Restocked</th>
+                        <th>Remarks</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @if (Model.RefundHistory.Count == 0)
+                    {
+                        <tr><td colspan="7" class="text-center text-muted">No refunds yet.</td></tr>
+                    }
+                    @foreach (var r in Model.RefundHistory)
+                    {
+                        <tr>
+                            <td>@r.RefundNumber</td>
+                            <td>@r.DateRefunded.ToString("yyyy-MM-dd HH:mm")</td>
+                            <td>@r.ProductName</td>
+                            <td class="text-end">@r.Quantity.ToString("0.##")</td>
+                            <td>@r.ReasonName</td>
+                            <td>
+                                @if (r.WasRestocked)
+                                {
+                                    <span class="badge badge-light-success">Yes</span>
+                                }
+                                else
+                                {
+                                    <span class="badge badge-light-secondary">No</span>
+                                }
+                            </td>
+                            <td>@r.Remarks</td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<!-- Refund modal -->
+<div class="modal fade" id="refundModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <form id="refundForm">
+                @Html.AntiForgeryToken()
+                <input type="hidden" name="InvoiceItemId" id="refundInvoiceItemId" />
+                <div class="modal-header">
+                    <h5 class="modal-title">Refund <span id="refundProductName"></span></h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <div id="refundFormError" class="alert alert-danger" style="display:none;"></div>
+
+                    <div class="mb-5">
+                        <label class="form-label required">Quantity to refund</label>
+                        <input type="number" step="any" min="0" class="form-control" name="Quantity" id="refundQuantity" required />
+                        <div class="form-text">Up to <span id="refundMaxQty"></span> remaining.</div>
+                    </div>
+
+                    <div class="mb-5">
+                        <label class="form-label required">Reason</label>
+                        <select class="form-select" name="RefundReasonId" required>
+                            <option value="">Select a reason...</option>
+                            @foreach (var reason in Model.ActiveRefundReasons)
+                            {
+                                <option value="@reason.Id">@reason.Name</option>
+                            }
+                        </select>
+                    </div>
+
+                    <div class="mb-5">
+                        <label class="form-label">Notes</label>
+                        <textarea class="form-control" name="Notes" rows="2"></textarea>
+                    </div>
+
+                    <div class="form-check form-switch">
+                        <input class="form-check-input" type="checkbox" name="Restock" id="refundRestock" value="true" checked />
+                        <label class="form-check-label" for="refundRestock">Put this quantity back into inventory</label>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-light" data-bs-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-danger">Refund</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+    <script>
+        $(document).ready(function () {
+            var modalEl = document.getElementById('refundModal');
+            var modal = new bootstrap.Modal(modalEl);
+
+            $('.refund-btn').on('click', function () {
+                var btn = $(this);
+                $('#refundFormError').hide();
+                $('#refundInvoiceItemId').val(btn.data('invoice-item-id'));
+                $('#refundProductName').text(btn.data('product-name'));
+                var remaining = btn.data('remaining');
+                $('#refundMaxQty').text(remaining);
+                $('#refundQuantity').attr('max', remaining).val(remaining);
+                modal.show();
+            });
+
+            $('#refundForm').on('submit', function (e) {
+                e.preventDefault();
+                $('#refundFormError').hide();
+                var formData = new FormData(this);
+                // Unchecked checkboxes aren't included in FormData — make the intent explicit.
+                if (!$('#refundRestock').is(':checked')) {
+                    formData.set('Restock', 'false');
+                }
+
+                $.ajax({
+                    url: '@Url.Action("Create", "Refunds")',
+                    method: 'POST',
+                    data: formData,
+                    processData: false,
+                    contentType: false
+                }).done(function () {
+                    window.location.reload();
+                }).fail(function (xhr) {
+                    var msg = 'Failed to process refund.';
+                    try { msg = JSON.parse(xhr.responseText).error || msg; } catch (e) {}
+                    $('#refundFormError').text(msg).show();
+                });
+            });
+        });
+    </script>
+}

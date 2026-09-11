@@ -3,93 +3,150 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
              x:Class="Mercurius.Mobile.LoginPage"
              Shell.NavBarIsVisible="False"
-             BackgroundColor="{StaticResource Secondary}">
+             BackgroundColor="{StaticResource White}">
 
-    <Grid>
-        <ScrollView VerticalOptions="Center">
-            <VerticalStackLayout Padding="32,48" Spacing="0" MaximumWidthRequest="420" HorizontalOptions="Center">
+    <Grid ColumnDefinitions="Auto,*">
 
-                <Border StrokeShape="RoundRectangle 20"
+        <!-- Brand / hero panel — desktop and tablet only; collapses away on phone so the form
+             panel simply fills the screen, same as the original single-column layout. -->
+        <Grid Grid.Column="0"
+              WidthRequest="{OnIdiom Phone=0, Default=460}"
+              IsVisible="{OnIdiom Phone=False, Default=True}"
+              BackgroundColor="{StaticResource Secondary}">
+
+            <!-- Soft decorative glows, purely cosmetic. -->
+            <Ellipse Fill="#221F2B45" WidthRequest="420" HeightRequest="420"
+                     HorizontalOptions="End" VerticalOptions="Start" Margin="0,-180,-180,0" />
+            <Ellipse Fill="#18F2994A" WidthRequest="320" HeightRequest="320"
+                     HorizontalOptions="Start" VerticalOptions="End" Margin="-140,0,0,-140" />
+
+            <VerticalStackLayout Padding="48,0" Spacing="0" VerticalOptions="Center">
+
+                <Border StrokeShape="RoundRectangle 18"
                         Stroke="Transparent"
-                        BackgroundColor="{StaticResource White}"
-                        Padding="32,36">
+                        BackgroundColor="{StaticResource Primary}"
+                        WidthRequest="64" HeightRequest="64"
+                        Padding="0"
+                        HorizontalOptions="Start">
                     <Border.Shadow>
-                        <Shadow Brush="Black" Opacity="0.25" Radius="24" Offset="0,10" />
+                        <Shadow Brush="Black" Opacity="0.35" Radius="18" Offset="0,6" />
                     </Border.Shadow>
-
-                    <VerticalStackLayout Spacing="6">
-
-                        <Border StrokeShape="RoundRectangle 16"
-                                Stroke="Transparent"
-                                BackgroundColor="{StaticResource Primary}"
-                                WidthRequest="64" HeightRequest="64"
-                                HorizontalOptions="Center"
-                                Padding="0">
-                            <Label Text="M"
-                                   TextColor="{StaticResource White}"
-                                   FontSize="30"
-                                   FontAttributes="Bold"
-                                   HorizontalOptions="Center"
-                                   VerticalOptions="Center" />
-                        </Border>
-
-                        <Label Text="Mercurius"
-                               FontSize="26"
-                               FontAttributes="Bold"
-                               TextColor="{StaticResource MidnightBlue}"
-                               HorizontalOptions="Center"
-                               Margin="0,16,0,0" />
-                        <Label Text="Sign in to sync your device"
-                               FontSize="13"
-                               TextColor="{StaticResource Gray400}"
-                               HorizontalOptions="Center"
-                               Margin="0,0,0,24" />
-
-                        <Label Text="Email" FontSize="12" TextColor="{StaticResource Gray400}" />
-                        <Border StrokeShape="RoundRectangle 10"
-                                Stroke="{StaticResource Gray100}"
-                                BackgroundColor="Transparent"
-                                Padding="12,0"
-                                HeightRequest="48">
-                            <Entry x:Name="EmailEntry"
-                                   Placeholder="you@mercurius.com"
-                                   Keyboard="Email"
-                                   VerticalOptions="Center" />
-                        </Border>
-
-                        <Label Text="Password" FontSize="12" TextColor="{StaticResource Gray400}" Margin="0,14,0,0" />
-                        <Border StrokeShape="RoundRectangle 10"
-                                Stroke="{StaticResource Gray100}"
-                                BackgroundColor="Transparent"
-                                Padding="12,0"
-                                HeightRequest="48">
-                            <Entry x:Name="PasswordEntry"
-                                   Placeholder="••••••••"
-                                   IsPassword="True"
-                                   VerticalOptions="Center" />
-                        </Border>
-
-                        <Label x:Name="ErrorLabel"
-                               TextColor="#D32F2F"
-                               FontSize="13"
-                               Margin="0,14,0,0"
-                               IsVisible="False" />
-
-                        <Button x:Name="LoginButton"
-                                Text="Sign In"
-                                Margin="0,22,0,0"
-                                HeightRequest="48"
-                                FontAttributes="Bold"
-                                Clicked="OnLoginClicked" />
-
-                        <ActivityIndicator x:Name="LoadingIndicator"
-                                           IsVisible="False"
-                                           IsRunning="False"
-                                           Margin="0,16,0,0"
-                                           Color="{StaticResource Primary}" />
-
-                    </VerticalStackLayout>
+                    <Label Text="M" TextColor="{StaticResource White}" FontSize="30" FontAttributes="Bold"
+                           HorizontalOptions="Center" VerticalOptions="Center" />
                 </Border>
+
+                <Label Text="Mercurius" TextColor="{StaticResource White}" FontSize="34" FontAttributes="Bold" Margin="0,28,0,0" />
+                <Label Text="Inventory &amp; point of sale, everywhere your business is."
+                       TextColor="{StaticResource SecondaryDarkText}" FontSize="15" Margin="0,8,0,0"
+                       LineBreakMode="WordWrap" />
+
+                <VerticalStackLayout Spacing="18" Margin="0,40,0,0">
+                    <Grid ColumnDefinitions="Auto,*" ColumnSpacing="14">
+                        <Border Grid.Column="0" StrokeShape="RoundRectangle 9" Stroke="Transparent"
+                                BackgroundColor="#242840" WidthRequest="30" HeightRequest="30" Padding="0">
+                            <Label Text="&#10003;" TextColor="{StaticResource Primary}" FontAttributes="Bold" FontSize="13"
+                                   HorizontalOptions="Center" VerticalOptions="Center" />
+                        </Border>
+                        <Label Grid.Column="1" Text="Works fully offline, syncs the moment you're back online"
+                               TextColor="{StaticResource White}" FontSize="13" VerticalOptions="Center" LineBreakMode="WordWrap" />
+                    </Grid>
+                    <Grid ColumnDefinitions="Auto,*" ColumnSpacing="14">
+                        <Border Grid.Column="0" StrokeShape="RoundRectangle 9" Stroke="Transparent"
+                                BackgroundColor="#242840" WidthRequest="30" HeightRequest="30" Padding="0">
+                            <Label Text="&#10003;" TextColor="{StaticResource Primary}" FontAttributes="Bold" FontSize="13"
+                                   HorizontalOptions="Center" VerticalOptions="Center" />
+                        </Border>
+                        <Label Grid.Column="1" Text="Live stock levels and pricing straight from the server"
+                               TextColor="{StaticResource White}" FontSize="13" VerticalOptions="Center" LineBreakMode="WordWrap" />
+                    </Grid>
+                    <Grid ColumnDefinitions="Auto,*" ColumnSpacing="14">
+                        <Border Grid.Column="0" StrokeShape="RoundRectangle 9" Stroke="Transparent"
+                                BackgroundColor="#242840" WidthRequest="30" HeightRequest="30" Padding="0">
+                            <Label Text="&#10003;" TextColor="{StaticResource Primary}" FontAttributes="Bold" FontSize="13"
+                                   HorizontalOptions="Center" VerticalOptions="Center" />
+                        </Border>
+                        <Label Grid.Column="1" Text="Built for the counter and the back office alike"
+                               TextColor="{StaticResource White}" FontSize="13" VerticalOptions="Center" LineBreakMode="WordWrap" />
+                    </Grid>
+                </VerticalStackLayout>
+            </VerticalStackLayout>
+        </Grid>
+
+        <!-- Sign-in form panel -->
+        <ScrollView Grid.Column="1" VerticalOptions="Center">
+            <VerticalStackLayout Padding="48" Spacing="0" MaximumWidthRequest="420" HorizontalOptions="Center">
+
+                <!-- Compact brand mark shown only when the hero panel is hidden (phone). -->
+                <Border StrokeShape="RoundRectangle 16"
+                        Stroke="Transparent"
+                        BackgroundColor="{StaticResource Primary}"
+                        WidthRequest="56" HeightRequest="56"
+                        Padding="0"
+                        HorizontalOptions="Center"
+                        IsVisible="{OnIdiom Phone=True, Default=False}"
+                        Margin="0,0,0,20">
+                    <Label Text="M" TextColor="{StaticResource White}" FontSize="26" FontAttributes="Bold"
+                           HorizontalOptions="Center" VerticalOptions="Center" />
+                </Border>
+
+                <Label Text="Welcome back" FontSize="26" FontAttributes="Bold" TextColor="{StaticResource MidnightBlue}" />
+                <Label Text="Sign in to sync this device with your Mercurius account."
+                       FontSize="13" TextColor="{StaticResource Gray400}" Margin="0,4,0,32" LineBreakMode="WordWrap" />
+
+                <Label Text="Email" FontSize="12" FontAttributes="Bold" TextColor="{StaticResource Gray500}" />
+                <Border StrokeShape="RoundRectangle 10"
+                        Stroke="{StaticResource Gray100}"
+                        BackgroundColor="Transparent"
+                        Padding="14,0"
+                        HeightRequest="50"
+                        Margin="0,6,0,0">
+                    <Entry x:Name="EmailEntry"
+                           AutomationId="EmailEntry"
+                           Placeholder="you@mercurius.com"
+                           Keyboard="Email"
+                           TextColor="{StaticResource MidnightBlue}"
+                           VerticalOptions="Center" />
+                </Border>
+
+                <Label Text="Password" FontSize="12" FontAttributes="Bold" TextColor="{StaticResource Gray500}" Margin="0,18,0,0" />
+                <Border StrokeShape="RoundRectangle 10"
+                        Stroke="{StaticResource Gray100}"
+                        BackgroundColor="Transparent"
+                        Padding="14,0"
+                        HeightRequest="50"
+                        Margin="0,6,0,0">
+                    <Entry x:Name="PasswordEntry"
+                           AutomationId="PasswordEntry"
+                           Placeholder="••••••••"
+                           IsPassword="True"
+                           TextColor="{StaticResource MidnightBlue}"
+                           VerticalOptions="Center" />
+                </Border>
+
+                <Label x:Name="ErrorLabel"
+                       AutomationId="LoginErrorLabel"
+                       TextColor="#D32F2F"
+                       FontSize="13"
+                       Margin="0,16,0,0"
+                       IsVisible="False" />
+
+                <Button x:Name="LoginButton"
+                        AutomationId="LoginButton"
+                        Text="Sign In"
+                        Margin="0,26,0,0"
+                        HeightRequest="50"
+                        FontAttributes="Bold"
+                        Clicked="OnLoginClicked" />
+
+                <ActivityIndicator x:Name="LoadingIndicator"
+                                   IsVisible="False"
+                                   IsRunning="False"
+                                   Margin="0,18,0,0"
+                                   Color="{StaticResource Primary}" />
+
+                <Label Text="Your credentials are sent directly to your Mercurius server — nothing is stored anywhere else."
+                       FontSize="11" TextColor="{StaticResource Gray300}" Margin="0,32,0,0"
+                       HorizontalTextAlignment="Center" LineBreakMode="WordWrap" />
 
             </VerticalStackLayout>
         </ScrollView>

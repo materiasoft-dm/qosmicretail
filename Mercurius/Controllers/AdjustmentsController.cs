@@ -11,11 +11,13 @@ namespace Mercurius.Controllers
     public class AdjustmentsController : BaseController
     {
         private readonly IUnitOfWork _unitOfWork;
+        private readonly Mercurius.Services.AdjustmentService _adjustmentService;
 
-        public AdjustmentsController(IHttpContextAccessor httpContextAccessor, IUnitOfWork unitOfWork)
+        public AdjustmentsController(IHttpContextAccessor httpContextAccessor, IUnitOfWork unitOfWork, Mercurius.Services.AdjustmentService adjustmentService)
             : base(httpContextAccessor)
         {
             _unitOfWork = unitOfWork;
+            _adjustmentService = adjustmentService;
         }
 
         // GET: Adjustments
@@ -97,17 +99,31 @@ namespace Mercurius.Controllers
                     .Where(r => reasonIds.Contains(r.Id))
                     .ToDictionary(r => r.Id, r => r);
 
+            // Batch-resolve the invoice a refund-driven adjustment came from (if any), so the
+            // view can link back to /Invoices/Details/{invoiceId} — see InvoiceItemRefund.
+            var refundLineIds = pageItems.Where(a => a.InvoiceItemRefundId.HasValue)
+                .Select(a => a.InvoiceItemRefundId!.Value).Distinct().ToList();
+            var invoiceIdByRefundLineId = refundLineIds.Count == 0
+                ? new Dictionary<int, int>()
+                : _unitOfWork.Query<InvoiceItemRefund>()
+                    .Where(r => refundLineIds.Contains(r.Id))
+                    .ToDictionary(r => r.Id, r => r.InvoiceId);
+
             var data = pageItems.Select(a =>
             {
                 AdjustmentReason? reason = null;
                 reasonLookup.TryGetValue(a.ReasonId, out reason);
+                int? invoiceId = a.InvoiceItemRefundId.HasValue && invoiceIdByRefundLineId.TryGetValue(a.InvoiceItemRefundId.Value, out var invId)
+                    ? invId
+                    : null;
                 return new
                 {
                     id = a.Id,
                     date = a.AdjustmentDate, // ISO 8601 over JSON; the view formats it
                     reasonName = reason?.Name ?? string.Empty,
                     reasonCss = reason?.CssClass ?? string.Empty,
-                    quantity = a.Quantity
+                    quantity = a.Quantity,
+                    invoiceId
                 };
             }).ToList();
 
@@ -132,6 +148,7 @@ namespace Mercurius.Controllers
                 adjustment.CreatedDate = DateTime.UtcNow;
                 await _unitOfWork.Repository<Adjustment>().AddAsync(adjustment, ct);
                 await _unitOfWork.SaveChangesAsync(ct);
+                await _adjustmentService.ApplyAsync(adjustment, ct);
                 return RedirectToAction(nameof(Index));
             }
             return View(adjustment);

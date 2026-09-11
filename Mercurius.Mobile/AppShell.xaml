@@ -5,23 +5,53 @@
     xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
     xmlns:local="clr-namespace:Mercurius.Mobile"
     Title="Mercurius"
-    FlyoutBehavior="Flyout"
+    FlyoutBehavior="{OnIdiom Phone=Flyout, Tablet=Locked, Desktop=Locked, Default=Flyout}"
+    FlyoutWidth="272"
     FlyoutBackgroundColor="{StaticResource Secondary}">
 
     <Shell.FlyoutHeader>
-        <VerticalStackLayout Padding="24,48,24,24" Spacing="4" BackgroundColor="{StaticResource Secondary}">
-            <Border StrokeShape="RoundRectangle 14"
+        <VerticalStackLayout Padding="24,48,24,20" Spacing="0" BackgroundColor="{StaticResource Secondary}">
+            <Border StrokeShape="RoundRectangle 16"
                     Stroke="Transparent"
                     BackgroundColor="{StaticResource Primary}"
-                    WidthRequest="52" HeightRequest="52"
+                    WidthRequest="56" HeightRequest="56"
                     Padding="0">
-                <Label Text="M" TextColor="{StaticResource White}" FontSize="24" FontAttributes="Bold"
+                <Border.Shadow>
+                    <Shadow Brush="Black" Opacity="0.35" Radius="14" Offset="0,4" />
+                </Border.Shadow>
+                <Label Text="M" TextColor="{StaticResource White}" FontSize="26" FontAttributes="Bold"
                        HorizontalOptions="Center" VerticalOptions="Center" />
             </Border>
-            <Label Text="Mercurius" TextColor="{StaticResource White}" FontSize="20" FontAttributes="Bold" Margin="0,12,0,0" />
-            <Label x:Name="FlyoutUserLabel" TextColor="{StaticResource SecondaryDarkText}" FontSize="12" />
+            <Label Text="Mercurius" TextColor="{StaticResource White}" FontSize="21" FontAttributes="Bold" Margin="0,14,0,0" />
+            <Label Text="Inventory &amp; POS" TextColor="{StaticResource SecondaryDarkText}" FontSize="11" Margin="0,1,0,0" />
+
+            <BoxView HeightRequest="1" Color="#2A2E42" Margin="0,20,0,16" />
+
+            <Grid ColumnDefinitions="Auto,*" ColumnSpacing="10">
+                <Border Grid.Column="0"
+                        StrokeShape="RoundRectangle 10"
+                        Stroke="Transparent"
+                        BackgroundColor="#242840"
+                        WidthRequest="34" HeightRequest="34"
+                        Padding="0">
+                    <Label x:Name="FlyoutUserInitials" Text="?" TextColor="{StaticResource Primary}" FontSize="13" FontAttributes="Bold"
+                           HorizontalOptions="Center" VerticalOptions="Center" />
+                </Border>
+                <VerticalStackLayout Grid.Column="1" Spacing="0" VerticalOptions="Center">
+                    <Label x:Name="FlyoutUserLabel" TextColor="{StaticResource White}" FontSize="12" FontAttributes="Bold" LineBreakMode="TailTruncation" />
+                    <Label Text="Signed in on this device" TextColor="{StaticResource SecondaryDarkText}" FontSize="10" />
+                </VerticalStackLayout>
+            </Grid>
         </VerticalStackLayout>
     </Shell.FlyoutHeader>
+
+    <FlyoutItem Title="Sell" Route="SalesPage">
+        <ShellContent ContentTemplate="{DataTemplate local:SalesPage}" Route="SalesPage" />
+    </FlyoutItem>
+
+    <FlyoutItem Title="Receipts" Route="ReceiptsPage">
+        <ShellContent ContentTemplate="{DataTemplate local:ReceiptsPage}" Route="ReceiptsPage" />
+    </FlyoutItem>
 
     <FlyoutItem Title="Dashboard" Route="MainPage">
         <ShellContent ContentTemplate="{DataTemplate local:MainPage}" Route="MainPage" />
@@ -31,6 +61,17 @@
         <ShellContent ContentTemplate="{DataTemplate local:ProductsPage}" Route="ProductsPage" />
     </FlyoutItem>
 
-    <MenuItem Text="Log Out" Clicked="OnLogoutClicked" />
+    <MenuItem Text="Log Out" AutomationId="LogOutMenuItem" Clicked="OnLogoutClicked" />
+
+    <Shell.FlyoutFooter>
+        <VerticalStackLayout Padding="24,14" Spacing="6" BackgroundColor="{StaticResource Secondary}">
+            <BoxView HeightRequest="1" Color="#2A2E42" Margin="0,0,0,8" />
+            <Grid ColumnDefinitions="Auto,*" ColumnSpacing="8">
+                <Ellipse Grid.Column="0" Fill="#4CAF50" WidthRequest="8" HeightRequest="8" VerticalOptions="Center" />
+                <Label Grid.Column="1" Text="Local data cached on this device" TextColor="{StaticResource SecondaryDarkText}" FontSize="10" />
+            </Grid>
+            <Label Text="Mercurius Mobile · v1.0" TextColor="#4A4E64" FontSize="10" />
+        </VerticalStackLayout>
+    </Shell.FlyoutFooter>
 
 </Shell>
