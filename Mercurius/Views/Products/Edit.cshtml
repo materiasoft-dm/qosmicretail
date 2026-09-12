@@ -207,7 +207,11 @@
                         } else {
                             input = $('<input type="text" name="' + name + '" class="form-control form-control-sm" />');
                         }
-                        if (f.isRequired) input.attr('required', 'required');
+                        // Not marked required="required": Create doesn't collect these fields, so a
+                        // product can reach Edit with them blank. Making them natively required here
+                        // would silently block saving *any* unrelated change (e.g. just a photo) with
+                        // no visible error — the asterisk on the label above still signals they're
+                        // expected, without holding the whole form hostage.
                         if (f.value && f.fieldType !== 'select' && f.fieldType !== 'checkbox') input.val(f.value);
                         if (f.fieldType !== 'checkbox') {
                             col.append(label).append(input);

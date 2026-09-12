@@ -18,6 +18,7 @@ using Mercurius.Repo.Repositories;
 using System.Globalization;
 using System.IO;
 using Microsoft.AspNetCore.Http;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.AspNetCore.Http.Extensions;
 using Microsoft.AspNetCore.Hosting;
 
@@ -456,6 +457,19 @@ namespace Mercurius.Controllers
             {
                 return NotFound();
             }
+
+            // The Edit form has no hidden TenantId field, so the bound `product` above always
+            // has TenantId 0 — and UpdateAsync marks every property Modified, so saving it as-is
+            // would silently zero the real TenantId in the database, orphaning the row from every
+            // tenant's query filter. Re-read the real value (a scalar projection, so it isn't
+            // tracked and can't conflict with attaching `product` below) and restore it.
+            var existingTenantId = await _unitOfWork.Query<Product>()
+                .Where(p => p.Id == id).Select(p => p.TenantId).FirstOrDefaultAsync(ct);
+            if (existingTenantId == 0)
+            {
+                return NotFound();
+            }
+            product.TenantId = existingTenantId;
 
             if (ModelState.IsValid)
             {

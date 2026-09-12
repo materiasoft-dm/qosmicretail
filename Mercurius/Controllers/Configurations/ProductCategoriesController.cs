@@ -2,6 +2,7 @@ using System.Security.Claims;
 using System.Threading;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Authorization;
+using Microsoft.EntityFrameworkCore;
 using Mercurius.Repo.Models;
 using Mercurius.Repo.Repositories;
 
@@ -136,6 +137,12 @@ namespace Mercurius.Controllers.Configurations
             if (ModelState.IsValid)
             {
                 if (!await ProductCategoryExistsAsync(productCategory.Id, ct)) return NotFound();
+
+                // The [Bind] allowlist above doesn't include TenantId, so `productCategory` always
+                // binds with TenantId 0 — UpdateAsync marks every property Modified, so saving as-is
+                // would zero the real TenantId, orphaning the row from every tenant's query filter.
+                productCategory.TenantId = await _unitOfWork.Query<ProductCategory>()
+                    .Where(c => c.Id == productCategory.Id).Select(c => c.TenantId).FirstOrDefaultAsync(ct);
 
                 productCategory.UpdatedBy = GetLoggedInUserId();
                 productCategory.UpdatedDate = DateTime.UtcNow;

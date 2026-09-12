@@ -1,6 +1,7 @@
 using System.Threading;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Authorization;
+using Microsoft.EntityFrameworkCore;
 using Mercurius.Repo.Models;
 using Mercurius.Repo.Repositories;
 
@@ -126,9 +127,16 @@ namespace Mercurius.Controllers
             {
                 // Not using Repository<T>().ExistsAsync(id) here — it fetches (and so tracks) the
                 // entity first, and then UpdateAsync's Attach(refundReason) throws
-                // "already tracked" for the same key. Query<T>().Any() translates to a plain
-                // EXISTS check with nothing tracked, so the later Attach has a clean slate.
-                if (!_unitOfWork.Query<RefundReason>().Any(r => r.Id == id)) return NotFound();
+                // "already tracked" for the same key. Query<T>().Select(...) projects to a scalar,
+                // so nothing gets tracked and the later Attach has a clean slate — this also
+                // recovers the real TenantId: the bound `refundReason` above has none from the
+                // form, and UpdateAsync marks every property Modified, so saving it as-is would
+                // zero the real TenantId and orphan the row from every tenant's query filter.
+                var existingTenantId = await _unitOfWork.Query<RefundReason>()
+                    .Where(r => r.Id == id).Select(r => r.TenantId).FirstOrDefaultAsync(ct);
+                if (existingTenantId == 0) return NotFound();
+                refundReason.TenantId = existingTenantId;
+
                 await _unitOfWork.Repository<RefundReason>().UpdateAsync(refundReason, ct);
                 await _unitOfWork.SaveChangesAsync(ct);
                 return RedirectToAction(nameof(Index));

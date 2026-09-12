@@ -2,6 +2,7 @@ using System.Security.Claims;
 using System.Threading;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Authorization;
+using Microsoft.EntityFrameworkCore;
 using Mercurius.Common.Helpers;
 using Mercurius.Repo.Models;
 using Mercurius.Repo.Repositories;
@@ -191,12 +192,21 @@ namespace Mercurius.Controllers.Configurations
                     return NotFound();
                 }
 
+                // None of location/Address/ContactInformation get a TenantId from the form —
+                // UpdateAsync marks every property Modified, so saving any of them as-is would
+                // zero the real TenantId, orphaning the row from every tenant's query filter.
+                // AddAsync is unaffected (EfRepository.StampTenant fills TenantId in for new rows).
+                location.TenantId = await _unitOfWork.Query<Location>()
+                    .Where(l => l.Id == location.Id).Select(l => l.TenantId).FirstOrDefaultAsync(ct);
+
                 location.Address ??= new Address();
                 location.ContactInformation ??= new ContactInformation();
 
                 if (location.Address.Id > 0)
                 {
                     location.AddressId = location.Address.Id;
+                    location.Address.TenantId = await _unitOfWork.Query<Address>()
+                        .Where(a => a.Id == location.Address.Id).Select(a => a.TenantId).FirstOrDefaultAsync(ct);
                     location.Address.UpdatedDate = DateTimeHelper.GetLocalizedDate();
                     location.Address.UpdatedBy = Guid.TryParse(User.FindFirstValue(ClaimTypes.NameIdentifier), out var uid)
                         ? uid
@@ -212,6 +222,8 @@ namespace Mercurius.Controllers.Configurations
                 if (location.ContactInformation.Id > 0)
                 {
                     location.ContactInformationId = location.ContactInformation.Id;
+                    location.ContactInformation.TenantId = await _unitOfWork.Query<ContactInformation>()
+                        .Where(c => c.Id == location.ContactInformation.Id).Select(c => c.TenantId).FirstOrDefaultAsync(ct);
                     await _unitOfWork.Repository<ContactInformation>().UpdateAsync(location.ContactInformation, ct);
                 }
                 else

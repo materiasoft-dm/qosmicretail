@@ -1,6 +1,7 @@
 using System.Threading;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Authorization;
+using Microsoft.EntityFrameworkCore;
 using Mercurius.Repo.Models;
 using Mercurius.Repo.Repositories;
 using Microsoft.AspNetCore.Mvc.Rendering;
@@ -75,6 +76,14 @@ namespace Mercurius.Controllers.Configurations
             if (id != field.Id) return NotFound();
             if (ModelState.IsValid)
             {
+                // The bound `field` has no TenantId from the form — UpdateAsync marks every
+                // property Modified, so saving as-is would zero the real TenantId, orphaning the
+                // row from every tenant's query filter.
+                var existingTenantId = await _unitOfWork.Query<CategoryField>()
+                    .Where(f => f.Id == field.Id).Select(f => f.TenantId).FirstOrDefaultAsync(ct);
+                if (existingTenantId == 0) return NotFound();
+                field.TenantId = existingTenantId;
+
                 var existing = await _unitOfWork.Repository<CategoryField>()
                     .FindAsync(f => f.CategoryId == field.CategoryId && f.FieldName == field.FieldName, ct);
                 if (existing.Any(f => f.Id != field.Id))

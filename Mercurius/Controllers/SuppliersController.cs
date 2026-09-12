@@ -1,7 +1,9 @@
+using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Authorization;
+using Microsoft.EntityFrameworkCore;
 using Mercurius.Repo.Models;
 using Mercurius.Repo.Repositories;
 
@@ -161,10 +163,16 @@ namespace Mercurius.Controllers
 
             if (ModelState.IsValid)
             {
-                if (!await SupplierExistsAsync(supplier.Id, ct))
+                // The [Bind] allowlist above doesn't include TenantId, so `supplier` always binds
+                // with TenantId 0 — UpdateAsync marks every property Modified, so saving as-is
+                // would zero the real TenantId, orphaning the row from every tenant's query filter.
+                var existingTenantId = await _unitOfWork.Query<Supplier>()
+                    .Where(s => s.Id == supplier.Id).Select(s => s.TenantId).FirstOrDefaultAsync(ct);
+                if (existingTenantId == 0)
                 {
                     return NotFound();
                 }
+                supplier.TenantId = existingTenantId;
 
                 await _unitOfWork.Repository<Supplier>().UpdateAsync(supplier, ct);
                 await _unitOfWork.SaveChangesAsync(ct);
@@ -205,12 +213,6 @@ namespace Mercurius.Controllers
             }
 
             return RedirectToAction(nameof(Index));
-        }
-
-        private async Task<bool> SupplierExistsAsync(int id, CancellationToken ct = default)
-        {
-            ct.ThrowIfCancellationRequested();
-            return await _unitOfWork.Repository<Supplier>().ExistsAsync(id, ct);
         }
     }
 }

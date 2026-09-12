@@ -5,41 +5,52 @@ using Xunit;
 namespace Mercurius.E2ETests.Tests;
 
 /// <summary>
-/// Covers the actual checkout flow end to end. This is the exact path that had a silent
-/// FOREIGN KEY violation on every single sale (InvoiceItem.InvoiceId was read before
-/// SaveChangesAsync ever ran) until it was fixed alongside the FIFO batch pricing feature — see
-/// CLAUDE.md. Nothing in the previous test suite ever drove a real checkout, which is how that
-/// bug went unnoticed. Don't remove or weaken this test without a good reason.
+/// Covers the actual checkout flow end to end on /Sales/NewSale — the tile-grid/ticket UI that
+/// mirrors Mercurius.Mobile's SalesPage (see CLAUDE.md's "Mobile selling flow" notes and the
+/// mirror-mobile-Sell-page plan). This is the exact path that had a silent FOREIGN KEY violation
+/// on every single sale (InvoiceItem.InvoiceId was read before SaveChangesAsync ever ran) until it
+/// was fixed alongside the FIFO batch pricing feature. Nothing else in the suite ever drives a
+/// real checkout, which is how that bug went unnoticed. Don't remove or weaken this test without a
+/// good reason — if the page's markup changes again, update the selectors here rather than
+/// deleting the coverage.
 /// </summary>
 public class SalesTests : MercuriusTestBase
 {
     public SalesTests(MercuriusCollectionFixture fixture) : base(fixture) { }
 
     [Fact]
-    public async Task CompleteSale_SucceedsAndRedirectsToInvoiceList()
+    public async Task CompleteSale_ViaCardPayment_ClearsCartAndShowsConfirmation()
     {
         await LoginAsAdminAsync();
         var productName = await Page.CreateTestProductAsync("E2E Sale Product");
 
         await Page.GotoAsync("/Sales/NewSale");
-        await Page.ClickAsync("#openProductModal");
-        await Page.Locator("#productModal.show").WaitForAsync(new LocatorWaitForOptions { Timeout = 5000 });
+        await Page.Locator("#productSearch").PressSequentiallyAsync(productName, new LocatorPressSequentiallyOptions { Delay = 20 });
 
-        await Page.FillAsync("#modalProductSearch", productName);
-        var addButton = Page.Locator(".modal-add-btn").First;
-        await addButton.WaitForAsync(new LocatorWaitForOptions { Timeout = 10000 });
-        await addButton.ClickAsync();
+        var tile = Page.Locator($".product-tile:has-text('{productName}')").First;
+        await tile.WaitForAsync(new LocatorWaitForOptions { Timeout = 10000 });
+        await tile.ClickAsync();
 
-        await Page.ClickAsync("#productModal .btn-secondary:has-text('Done')");
+        var chargeBtn = Page.Locator("#chargeBtn");
+        await Assertions.Expect(chargeBtn).ToBeEnabledAsync(new LocatorAssertionsToBeEnabledOptions { Timeout = 5000 });
+        await chargeBtn.ClickAsync();
 
-        var submitBtn = Page.Locator("#submitBtn");
-        await Assertions.Expect(submitBtn).ToBeEnabledAsync(new LocatorAssertionsToBeEnabledOptions { Timeout = 5000 });
-        await submitBtn.ClickAsync();
+        await Page.Locator("#paymentModal.show").WaitForAsync(new LocatorWaitForOptions { Timeout = 5000 });
 
-        // SalesController.NewSale redirects to InvoiceList on success. Before the InvoiceId fix,
-        // this POST threw an unhandled DbUpdateException (FOREIGN KEY constraint failed) instead.
-        await Page.WaitForURLAsync(url => url.Contains("/Invoices") || url.Contains("/InvoiceList"), new PageWaitForURLOptions { Timeout = 15000 });
+        // Checkout is an ajax POST that stays on the page (no redirect) — before the InvoiceId
+        // fix, this request threw an unhandled DbUpdateException (FOREIGN KEY constraint failed)
+        // instead of returning the success JSON below. Wait for the response itself rather than a
+        // navigation, since there isn't one.
+        var response = await Page.RunAndWaitForResponseAsync(
+            async () => await Page.ClickAsync("#chargeCardBtn"),
+            resp => resp.Url.Contains("/Sales/NewSale") && resp.Request.Method == "POST");
+        Assert.True(response.Ok, $"Checkout POST failed: {await response.TextAsync()}");
 
-        Assert.DoesNotContain("error occurred while processing your request", await Page.ContentAsync(), StringComparison.OrdinalIgnoreCase);
+        // A successful charge hides the payment modal, clears the cart back to its empty state,
+        // and shows a confirmation toast — assert all three rather than just the response status,
+        // so a JS-side regression (e.g. clearCart() never firing) still fails the test.
+        await Page.Locator("#paymentModal.show").WaitForAsync(new LocatorWaitForOptions { State = WaitForSelectorState.Hidden, Timeout = 5000 });
+        await Assertions.Expect(Page.Locator("#cartEmpty")).ToBeVisibleAsync(new LocatorAssertionsToBeVisibleOptions { Timeout = 5000 });
+        await Assertions.Expect(Page.Locator(".toast-body")).ToContainTextAsync("Sale complete", new LocatorAssertionsToContainTextOptions { Timeout = 5000 });
     }
 }

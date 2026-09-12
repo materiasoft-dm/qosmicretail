@@ -1,6 +1,7 @@
 using System.Threading;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Authorization;
+using Microsoft.EntityFrameworkCore;
 using Mercurius.Repo.Models;
 using Mercurius.Repo.Repositories;
 
@@ -130,7 +131,14 @@ namespace Mercurius.Controllers.Adjustments
             if (id != adjustmentReason.Id) return NotFound();
             if (ModelState.IsValid)
             {
-                if (!await AdjustmentReasonExistsAsync(adjustmentReason.Id, ct)) return NotFound();
+                // The bound `adjustmentReason` has no TenantId from the form — UpdateAsync marks
+                // every property Modified, so saving as-is would zero the real TenantId, orphaning
+                // the row from every tenant's query filter.
+                var existingTenantId = await _unitOfWork.Query<AdjustmentReason>()
+                    .Where(r => r.Id == adjustmentReason.Id).Select(r => r.TenantId).FirstOrDefaultAsync(ct);
+                if (existingTenantId == 0) return NotFound();
+                adjustmentReason.TenantId = existingTenantId;
+
                 await _unitOfWork.Repository<AdjustmentReason>().UpdateAsync(adjustmentReason, ct);
                 await _unitOfWork.SaveChangesAsync(ct);
                 return RedirectToAction(nameof(Index));
