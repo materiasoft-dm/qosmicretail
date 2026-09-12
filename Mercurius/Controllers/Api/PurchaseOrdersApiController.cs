@@ -44,6 +44,41 @@ namespace Mercurius.Controllers.Api
             return Ok(new ListResultDto<PurchaseOrderListItemDto> { Items = items, Total = items.Count });
         }
 
+        // Mirrors PurchaseOrdersController.Edit — a read-only line-item view in this app (no PO
+        // edit form exists; the workflow moves via Approve/MarkSent/MarkReceived instead).
+        [HttpGet("{id}")]
+        [Authorize(Policy = Mercurius.Common.ModuleRegistry.Pages.PURCHASE_ORDERS_LIST)]
+        public async Task<ActionResult<PurchaseOrderDetailDto>> GetDetail(int id, CancellationToken ct = default)
+        {
+            var order = await _unitOfWork.Repository<PurchaseOrder>().GetByIdAsync(id, ct);
+            if (order == null) return NotFound();
+
+            var supplier = await _unitOfWork.Repository<Supplier>().GetByIdAsync(order.SupplierId, ct);
+            var items = (await _unitOfWork.Repository<PurchaseOrderItem>().FindAsync(poi => poi.PurchaseOrderId == order.Id, ct)).ToList();
+            var productIds = items.Select(i => i.ProductId).Distinct().ToList();
+            var productsById = productIds.Count == 0
+                ? new Dictionary<int, Product>()
+                : (await _unitOfWork.Repository<Product>().FindAsync(p => productIds.Contains(p.Id), ct)).ToDictionary(p => p.Id);
+
+            return Ok(new PurchaseOrderDetailDto
+            {
+                Id = order.Id,
+                OrderNumber = order.OrderNumber,
+                SupplierName = supplier?.Name ?? string.Empty,
+                Status = order.Status,
+                OrderDate = order.OrderDate,
+                ExpectedDeliveryDate = order.ExpectedDeliveryDate,
+                Notes = order.Notes,
+                Items = items.Select(i => new PurchaseOrderLineDto
+                {
+                    ProductName = productsById.TryGetValue(i.ProductId, out var p) ? p.Name ?? string.Empty : "(deleted product)",
+                    Quantity = i.Quantity,
+                    EstimatedUnitCost = i.EstimatedUnitCost,
+                    ReceivedQuantity = i.ReceivedQuantity
+                }).ToList()
+            });
+        }
+
         [HttpGet("suppliers")]
         [Authorize(Policy = Mercurius.Common.ModuleRegistry.Pages.PURCHASE_ORDERS_CREATE)]
         public ActionResult<List<SupplierOptionDto>> GetSuppliers()

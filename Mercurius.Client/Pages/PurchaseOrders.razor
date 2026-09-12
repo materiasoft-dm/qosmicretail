@@ -67,7 +67,7 @@ else
             @foreach (var o in _result.Items)
             {
                 <tr>
-                    <td>@o.OrderNumber</td>
+                    <td><a href="purchase-orders/@o.Id">@o.OrderNumber</a></td>
                     <td>@o.SupplierName</td>
                     <td><span class="badge badge-light-info">@o.Status</span></td>
                     <td>@o.OrderDate.ToString("yyyy-MM-dd")</td>

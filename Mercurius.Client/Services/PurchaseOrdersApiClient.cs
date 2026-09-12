@@ -12,6 +12,8 @@ namespace Mercurius.Client.Services
         public async Task<ListResultDto<PurchaseOrderListItemDto>> GetAsync() =>
             await _http.GetFromJsonAsync<ListResultDto<PurchaseOrderListItemDto>>("api/purchase-orders") ?? new();
 
+        public async Task<PurchaseOrderDetailDto?> GetDetailAsync(int id) => await _http.GetFromJsonAsync<PurchaseOrderDetailDto>($"api/purchase-orders/{id}");
+
         public async Task<List<SupplierOptionDto>> GetSuppliersAsync() =>
             await _http.GetFromJsonAsync<List<SupplierOptionDto>>("api/purchase-orders/suppliers") ?? new();
 

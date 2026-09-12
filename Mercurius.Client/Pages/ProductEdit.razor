@@ -1,0 +1,118 @@
+@page "/products/{Id:int}/edit"
+@attribute [Authorize]
+@inject ProductsApiClient Api
+@inject NavigationManager Nav
+
+<PageTitle>Edit Product</PageTitle>
+
+@if (_product is null)
+{
+    <p><em>Loading...</em></p>
+}
+else
+{
+    <h1>Edit Product</h1>
+
+    @if (_error != null) { <div class="alert alert-danger">@_error</div> }
+
+    <div class="row g-3" style="max-width:900px;">
+        <div class="col-md-6">
+            <label class="form-label">SKU</label>
+            <input class="form-control" @bind="_product.ProductCode" />
+        </div>
+        <div class="col-md-6">
+            <label class="form-label">Category</label>
+            <select class="form-select" @bind="_product.ProductCategoryId">
+                <option value="">-- None --</option>
+                @foreach (var c in _categories)
+                {
+                    <option value="@c.Id">@c.Name</option>
+                }
+            </select>
+        </div>
+        <div class="col-12">
+            <label class="form-label">Name</label>
+            <input class="form-control" @bind="_product.Name" />
+        </div>
+        <div class="col-12">
+            <label class="form-label">Description</label>
+            <textarea class="form-control" rows="3" @bind="_product.Description"></textarea>
+        </div>
+        <div class="col-md-3">
+            <label class="form-label">Cost price</label>
+            <input type="number" step="0.01" class="form-control" @bind="_product.CurrentCostPrice" />
+        </div>
+        <div class="col-md-3">
+            <label class="form-label">Markup %</label>
+            <input type="number" step="0.01" class="form-control" @bind="_product.MarkUpPercentage" />
+        </div>
+        <div class="col-md-3">
+            <label class="form-label">Sale price</label>
+            <input type="number" step="0.01" class="form-control" @bind="_product.CurrentSalePrice" />
+        </div>
+        <div class="col-md-3">
+            <label class="form-label">Lead time (days)</label>
+            <input type="number" class="form-control" @bind="_product.LeadTimeDays" />
+        </div>
+        <div class="col-md-3">
+            <label class="form-label">Current stock (read-only)</label>
+            <input class="form-control" value="@_product.CurrentStock" disabled />
+        </div>
+        <div class="col-md-3">
+            <label class="form-label">Low stock warning</label>
+            <input type="number" step="0.01" class="form-control" @bind="_product.LowStockCount" />
+        </div>
+        <div class="col-md-3 d-flex align-items-end">
+            <div class="form-check">
+                <input class="form-check-input" type="checkbox" id="isActive" @bind="_product.IsActive" />
+                <label class="form-check-label" for="isActive">Active</label>
+            </div>
+        </div>
+        <div class="col-12">
+            <label class="form-label">Note</label>
+            <textarea class="form-control" rows="2" @bind="_product.Note"></textarea>
+        </div>
+    </div>
+
+    <div class="mt-4">
+        <button class="btn btn-primary" @onclick="Save">Save</button>
+        <button class="btn btn-light" @onclick="Cancel">Cancel</button>
+    </div>
+}
+
+@code {
+    [Parameter] public int Id { get; set; }
+
+    private ProductDetailDto? _product;
+    private List<Mercurius.Shared.Configuration.ProductCategoryDto> _categories = new();
+    private string? _error;
+
+    protected override async Task OnInitializedAsync()
+    {
+        _categories = await Api.GetCategoryOptionsAsync();
+        _product = await Api.GetDetailAsync(Id);
+    }
+
+    private async Task Save()
+    {
+        if (_product == null) return;
+        var (success, error) = await Api.UpdateAsync(Id, new UpdateProductRequest
+        {
+            ProductCode = _product.ProductCode,
+            Name = _product.Name,
+            Description = _product.Description,
+            ProductCategoryId = _product.ProductCategoryId,
+            CurrentCostPrice = _product.CurrentCostPrice,
+            MarkUpPercentage = _product.MarkUpPercentage,
+            CurrentSalePrice = _product.CurrentSalePrice,
+            LeadTimeDays = _product.LeadTimeDays,
+            LowStockCount = _product.LowStockCount,
+            Note = _product.Note,
+            IsActive = _product.IsActive
+        });
+        if (!success) { _error = error; return; }
+        Nav.NavigateTo("products");
+    }
+
+    private void Cancel() => Nav.NavigateTo("products");
+}

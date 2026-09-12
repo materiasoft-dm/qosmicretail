@@ -27,6 +27,7 @@ else
                 <th>Category</th>
                 <th>Stock</th>
                 <th>Sale price</th>
+                <th></th>
             </tr>
         </thead>
         <tbody>
@@ -38,6 +39,7 @@ else
                     <td>@p.Category</td>
                     <td class="@(p.Stock <= p.LowStockCount ? "text-danger" : "text-success")">@p.Stock</td>
                     <td>@(p.SalePrice.HasValue ? Money.Format(p.SalePrice.Value) : "-")</td>
+                    <td><a href="products/@p.Id/edit">Edit</a></td>
                 </tr>
             }
         </tbody>
