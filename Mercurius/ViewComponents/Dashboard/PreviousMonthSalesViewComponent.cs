@@ -30,8 +30,10 @@ namespace Mercurius.ViewComponents.Dashboard
             }
 
             var (start, end) = PreviousMonthRange(DateTime.Today);
+            // See DailySalesViewComponent — nothing ever sets StatusId to Finalized, so that
+            // filter made this widget permanently show zero. Count every non-deleted invoice.
             var totalSales = await _unitOfWork.Repository<Invoice>().CountAsync(
-                i => i.StatusId == (int)StatusCollection.InvoiceStatus.Finalized
+                i => i.StatusId != (int)StatusCollection.InvoiceStatus.Deleted
                   && i.InvoiceDate >= start
                   && i.InvoiceDate <= end
                   && i.LocationId == locationId);
@@ -39,7 +41,7 @@ namespace Mercurius.ViewComponents.Dashboard
             var model = new SalesAgainstQuotaModel
             {
                 Title = "Previous Month Sales",
-                Subtitle = $"{start:MMM yyyy} finalized invoices vs the monthly target",
+                Subtitle = $"{start:MMM yyyy} invoices vs the monthly target",
                 TotalSales = totalSales,
                 Quota = quota
             };

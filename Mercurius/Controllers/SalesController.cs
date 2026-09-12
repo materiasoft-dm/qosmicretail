@@ -72,9 +72,16 @@ namespace Mercurius.Controllers
             var paymentNote = isCard ? "Paid by card" : "Paid by cash";
             var resolvedNotes = string.IsNullOrWhiteSpace(notes) ? paymentNote : $"{notes} ({paymentNote})";
 
+            // This used to be left unset (defaulting to 0), which never matches a real Location.Id
+            // — every dashboard widget that scopes sales to "the cashier's current branch"
+            // (DailySales, PreviousMonthSales, MonthlyTarget) silently excluded every web-created
+            // invoice as a result. Stamp the cashier's actual selected branch instead.
+            var locationId = await Mercurius.ViewComponents.Dashboard.DashboardLocationContext.GetCurrentLocationIdAsync(_unitOfWork, User);
+
             var invoice = new Invoice
             {
                 CustomerId = customerId > 0 ? customerId : (int?)null,
+                LocationId = locationId,
                 StatusId = (int)StatusCollection.InvoiceStatus.Draft,
                 InvoiceDate = DateTime.UtcNow,
                 InvoiceNumber = $"INV-{DateTime.UtcNow:yyyyMMddHHmmssfff}",

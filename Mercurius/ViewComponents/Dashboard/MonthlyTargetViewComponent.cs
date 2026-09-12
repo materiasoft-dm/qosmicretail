@@ -26,10 +26,13 @@ namespace Mercurius.ViewComponents.Dashboard
             var firstOfLastMonth = firstOfThisMonth.AddMonths(-1);
             var lastTickLastMonth = firstOfThisMonth.AddTicks(-1);
 
-            // Pull every finalized invoice we care about in one pass, then split client-side.
-            // Spans 'last month start' to 'today end' so all three figures come from the same query.
+            // Pull every non-deleted invoice we care about in one pass, then split client-side.
+            // Spans 'last month start' to 'today end' so all three figures come from the same
+            // query. Nothing in this app ever sets StatusId to Finalized (Draft is the resting
+            // state for a completed sale) — filtering on it here made every figure permanently
+            // zero.
             var allInvoices = (await _unitOfWork.Repository<Invoice>().FindAsync(
-                i => i.StatusId == (int)StatusCollection.InvoiceStatus.Finalized
+                i => i.StatusId != (int)StatusCollection.InvoiceStatus.Deleted
                   && i.LocationId == locationId
                   && i.InvoiceDate >= firstOfLastMonth
                   && i.InvoiceDate <= lastTickThisMonth)).ToList();

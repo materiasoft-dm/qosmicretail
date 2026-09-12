@@ -20,14 +20,17 @@ namespace Mercurius.ViewComponents.Dashboard
             var start = DateTime.Today;
             var end = start.AddDays(1).AddTicks(-1);
 
-            var finalizedInvoices = await _unitOfWork.Repository<Invoice>()
-                .FindAsync(invoice => invoice.StatusId == (int)StatusCollection.InvoiceStatus.Finalized
+            // See DailySalesViewComponent — nothing ever sets StatusId to Finalized, so that
+            // filter made this widget permanently show nothing sold. Count every non-deleted
+            // invoice instead.
+            var todaysInvoices = await _unitOfWork.Repository<Invoice>()
+                .FindAsync(invoice => invoice.StatusId != (int)StatusCollection.InvoiceStatus.Deleted
                                       && invoice.InvoiceDate >= start
                                       && invoice.InvoiceDate <= end);
-            var finalizedInvoiceIds = finalizedInvoices.Select(invoice => invoice.Id).ToHashSet();
+            var todaysInvoiceIds = todaysInvoices.Select(invoice => invoice.Id).ToHashSet();
 
             var invoiceItems = await _unitOfWork.Repository<InvoiceItem>()
-                .FindAsync(item => finalizedInvoiceIds.Contains(item.InvoiceId));
+                .FindAsync(item => todaysInvoiceIds.Contains(item.InvoiceId));
 
             var products = await _unitOfWork.Repository<Product>().GetAllAsync();
             var productsById = products.ToDictionary(product => product.Id);

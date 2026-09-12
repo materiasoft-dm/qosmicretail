@@ -223,13 +223,19 @@ namespace Mercurius.Controllers.Api
                         continue;
                     }
 
+                    // The device always sends LocationId 0 (Mercurius.Mobile has no location
+                    // picker yet) — resolve the cashier's actual branch server-side instead, same
+                    // as SalesController.NewSale, so dashboard widgets that scope sales by branch
+                    // don't silently exclude every synced mobile sale.
+                    var resolvedLocationId = await Mercurius.ViewComponents.Dashboard.DashboardLocationContext.GetCurrentLocationIdAsync(_unitOfWork, User);
+
                     var invoice = new Invoice
                     {
                         SyncId = item.SyncId,
                         InvoiceDate = item.InvoiceDate,
                         InvoiceNumber = $"INV-{now:yyyyMMddHHmmssfff}",
                         CustomerId = item.CustomerId,
-                        LocationId = item.LocationId,
+                        LocationId = resolvedLocationId,
                         StatusId = (int)StatusCollection.InvoiceStatus.Draft,
                         Notes = item.Notes,
                         PaidAmount = item.PaidAmount,

@@ -43,8 +43,12 @@ namespace Mercurius.ViewComponents.Dashboard
 
             var dayStart = DateTime.Today;
             var dayEnd = dayStart.AddDays(1).AddTicks(-1);
+            // Nothing in this app ever moves an invoice to Finalized (or Completed) — Draft is
+            // the resting state for a completed sale, on both web and the mobile sync path (see
+            // CLAUDE.md's "Mobile sync API" section). Filtering on Finalized here made this
+            // widget permanently show zero; count every invoice that isn't soft-deleted instead.
             var totalSales = await _unitOfWork.Repository<Invoice>().CountAsync(
-                i => i.StatusId == (int)StatusCollection.InvoiceStatus.Finalized
+                i => i.StatusId != (int)StatusCollection.InvoiceStatus.Deleted
                   && i.InvoiceDate >= dayStart
                   && i.InvoiceDate <= dayEnd
                   && i.LocationId == locationId);
@@ -52,7 +56,7 @@ namespace Mercurius.ViewComponents.Dashboard
             var model = new SalesAgainstQuotaModel
             {
                 Title = "Daily Sales",
-                Subtitle = "Sales finalized today vs the daily target",
+                Subtitle = "Sales made today vs the daily target",
                 TotalSales = totalSales,
                 Quota = quota
             };
