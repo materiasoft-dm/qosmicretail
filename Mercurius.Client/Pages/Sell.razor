@@ -1,0 +1,347 @@
+@page "/sell"
+@attribute [Authorize]
+@inject ProductsApiClient ProductsApi
+@inject ProductCategoriesApiClient CategoriesApi
+@inject SalesApiClient SalesApi
+@inject IJSRuntime JS
+
+<PageTitle>Sell</PageTitle>
+
+<div class="row g-4">
+    <div class="col-md-8">
+        <div class="d-flex flex-wrap gap-2 align-items-center mb-3">
+            <input class="form-control" style="max-width:280px" placeholder="Search by name or SKU..." value="@_search" @oninput="OnSearchInput" />
+            <div class="btn-group btn-group-sm">
+                <button class="btn @(_isGridView ? "btn-dark" : "btn-light")" @onclick="() => SetViewMode(true)">Grid</button>
+                <button class="btn @(!_isGridView ? "btn-dark" : "btn-light")" @onclick="() => SetViewMode(false)">List</button>
+            </div>
+        </div>
+
+        <div class="d-flex flex-nowrap gap-2 mb-3 overflow-auto pb-2">
+            <button class="btn btn-sm @(_categoryId == 0 ? "btn-dark" : "btn-light")" @onclick="() => SelectCategory(0)">All</button>
+            @foreach (var c in _categories)
+            {
+                <button class="btn btn-sm @(_categoryId == c.Id ? "btn-dark" : "btn-light")" @onclick="() => SelectCategory(c.Id)">@c.Name</button>
+            }
+        </div>
+
+        @if (_loading)
+        {
+            <p><em>Loading...</em></p>
+        }
+        else if (_products.Count == 0)
+        {
+            <p>No products found.</p>
+        }
+        else if (_isGridView)
+        {
+            <div class="row row-cols-2 row-cols-md-3 row-cols-lg-4 g-3">
+                @foreach (var p in _products)
+                {
+                    var qtyInCart = CartQtyFor(p.Id);
+                    <div class="col">
+                        <div class="card h-100 position-relative" style="cursor:pointer" @onclick="() => AddToCart(p)">
+                            @if (qtyInCart > 0)
+                            {
+                                <span class="badge bg-primary position-absolute top-0 end-0 m-2">@qtyInCart</span>
+                            }
+                            <div class="card-body p-3">
+                                <div class="fw-bold text-truncate">@p.Name</div>
+                                <div class="text-muted small text-truncate">@p.Category</div>
+                                <div class="fw-bold text-primary mt-1">@Money.Format(p.SalePrice)</div>
+                                <div class="small @(p.Stock <= p.LowStockCount ? "text-danger" : "text-success")">@p.Stock.ToString("0") in stock</div>
+                            </div>
+                        </div>
+                    </div>
+                }
+            </div>
+        }
+        else
+        {
+            @foreach (var p in _products)
+            {
+                var qtyInCart = CartQtyFor(p.Id);
+                <div class="d-flex align-items-center justify-content-between border-bottom py-2" style="cursor:pointer" @onclick="() => AddToCart(p)">
+                    <div class="flex-grow-1">
+                        <div class="fw-bold">@p.Name @(qtyInCart > 0 ? $"({qtyInCart} in cart)" : "")</div>
+                        <div class="text-muted small">@p.Category</div>
+                    </div>
+                    <div class="text-end me-4 small @(p.Stock <= p.LowStockCount ? "text-danger" : "text-success")">@p.Stock.ToString("0") in stock</div>
+                    <div class="fw-bold text-primary" style="min-width:80px;text-align:right;">@Money.Format(p.SalePrice)</div>
+                </div>
+            }
+        }
+    </div>
+
+    <div class="col-md-4">
+        <div class="card" style="position:sticky; top:20px;">
+            <div class="card-body">
+                <div class="mb-3">
+                    <label class="form-label">Customer</label>
+                    <select class="form-select form-select-sm" @bind="_customerId">
+                        <option value="0">-- Optional --</option>
+                        @foreach (var c in _customers)
+                        {
+                            <option value="@c.Id">@c.Name</option>
+                        }
+                    </select>
+                </div>
+                <div class="mb-3">
+                    <label class="form-label">Notes</label>
+                    <input class="form-control form-control-sm" @bind="_notes" />
+                </div>
+                <hr />
+                <div class="d-flex justify-content-between align-items-center mb-2">
+                    <h5 class="mb-0">Ticket</h5>
+                    <span class="badge bg-light text-dark">@CartTotalItems() items</span>
+                </div>
+
+                @if (_cart.Count == 0)
+                {
+                    <div class="text-center text-muted py-5">
+                        <div>Ticket is empty</div>
+                        <div class="small">Tap a product to add it</div>
+                    </div>
+                }
+                else
+                {
+                    <div style="max-height:45vh; overflow-y:auto;">
+                        @foreach (var line in _cart)
+                        {
+                            <div class="d-flex justify-content-between align-items-center py-2 border-bottom">
+                                <div class="flex-grow-1 me-2">
+                                    <div class="fw-bold text-truncate">@line.Name</div>
+                                    <div class="d-flex align-items-center gap-2 mt-1">
+                                        <button class="btn btn-sm btn-icon btn-light" @onclick="() => Decrement(line.ProductId)">-</button>
+                                        <span>@line.Quantity</span>
+                                        <button class="btn btn-sm btn-icon btn-light" @onclick="() => Increment(line.ProductId)">+</button>
+                                        <span class="text-muted small ms-2">@Money.Format(line.Price) ea</span>
+                                    </div>
+                                </div>
+                                <div class="text-end">
+                                    <div class="fw-bold">@Money.Format(line.Price * line.Quantity)</div>
+                                    <span class="text-danger" style="cursor:pointer" @onclick="() => RemoveLine(line.ProductId)">&#10005;</span>
+                                </div>
+                            </div>
+                        }
+                    </div>
+                }
+
+                <hr />
+                <div class="d-flex justify-content-between align-items-center mb-3">
+                    <span class="fw-bold">Total</span>
+                    <span class="fs-4 fw-bold text-primary">@Money.Format(CartTotal())</span>
+                </div>
+                <div class="d-flex gap-2">
+                    <button class="btn btn-light flex-grow-1" @onclick="ClearCart">Clear</button>
+                    <button class="btn btn-primary flex-grow-1" disabled="@(_cart.Count == 0)" @onclick="OpenPayment">
+                        @(_cart.Count == 0 ? "Charge" : $"Charge {Money.Format(CartTotal())}")
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+@if (_showPayment)
+{
+    <div class="position-fixed top-0 start-0 w-100 h-100 d-flex align-items-center justify-content-center" style="background:rgba(0,0,0,0.5); z-index:1050;">
+        <div class="card" style="width:400px;">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <strong>Payment</strong>
+                <button class="btn-close" @onclick="() => _showPayment = false"></button>
+            </div>
+            <div class="card-body">
+                @if (_paymentError != null) { <div class="alert alert-danger">@_paymentError</div> }
+                <div class="text-center mb-4">
+                    <div class="fs-1 fw-bold">@Money.Format(CartTotal())</div>
+                    <div class="text-muted small">Total amount due</div>
+                </div>
+                <div class="mb-3">
+                    <label class="form-label">Cash received</label>
+                    <input type="number" step="0.01" min="0" class="form-control" value="@_cashReceivedText" @oninput="OnCashReceivedChanged" />
+                    <div class="small fw-bold mt-1 @(_changeIsValid ? "text-success" : "text-danger")">@_changeLabel</div>
+                </div>
+                <div class="row g-2 mb-4">
+                    @foreach (var amount in _quickAmounts)
+                    {
+                        <div class="col-6">
+                            <button class="btn btn-light w-100" @onclick="() => SetCashReceived(amount)">@Money.Format(amount)</button>
+                        </div>
+                    }
+                </div>
+                <button class="btn btn-primary w-100 mb-2" disabled="@(!_changeIsValid)" @onclick="ChargeCash">Charge Cash</button>
+                <hr />
+                <button class="btn btn-secondary w-100" @onclick="ChargeCard">Charge Card</button>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    private List<ProductListItemDto> _products = new();
+    private List<ProductCategoryDto> _categories = new();
+    private List<CustomerOptionDto> _customers = new();
+    private bool _loading = true;
+    private string _search = string.Empty;
+    private int _categoryId;
+    private bool _isGridView = true;
+    private CancellationTokenSource? _debounce;
+
+    private class CartLine { public int ProductId; public string Name = ""; public decimal Price; public int Quantity; public decimal Stock; public decimal LowStockCount; }
+    private List<CartLine> _cart = new();
+    private int _customerId;
+    private string _notes = string.Empty;
+
+    private bool _showPayment;
+    private string _cashReceivedText = string.Empty;
+    private string _changeLabel = string.Empty;
+    private bool _changeIsValid;
+    private List<decimal> _quickAmounts = new();
+    private string? _paymentError;
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            var stored = await JS.InvokeAsync<string?>("localStorage.getItem", "sell_view_mode");
+            _isGridView = stored != "list";
+        }
+        catch { }
+
+        _categories = (await CategoriesApi.GetAsync()).Items;
+        _customers = await SalesApi.GetCustomersAsync(null);
+        await LoadProductsAsync();
+    }
+
+    private async Task LoadProductsAsync()
+    {
+        _loading = true;
+        var result = await ProductsApi.GetAsync(_search, 1, 100, _categoryId);
+        _products = result.Items;
+        _loading = false;
+    }
+
+    private async Task OnSearchInput(ChangeEventArgs e)
+    {
+        _search = e.Value?.ToString() ?? string.Empty;
+        _debounce?.Cancel();
+        _debounce = new CancellationTokenSource();
+        var token = _debounce.Token;
+        try { await Task.Delay(300, token); await LoadProductsAsync(); StateHasChanged(); }
+        catch (TaskCanceledException) { }
+    }
+
+    private void SelectCategory(int id) { _categoryId = id; _ = LoadProductsAsync(); }
+
+    private async void SetViewMode(bool grid)
+    {
+        _isGridView = grid;
+        try { await JS.InvokeVoidAsync("localStorage.setItem", "sell_view_mode", grid ? "grid" : "list"); } catch { }
+        StateHasChanged();
+    }
+
+    private int CartQtyFor(int productId) => _cart.FirstOrDefault(l => l.ProductId == productId)?.Quantity ?? 0;
+    private int CartTotalItems() => _cart.Sum(l => l.Quantity);
+    private decimal CartTotal() => _cart.Sum(l => l.Price * l.Quantity);
+
+    private void AddToCart(ProductListItemDto p)
+    {
+        var existing = _cart.FirstOrDefault(l => l.ProductId == p.Id);
+        if (existing != null) existing.Quantity++;
+        else _cart.Add(new CartLine { ProductId = p.Id, Name = p.Name, Price = p.SalePrice ?? 0, Quantity = 1, Stock = p.Stock, LowStockCount = p.LowStockCount });
+    }
+
+    private void Increment(int productId) { var l = _cart.First(x => x.ProductId == productId); l.Quantity++; }
+    private void Decrement(int productId)
+    {
+        var idx = _cart.FindIndex(x => x.ProductId == productId);
+        if (idx < 0) return;
+        if (_cart[idx].Quantity > 1) _cart[idx].Quantity--; else _cart.RemoveAt(idx);
+    }
+    private void RemoveLine(int productId) => _cart.RemoveAll(l => l.ProductId == productId);
+    private void ClearCart() => _cart.Clear();
+
+    // Mirrors PaymentPage.xaml.cs's BuildQuickAmounts exactly: total + round tiers >= total,
+    // deduped, ascending, capped at 4.
+    private static readonly decimal[] Tiers = { 20, 50, 100, 500, 1000 };
+    private void BuildQuickAmounts()
+    {
+        var total = CartTotal();
+        var suggestions = new List<decimal> { total };
+        foreach (var t in Tiers)
+        {
+            if (t >= total && !suggestions.Contains(t)) suggestions.Add(t);
+        }
+        _quickAmounts = suggestions.Distinct().OrderBy(v => v).Take(4).ToList();
+    }
+
+    private void OpenPayment()
+    {
+        _paymentError = null;
+        _cashReceivedText = string.Empty;
+        _changeLabel = string.Empty;
+        _changeIsValid = false;
+        BuildQuickAmounts();
+        _showPayment = true;
+    }
+
+    private void OnCashReceivedChanged(ChangeEventArgs e)
+    {
+        _cashReceivedText = e.Value?.ToString() ?? string.Empty;
+        UpdateChangeLabel();
+    }
+
+    private void SetCashReceived(decimal amount)
+    {
+        _cashReceivedText = amount.ToString("0.00");
+        UpdateChangeLabel();
+    }
+
+    private void UpdateChangeLabel()
+    {
+        var total = CartTotal();
+        if (decimal.TryParse(_cashReceivedText, out var received) && received >= total)
+        {
+            var change = received - total;
+            _changeLabel = change > 0 ? $"Change: {Money.Format(change)}" : "Exact amount";
+            _changeIsValid = true;
+        }
+        else
+        {
+            _changeLabel = string.IsNullOrEmpty(_cashReceivedText) ? "" : "Amount is less than the total due";
+            _changeIsValid = false;
+        }
+    }
+
+    private async Task ChargeCash()
+    {
+        decimal.TryParse(_cashReceivedText, out var received);
+        if (received <= 0) received = CartTotal();
+        await Submit("Cash", received);
+    }
+
+    private async Task ChargeCard() => await Submit("Card", CartTotal());
+
+    private async Task Submit(string method, decimal amountReceived)
+    {
+        _paymentError = null;
+        var (success, result, error) = await SalesApi.CheckoutAsync(new CheckoutRequest
+        {
+            CustomerId = _customerId,
+            Notes = _notes,
+            PaymentMethod = method,
+            AmountReceived = amountReceived,
+            Items = _cart.Select(l => new CartLineRequest { ProductId = l.ProductId, Quantity = l.Quantity }).ToList()
+        });
+        if (!success || result == null)
+        {
+            _paymentError = error;
+            return;
+        }
+        _showPayment = false;
+        _cart.Clear();
+        _notes = string.Empty;
+        await LoadProductsAsync();
+    }
+}

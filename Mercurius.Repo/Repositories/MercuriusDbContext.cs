@@ -1,5 +1,6 @@
 using System.ComponentModel.DataAnnotations;
 using System.Linq;
+using System.Reflection;
 using Microsoft.AspNetCore.Identity.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore;
 using Mercurius.Repo.IdentityModel;
@@ -14,15 +15,17 @@ namespace Mercurius.Repo.Repositories
     /// </summary>
     public class MercuriusDbContext : IdentityDbContext<MercuriusUser>
     {
-        public MercuriusDbContext(DbContextOptions<MercuriusDbContext> options) : base(options)
+        private readonly ICurrentTenantContext _currentTenantContext;
+
+        public MercuriusDbContext(DbContextOptions<MercuriusDbContext> options, ICurrentTenantContext currentTenantContext) : base(options)
         {
+            _currentTenantContext = currentTenantContext;
         }
 
+        public DbSet<Tenant> Tenants => Set<Tenant>();
         public DbSet<Address> Addresses => Set<Address>();
         public DbSet<Adjustment> Adjustments => Set<Adjustment>();
         public DbSet<AdjustmentReason> AdjustmentReasons => Set<AdjustmentReason>();
-        public DbSet<Branch> Branches => Set<Branch>();
-        public DbSet<BranchContactInformation> BranchContactInformations => Set<BranchContactInformation>();
         public DbSet<BulkPackage> BulkPackages => Set<BulkPackage>();
         public DbSet<CategoryField> CategoryFields => Set<CategoryField>();
         public DbSet<ContactInformation> ContactInformations => Set<ContactInformation>();
@@ -46,17 +49,12 @@ namespace Mercurius.Repo.Repositories
         public DbSet<PurchaseOrder> PurchaseOrders => Set<PurchaseOrder>();
         public DbSet<PurchaseOrderItem> PurchaseOrderItems => Set<PurchaseOrderItem>();
         public DbSet<RefundReason> RefundReasons => Set<RefundReason>();
-        public DbSet<RoleModuleAccess> RoleModuleAccesses => Set<RoleModuleAccess>();
         public DbSet<ShipmentArrival> ShipmentArrivals => Set<ShipmentArrival>();
         public DbSet<ShipmentArrivalItem> ShipmentArrivalItems => Set<ShipmentArrivalItem>();
         public DbSet<ShipmentArrivalStatus> ShipmentArrivalStatuses => Set<ShipmentArrivalStatus>();
         public DbSet<Supplier> Suppliers => Set<Supplier>();
-        public DbSet<Transaction> Transactions => Set<Transaction>();
-        public DbSet<TransactionIdGenerator> TransactionIdGenerators => Set<TransactionIdGenerator>();
-        public DbSet<TransactionItem> TransactionItems => Set<TransactionItem>();
         public DbSet<UserCurrentLocation> UserCurrentLocations => Set<UserCurrentLocation>();
         public DbSet<UserDashboardLayout> UserDashboardLayouts => Set<UserDashboardLayout>();
-        public DbSet<UserInformation> UserInformations => Set<UserInformation>();
         public DbSet<ZeroStockSaleAuditLog> ZeroStockSaleAuditLogs => Set<ZeroStockSaleAuditLog>();
 
         protected override void OnModelCreating(ModelBuilder builder)
@@ -171,6 +169,28 @@ namespace Mercurius.Repo.Repositories
                     property.SetScale(4);
                 }
             }
+
+            // Tenant isolation, applied once here rather than per-controller — see
+            // MULTITENANCY_ARCHITECTURE.md §4.1. Every entity implementing ITenantScoped gets a
+            // global query filter comparing its TenantId column against the current request's
+            // tenant, resolved through _currentTenantContext (a captured instance field, so EF
+            // re-evaluates it per query rather than baking a value into the cached model — the
+            // standard pattern for a per-request value inside a query filter). This is the same
+            // "loop over GetEntityTypes(), act generically via reflection" shape already used
+            // above for the nullable-string, cascade-restrict, and decimal-precision conventions.
+            foreach (var entityType in builder.Model.GetEntityTypes())
+            {
+                if (!typeof(ITenantScoped).IsAssignableFrom(entityType.ClrType)) continue;
+                SetTenantQueryFilterMethod.MakeGenericMethod(entityType.ClrType).Invoke(this, new object[] { builder });
+            }
+        }
+
+        private static readonly MethodInfo SetTenantQueryFilterMethod =
+            typeof(MercuriusDbContext).GetMethod(nameof(SetTenantQueryFilter), BindingFlags.NonPublic | BindingFlags.Instance)!;
+
+        private void SetTenantQueryFilter<TEntity>(ModelBuilder builder) where TEntity : class, ITenantScoped
+        {
+            builder.Entity<TEntity>().HasQueryFilter(e => e.TenantId == _currentTenantContext.TenantId);
         }
     }
 }

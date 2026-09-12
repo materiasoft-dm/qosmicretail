@@ -1,0 +1,145 @@
+@page "/"
+@attribute [Authorize]
+@inject DashboardApiClient Api
+
+<PageTitle>Dashboard</PageTitle>
+
+<h1>Dashboard</h1>
+
+@if (_d is null)
+{
+    <p><em>Loading...</em></p>
+}
+else
+{
+    <div class="row g-3 mb-4">
+        <div class="col-md-3">
+            <div class="card"><div class="card-body">
+                <div class="text-muted">Today's Sales</div>
+                <div class="fs-3 fw-bold">@Money.Format(_d.TodaySales)</div>
+            </div></div>
+        </div>
+        <div class="col-md-3">
+            <div class="card"><div class="card-body">
+                <div class="text-muted">Today's Profit</div>
+                <div class="fs-3 fw-bold">@Money.Format(_d.TodayProfit)</div>
+            </div></div>
+        </div>
+        <div class="col-md-3">
+            <div class="card"><div class="card-body">
+                <div class="text-muted">This Month</div>
+                <div class="fs-3 fw-bold">@Money.Format(_d.ThisMonthSales)</div>
+            </div></div>
+        </div>
+        <div class="col-md-3">
+            <div class="card"><div class="card-body">
+                <div class="text-muted">Last Month</div>
+                <div class="fs-3 fw-bold">@Money.Format(_d.PreviousMonthSales)</div>
+            </div></div>
+        </div>
+    </div>
+
+    <div class="row g-3 mb-4">
+        <div class="col-md-3">
+            <div class="card"><div class="card-body">
+                <div class="fs-2hx fw-bold">@_d.DailySalesCount</div>
+                <div class="text-muted">Daily Sales</div>
+                <div class="small">@DailySalesPct% of @_d.DailySalesTarget</div>
+            </div></div>
+        </div>
+        <div class="col-md-3">
+            <div class="card"><div class="card-body">
+                <div class="fs-2hx fw-bold">@_d.PreviousMonthSalesCount</div>
+                <div class="text-muted">Previous Month Sales</div>
+                <div class="small">@PrevMonthPct% of @_d.PreviousMonthSalesTarget</div>
+            </div></div>
+        </div>
+        <div class="col-md-3">
+            <div class="card"><div class="card-body">
+                <div class="fs-2hx fw-bold">@_d.NewCustomersThisMonth</div>
+                <div class="text-muted">New Customers This Month</div>
+            </div></div>
+        </div>
+        <div class="col-md-3">
+            <div class="card"><div class="card-body">
+                <div class="fs-2hx fw-bold">@_d.ItemsSoldTodayTotal</div>
+                <div class="text-muted">Total Items Sold Today</div>
+            </div></div>
+        </div>
+    </div>
+
+    <div class="row g-3">
+        <div class="col-md-6">
+            <div class="card">
+                <div class="card-header"><strong>Stock Report</strong> — Total @_d.TotalStockItems items</div>
+                <div class="card-body p-0">
+                    <table class="table mb-0">
+                        <thead><tr><th>SKU</th><th>Item</th><th class="text-end">Qty</th></tr></thead>
+                        <tbody>
+                            @foreach (var s in _d.LowestStockItems)
+                            {
+                                <tr class="@(s.CurrentStock <= s.LowStockCount ? "table-danger" : "")">
+                                    <td>@s.ProductCode</td><td>@s.Name</td><td class="text-end">@s.CurrentStock</td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-6">
+            <div class="card">
+                <div class="card-header"><strong>Expiry Alerts</strong> — @_d.ExpiredCount expired, @_d.ExpiringWithin30Days within 30 days, @_d.ExpiringWithin90Days within 90 days</div>
+                <div class="card-body p-0">
+                    @if (_d.ExpiringItems.Count == 0)
+                    {
+                        <p class="p-3 mb-0 text-muted">No items expiring within 90 days.</p>
+                    }
+                    else
+                    {
+                        <table class="table mb-0">
+                            <thead><tr><th>Product</th><th>Batch</th><th>Expiry</th><th class="text-end">Qty</th></tr></thead>
+                            <tbody>
+                                @foreach (var e in _d.ExpiringItems)
+                                {
+                                    <tr><td>@e.ProductName</td><td>@e.BatchNumber</td><td>@e.ExpiryDate.ToString("yyyy-MM-dd")</td><td class="text-end">@e.RemainingQuantity</td></tr>
+                                }
+                            </tbody>
+                        </table>
+                    }
+                </div>
+            </div>
+        </div>
+        <div class="col-md-6">
+            <div class="card">
+                <div class="card-header"><strong>Items Sold Today</strong></div>
+                <div class="card-body p-0">
+                    @if (_d.ItemsSoldToday.Count == 0)
+                    {
+                        <p class="p-3 mb-0 text-muted">No items sold yet today.</p>
+                    }
+                    else
+                    {
+                        <table class="table mb-0">
+                            <thead><tr><th>SKU</th><th>Item</th><th class="text-end">Qty</th></tr></thead>
+                            <tbody>
+                                @foreach (var i in _d.ItemsSoldToday)
+                                {
+                                    <tr><td>@i.ProductCode</td><td>@i.ProductName</td><td class="text-end">@i.Quantity</td></tr>
+                                }
+                            </tbody>
+                        </table>
+                    }
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    private DashboardDto? _d;
+    private string DailySalesPct => _d == null || _d.DailySalesTarget == 0 ? "0" : Math.Round(100m * _d.DailySalesCount / _d.DailySalesTarget, 2).ToString();
+    private string PrevMonthPct => _d == null || _d.PreviousMonthSalesTarget == 0 ? "0" : Math.Round(100m * _d.PreviousMonthSalesCount / _d.PreviousMonthSalesTarget, 2).ToString();
+
+    protected override async Task OnInitializedAsync() => _d = await Api.GetAsync();
+}

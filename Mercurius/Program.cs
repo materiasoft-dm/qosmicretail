@@ -46,11 +46,22 @@ var sqliteConnectionString = string.IsNullOrWhiteSpace(configuredSqliteConnectio
     : configuredSqliteConnectionString;
 var sqlServerConnectionString = builder.Configuration.GetConnectionString("SqlServer");
 
+// Resolves the tenant boundary MercuriusDbContext's global query filter (and EfRepository's
+// auto-stamping) rely on — see MULTITENANCY_ARCHITECTURE.md. Registered before AddDbContext so
+// MercuriusDbContext's constructor dependency resolves regardless of registration order (DI
+// doesn't actually require this ordering, but it reads better next to what it's for).
+builder.Services.AddScoped<Mercurius.Repo.Repositories.ICurrentTenantContext, Mercurius.Services.HttpContextCurrentTenantContext>();
+
 builder.Services.AddDbContext<MercuriusDbContext>(options =>
 {
     if (useSqlServer)
     {
-        options.UseSqlServer(sqlServerConnectionString);
+        // A separate migrations assembly/history from SQLite's — the two providers' migrations
+        // aren't interchangeable (column type strings like "INTEGER"/"TEXT" are baked in at
+        // generation time for whichever provider was active then). See
+        // Mercurius.Repo.Migrations.SqlServer and MULTITENANCY_ARCHITECTURE.md §6.1.
+        options.UseSqlServer(sqlServerConnectionString,
+            sql => sql.MigrationsAssembly("Mercurius.Repo.Migrations.SqlServer"));
     }
     else
     {
@@ -60,7 +71,7 @@ builder.Services.AddDbContext<MercuriusDbContext>(options =>
 
 // Register Unit of Work pattern
 builder.Services.AddScoped<IUnitOfWork>(sp =>
-    new EfUnitOfWork(sp.GetRequiredService<MercuriusDbContext>()));
+    new EfUnitOfWork(sp.GetRequiredService<MercuriusDbContext>(), sp.GetRequiredService<Mercurius.Repo.Repositories.ICurrentTenantContext>()));
 
 // ============================================
 // ASP.NET CORE IDENTITY (EF Core-backed)
@@ -180,6 +191,11 @@ builder.Services.AddAuthorization(options =>
     {
         options.AddPolicy(module, policy => policy.RequireClaim(MercuriusClaimTypes.AccessPages, module));
     }
+
+    // Outside every tenant's boundary — see MULTITENANCY_ARCHITECTURE.md §3.6/§4.3. Deliberately
+    // not part of ModuleRegistry: no tenant's own Administrator role can ever be granted this,
+    // since it's what creates/manages tenants in the first place.
+    options.AddPolicy("PlatformAdmin", policy => policy.RequireClaim(MercuriusClaimTypes.IsPlatformAdmin, "true"));
 });
 
 builder.Services.AddHttpContextAccessor();
@@ -302,6 +318,15 @@ if (!app.Environment.IsDevelopment())
 app.UseExceptionHandling();
 app.UseRateLimiter();  // Rate limiting
 // app.UseHttpsRedirection(); // Disabled for localhost dev
+
+// ============================================
+// BLAZOR WEBASSEMBLY (Mercurius.Client), hosted under /app
+// ============================================
+// ASP.NET Core hosted model: this project (Mercurius) serves both the JSON API the client calls
+// and the client's own compiled static assets — no separate deploy/CORS story. Mounted under
+// /app rather than replacing "/" because the frontend conversion is incremental, page by page;
+// the MVC app keeps serving everything else in the meantime. See MULTITENANCY_ARCHITECTURE.md.
+app.UseBlazorFrameworkFiles("/app");
 app.UseStaticFiles();
 app.UseSession();          // Session MUST be before Authentication
 app.UseRouting();
@@ -334,26 +359,25 @@ app.MapControllerRoute(
 
 app.MapRazorPages();
 
+// Client-side routes within the Blazor app (e.g. /app/products) aren't real server endpoints —
+// fall back to the client's index.html so its own Router can handle them.
+app.MapFallbackToFile("/app/{*path:nonfile}", "app/index.html");
+
 // ============================================
 // DATABASE SCHEMA
 // ============================================
-// EF Core Migrations (Migrations/ folder) apply the schema for the actively-used Sqlite
-// provider — Migrate() applies only the delta, so existing data survives future schema changes.
-// The SqlServer path stays on EnsureCreated(): that provider is currently unused (no live SQL
-// Server database exists), and building out a second migrations assembly for a dormant provider
-// isn't worth the complexity until it's actually back in use.
+// EF Core Migrations apply the schema for whichever provider is active — Migrate() applies only
+// the delta, so existing data survives future schema changes. SQLite's migrations live in
+// Mercurius.Repo/Migrations; SQL Server's live in the separate Mercurius.Repo.Migrations.SqlServer
+// assembly (configured above via MigrationsAssembly), since the two providers' migration files
+// aren't interchangeable. SQL Server previously used EnsureCreated() while it was dormant — now
+// that it's the live provider, it needs a real, repeatable migration history like SQLite always
+// had.
 
 using (var schemaScope = app.Services.CreateScope())
 {
     var db = schemaScope.ServiceProvider.GetRequiredService<MercuriusDbContext>();
-    if (useSqlServer)
-    {
-        db.Database.EnsureCreated();
-    }
-    else
-    {
-        db.Database.Migrate();
-    }
+    db.Database.Migrate();
 }
 
 // ============================================
@@ -367,6 +391,51 @@ app.Run();
 // ============================================
 // SEED DATA METHOD
 // ============================================
+
+// A couple of seed blocks (InvoiceStatuses, ShipmentArrivalStatuses) insert rows with an
+// explicit Id matching a fixed enum/constant, rather than letting the identity column assign
+// one — necessary since other code casts directly to/from those specific int values. SQLite
+// allows this unconditionally; SQL Server rejects it ("Cannot insert explicit value for identity
+// column") unless IDENTITY_INSERT is toggled on for the duration of the insert. Found by actually
+// testing against SQL Server before the live cutover, not by inspection.
+static async Task SaveWithExplicitIdsAsync(MercuriusDbContext dbContext, IUnitOfWork unitOfWork, string tableName, bool useSqlServer)
+{
+    if (!useSqlServer)
+    {
+        await unitOfWork.SaveChangesAsync();
+        return;
+    }
+
+    // SET IDENTITY_INSERT is scoped to the connection/session it ran on, not the database — EF's
+    // connection pooling would otherwise hand the actual SaveChanges insert a different pooled
+    // connection than the one this just configured, and the setting silently wouldn't apply
+    // (confirmed: this exact failure mode, even with the toggle present, until the connection was
+    // pinned open explicitly). OpenConnectionAsync/CloseConnectionAsync keep one connection alive
+    // across both calls.
+    await dbContext.Database.OpenConnectionAsync();
+    try
+    {
+        // Table names here are always one of this file's own hardcoded literals, never external
+        // input — plain concatenation (not an interpolated-string literal) so the analyzer
+        // doesn't flag it as if it were unparameterized user data; a SQL identifier can't be a
+        // query parameter anyway, so ExecuteSqlAsync's parameterization wouldn't apply here.
+        await dbContext.Database.ExecuteSqlRawAsync("SET IDENTITY_INSERT [" + tableName + "] ON");
+        await unitOfWork.SaveChangesAsync();
+        await dbContext.Database.ExecuteSqlRawAsync("SET IDENTITY_INSERT [" + tableName + "] OFF");
+    }
+    finally
+    {
+        await dbContext.Database.CloseConnectionAsync();
+    }
+}
+
+static Task<int> BackfillEntityTenantGenericAsync<TEntity>(MercuriusDbContext dbContext, int tenantId)
+    where TEntity : class, ITenantScoped
+{
+    return dbContext.Set<TEntity>().IgnoreQueryFilters()
+        .Where(e => e.TenantId == 0)
+        .ExecuteUpdateAsync(s => s.SetProperty(e => e.TenantId, tenantId));
+}
 
 async Task SeedDataAsync(WebApplication app)
 {
@@ -404,25 +473,103 @@ async Task SeedDataAsync(WebApplication app)
         }
 
         var unitOfWork = services.GetRequiredService<IUnitOfWork>();
+
+        // The first tenant — either a fresh install, or the existing single-pharmacy deployment
+        // being anchored under multitenancy for the first time. See MULTITENANCY_ARCHITECTURE.md
+        // §6.2 for the full rollout plan (this covers only the "fresh database" bootstrap case;
+        // backfilling a database that already has pre-tenancy data is a separate, explicit
+        // one-time migration step, not something startup seeding should do silently).
+        var tenantRepo = unitOfWork.Repository<Tenant>();
+        var existingTenants = await tenantRepo.GetAllAsync();
+        var defaultTenant = existingTenants.FirstOrDefault();
+        if (defaultTenant == null)
+        {
+            defaultTenant = new Tenant { Name = "Default Tenant", IsActive = true, CreatedDate = DateTime.UtcNow };
+            await tenantRepo.AddAsync(defaultTenant);
+            await unitOfWork.SaveChangesAsync();
+            logger.LogInformation("Created default tenant");
+        }
+
+        // Backfill: the AddTenantFoundation migration added every ITenantScoped column as
+        // NOT NULL with a default of 0, which no real Tenant row can ever have — so every row
+        // that existed before this migration ran needs its TenantId pointed at the default
+        // tenant, or the query filter above makes it invisible to everyone. Bypasses
+        // IUnitOfWork.Query<T>() (which is itself filtered — during startup there's no
+        // HttpContext, so ICurrentTenantContext resolves to -1 and would see nothing here) via
+        // the raw DbContext, deliberately, for this one bootstrap operation only. Safe to leave
+        // running on every startup: idempotent, and a real second tenant's own rows are never at
+        // TenantId 0 in the first place (EfRepository always stamps a real tenant id on create).
+        var dbContext = services.GetRequiredService<MercuriusDbContext>();
+
+        // Every ITenantScoped entity, backfilled explicitly (compile-time generics — reflection
+        // over a top-level-statement local function turned out not to resolve reliably at
+        // runtime, so this trades a bit of repetition for something guaranteed to work). Add a
+        // line here whenever a new entity adopts ITenantScoped.
+        var totalBackfilled = 0
+            + await BackfillEntityTenantGenericAsync<Product>(dbContext, defaultTenant.Id)
+            + await BackfillEntityTenantGenericAsync<Location>(dbContext, defaultTenant.Id)
+            + await BackfillEntityTenantGenericAsync<ProductCategory>(dbContext, defaultTenant.Id)
+            + await BackfillEntityTenantGenericAsync<CategoryField>(dbContext, defaultTenant.Id)
+            + await BackfillEntityTenantGenericAsync<Supplier>(dbContext, defaultTenant.Id)
+            + await BackfillEntityTenantGenericAsync<AdjustmentReason>(dbContext, defaultTenant.Id)
+            + await BackfillEntityTenantGenericAsync<RefundReason>(dbContext, defaultTenant.Id)
+            + await BackfillEntityTenantGenericAsync<MedicineBatch>(dbContext, defaultTenant.Id)
+            + await BackfillEntityTenantGenericAsync<BulkPackage>(dbContext, defaultTenant.Id)
+            + await BackfillEntityTenantGenericAsync<Invoice>(dbContext, defaultTenant.Id)
+            + await BackfillEntityTenantGenericAsync<InvoiceItem>(dbContext, defaultTenant.Id)
+            + await BackfillEntityTenantGenericAsync<InvoiceItemRefund>(dbContext, defaultTenant.Id)
+            + await BackfillEntityTenantGenericAsync<InvoiceRefund>(dbContext, defaultTenant.Id)
+            + await BackfillEntityTenantGenericAsync<Adjustment>(dbContext, defaultTenant.Id)
+            + await BackfillEntityTenantGenericAsync<ItemMovement>(dbContext, defaultTenant.Id)
+            + await BackfillEntityTenantGenericAsync<PurchaseOrder>(dbContext, defaultTenant.Id)
+            + await BackfillEntityTenantGenericAsync<PurchaseOrderItem>(dbContext, defaultTenant.Id)
+            + await BackfillEntityTenantGenericAsync<ShipmentArrival>(dbContext, defaultTenant.Id)
+            + await BackfillEntityTenantGenericAsync<ShipmentArrivalItem>(dbContext, defaultTenant.Id)
+            + await BackfillEntityTenantGenericAsync<ZeroStockSaleAuditLog>(dbContext, defaultTenant.Id)
+            + await BackfillEntityTenantGenericAsync<Customer>(dbContext, defaultTenant.Id)
+            + await BackfillEntityTenantGenericAsync<CustomerContactInformation>(dbContext, defaultTenant.Id)
+            + await BackfillEntityTenantGenericAsync<LocationSetting>(dbContext, defaultTenant.Id)
+            + await BackfillEntityTenantGenericAsync<Address>(dbContext, defaultTenant.Id)
+            + await BackfillEntityTenantGenericAsync<ContactInformation>(dbContext, defaultTenant.Id)
+            + await BackfillEntityTenantGenericAsync<Mercurius.Repo.Models.File>(dbContext, defaultTenant.Id);
+
+        // MercuriusUser isn't ITenantScoped (see its own comment — the filter would break
+        // sign-in), but it still carries a plain TenantId column that claims-issuing reads, so it
+        // needs the same one-time correction.
+        var backfilledUsers = await dbContext.Users.IgnoreQueryFilters()
+            .Where(u => u.TenantId == 0)
+            .ExecuteUpdateAsync(s => s.SetProperty(u => u.TenantId, defaultTenant.Id));
+
+        if (totalBackfilled + backfilledUsers > 0)
+        {
+            logger.LogInformation(
+                "Backfilled TenantId to default tenant: {Entities} tenant-scoped rows, {Users} users",
+                totalBackfilled, backfilledUsers);
+        }
+
         var addressRepo = unitOfWork.Repository<Address>();
         var contactInformationRepo = unitOfWork.Repository<ContactInformation>();
         var locationRepo = unitOfWork.Repository<Location>();
         var userCurrentLocationRepo = unitOfWork.Repository<UserCurrentLocation>();
-        var locations = await locationRepo.GetAllAsync();
-        if (!locations.Any())
+        // Bypasses the tenant filter deliberately — same reasoning as the backfill above. Startup
+        // seeding runs with no HttpContext (ICurrentTenantContext resolves to -1), so a filtered
+        // read here would always see zero locations and re-seed a duplicate "Branch1" on every
+        // restart once tenancy is active, regardless of what already exists.
+        var locationExists = await dbContext.Locations.IgnoreQueryFilters().AnyAsync();
+        if (!locationExists)
         {
-            var defaultAddress = new Address { IsActive = true, Province = "Pampanga", Country = "Philippines" };
+            var defaultAddress = new Address { TenantId = defaultTenant.Id, IsActive = true, Province = "Pampanga", Country = "Philippines" };
             await addressRepo.AddAsync(defaultAddress);
             await unitOfWork.SaveChangesAsync();
             logger.LogInformation($"Created default address: {defaultAddress.Province}, {defaultAddress.Country}");
 
             // Location.ContactInformationId is a required FK — create a placeholder record so
             // seeding succeeds; branches can fill in real contact details via Locations/Edit.
-            var defaultContactInformation = new ContactInformation();
+            var defaultContactInformation = new ContactInformation { TenantId = defaultTenant.Id };
             await contactInformationRepo.AddAsync(defaultContactInformation);
             await unitOfWork.SaveChangesAsync();
 
-            var defaultLocation = new Location { Name = "Branch1", AddressId = defaultAddress.Id, ContactInformationId = defaultContactInformation.Id };
+            var defaultLocation = new Location { Name = "Branch1", TenantId = defaultTenant.Id, AddressId = defaultAddress.Id, ContactInformationId = defaultContactInformation.Id };
             await locationRepo.AddAsync(defaultLocation);
             await unitOfWork.SaveChangesAsync();
             logger.LogInformation($"Created default location: {defaultLocation.Name}");
@@ -441,7 +588,7 @@ async Task SeedDataAsync(WebApplication app)
             var adminUser = await userManager.FindByEmailAsync(adminEmail);
             if (adminUser == null)
             {
-                adminUser = new MercuriusUser { UserName = adminEmail, Email = adminEmail, EmailConfirmed = true, FirstName = "Admin", LastName = "User" };
+                adminUser = new MercuriusUser { UserName = adminEmail, Email = adminEmail, EmailConfirmed = true, FirstName = "Admin", LastName = "User", TenantId = defaultTenant.Id, IsPlatformAdmin = true };
                 var result = await userManager.CreateAsync(adminUser, adminPassword);
                 if (result.Succeeded)
                 {
@@ -449,10 +596,20 @@ async Task SeedDataAsync(WebApplication app)
                     logger.LogInformation($"Created admin user: {adminEmail}");
                 }
             }
+            else if (!adminUser.IsPlatformAdmin)
+            {
+                // The very first seeded admin doubles as the platform operator (whoever runs this
+                // deployment) until a real "invite a platform admin" flow exists — see
+                // MULTITENANCY_ARCHITECTURE.md §3.6. Only ever applies to this one seed account,
+                // never to a tenant's own admin created later through normal signup/provisioning.
+                adminUser.IsPlatformAdmin = true;
+                await userManager.UpdateAsync(adminUser);
+                logger.LogInformation("Granted platform-admin to seed admin user");
+            }
 
-            // Assign default location to admin (new or existing)
-            var existingLocations = await locationRepo.GetAllAsync();
-            var defaultLocation = existingLocations.FirstOrDefault();
+            // Assign default location to admin (new or existing) — unfiltered for the same
+            // startup-has-no-tenant-context reason as above.
+            var defaultLocation = await dbContext.Locations.IgnoreQueryFilters().FirstOrDefaultAsync();
             if (defaultLocation != null && adminUser != null)
             {
                 var existingUserLocation = await userCurrentLocationRepo.FindAsync(ucl => ucl.UserId == adminUser.Id);
@@ -466,7 +623,7 @@ async Task SeedDataAsync(WebApplication app)
         }
 
         // Seed pharmacy reference data (categories, custom fields, dosage forms)
-        await PharmacySeedData.SeedAsync(unitOfWork, logger);
+        await PharmacySeedData.SeedAsync(unitOfWork, dbContext, defaultTenant.Id, logger);
 
         // Seed InvoiceStatuses — a required FK on both Invoice and InvoiceItem (StatusId).
         // This was missing entirely, so any invoice creation (NewSale, sync push) would fail
@@ -479,7 +636,7 @@ async Task SeedDataAsync(WebApplication app)
             {
                 await invoiceStatusRepo.AddAsync(new InvoiceStatus { Id = (int)status, Name = status.ToString() });
             }
-            await unitOfWork.SaveChangesAsync();
+            await SaveWithExplicitIdsAsync(dbContext, unitOfWork, "InvoiceStatuses", useSqlServer);
             logger.LogInformation("Seeded InvoiceStatuses");
         }
 
@@ -503,7 +660,7 @@ async Task SeedDataAsync(WebApplication app)
             {
                 await shipmentStatusRepo.AddAsync(status);
             }
-            await unitOfWork.SaveChangesAsync();
+            await SaveWithExplicitIdsAsync(dbContext, unitOfWork, "ShipmentArrivalStatuses", useSqlServer);
             logger.LogInformation("Seeded ShipmentArrivalStatuses");
         }
 

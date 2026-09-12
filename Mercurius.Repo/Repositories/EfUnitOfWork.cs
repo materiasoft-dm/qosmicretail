@@ -15,13 +15,15 @@ namespace Mercurius.Repo.Repositories
     public class EfUnitOfWork : IUnitOfWork
     {
         private readonly MercuriusDbContext _context;
+        private readonly ICurrentTenantContext _currentTenantContext;
         private readonly Dictionary<Type, object> _repositories = new();
         private IDbContextTransaction? _currentTransaction;
         private bool _disposed;
 
-        public EfUnitOfWork(MercuriusDbContext context)
+        public EfUnitOfWork(MercuriusDbContext context, ICurrentTenantContext currentTenantContext)
         {
             _context = context ?? throw new ArgumentNullException(nameof(context));
+            _currentTenantContext = currentTenantContext;
         }
 
         public IRepository<T> Repository<T>() where T : class
@@ -30,7 +32,7 @@ namespace Mercurius.Repo.Repositories
 
             if (!_repositories.ContainsKey(type))
             {
-                _repositories[type] = new EfRepository<T>(_context);
+                _repositories[type] = new EfRepository<T>(_context, _currentTenantContext);
             }
 
             return (IRepository<T>)_repositories[type];

@@ -4,10 +4,12 @@ using System.ComponentModel.DataAnnotations;
 
 namespace Mercurius.Repo.Models;
 
-public partial class Customer
+public partial class Customer : ITenantScoped
 {
     [Key]
     public int Id { get; set; }
+
+    public int TenantId { get; set; }
 
     [Required]
 public string FirstName { get; set; }
@@ -39,5 +41,4 @@ public DateTime? UpdatedDate { get; set; }
 public virtual Address Address { get; set; }
 public virtual ICollection<CustomerContactInformation> CustomerContactInformations { get; set; } = new List<CustomerContactInformation>();
 public virtual ICollection<Invoice> Invoices { get; set; } = new List<Invoice>();
-public virtual ICollection<Transaction> Transactions { get; set; } = new List<Transaction>();
 }

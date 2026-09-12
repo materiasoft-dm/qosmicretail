@@ -1,0 +1,64 @@
+@page "/logs"
+@attribute [Authorize]
+@inject LogsApiClient Api
+
+<PageTitle>Logs</PageTitle>
+
+<div class="d-flex justify-content-between align-items-center mb-3">
+    <h1>Logs</h1>
+    <button class="btn btn-danger" @onclick="ClearAll">Clear all logs</button>
+</div>
+
+@if (_selectedFile != null)
+{
+    <button class="btn btn-light mb-2" @onclick="() => _selectedFile = null">&laquo; Back to file list</button>
+    <h5>@_selectedFile</h5>
+    <div style="max-height: 70vh; overflow-y: auto; font-family: monospace; font-size: 0.85rem;">
+        @foreach (var line in _lines)
+        {
+            <div class="@(line.IsError ? "text-danger" : line.IsWarning ? "text-warning" : line.IsDebug ? "text-muted" : "")">@line.Text</div>
+        }
+    </div>
+}
+else if (_files is null)
+{
+    <p><em>Loading...</em></p>
+}
+else
+{
+    <table class="table table-striped">
+        <thead><tr><th>File</th><th>Last modified</th><th class="text-end">Size</th></tr></thead>
+        <tbody>
+            @foreach (var f in _files)
+            {
+                <tr style="cursor:pointer" @onclick="() => OpenFile(f.FileName)">
+                    <td>@f.FileName</td>
+                    <td>@f.LastModified.ToString("yyyy-MM-dd HH:mm:ss")</td>
+                    <td class="text-end">@(f.Size / 1024) KB</td>
+                </tr>
+            }
+        </tbody>
+    </table>
+}
+
+@code {
+    private List<LogFileDto>? _files;
+    private string? _selectedFile;
+    private List<LogLineDto> _lines = new();
+
+    protected override async Task OnInitializedAsync() => await LoadAsync();
+    private async Task LoadAsync() => _files = await Api.GetAsync();
+
+    private async Task OpenFile(string fileName)
+    {
+        _selectedFile = fileName;
+        _lines = await Api.GetLinesAsync(fileName);
+    }
+
+    private async Task ClearAll()
+    {
+        await Api.ClearAsync();
+        _selectedFile = null;
+        await LoadAsync();
+    }
+}

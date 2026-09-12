@@ -4,10 +4,12 @@ using System.ComponentModel.DataAnnotations;
 
 namespace Mercurius.Repo.Models;
 
-public partial class BulkPackage
+public partial class BulkPackage : ITenantScoped
 {
     [Key]
     public int Id { get; set; }
+
+    public int TenantId { get; set; }
 
     public int ProductId { get; set; }
 

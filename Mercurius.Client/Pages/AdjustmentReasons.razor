@@ -1,0 +1,81 @@
+@page "/adjustment-reasons"
+@attribute [Authorize]
+@inject AdjustmentReasonsApiClient Api
+
+<PageTitle>Adjustment Reasons</PageTitle>
+
+<div class="d-flex justify-content-between align-items-center mb-3">
+    <h1>Adjustment Reasons</h1>
+    <button class="btn btn-primary" @onclick="ShowCreate">Add Reason</button>
+</div>
+
+@if (_showCreate)
+{
+    <div class="card mb-3">
+        <div class="card-body">
+            <div class="row g-2">
+                <div class="col-md-4"><input class="form-control" placeholder="Name" @bind="_name" /></div>
+                <div class="col-md-5"><input class="form-control" placeholder="Description" @bind="_description" /></div>
+                <div class="col-md-3 d-flex align-items-center">
+                    <div class="form-check">
+                        <input class="form-check-input" type="checkbox" id="isInbound" @bind="_isInbound" />
+                        <label class="form-check-label" for="isInbound">Inbound (adds stock)</label>
+                    </div>
+                </div>
+            </div>
+            @if (_error != null) { <p class="text-danger mt-2 mb-0">@_error</p> }
+            <div class="mt-3">
+                <button class="btn btn-primary" @onclick="Submit">Save</button>
+                <button class="btn btn-light" @onclick="() => _showCreate = false">Cancel</button>
+            </div>
+        </div>
+    </div>
+}
+
+@if (_result is null)
+{
+    <p><em>Loading...</em></p>
+}
+else
+{
+    <table class="table table-striped">
+        <thead><tr><th>Name</th><th>Description</th><th>Direction</th><th>Active</th></tr></thead>
+        <tbody>
+            @foreach (var r in _result.Items)
+            {
+                <tr>
+                    <td>@r.Name</td>
+                    <td>@r.Description</td>
+                    <td>@(r.IsInbound ? "Inbound (+)" : "Outbound (-)")</td>
+                    <td>@(r.IsActive ? "Yes" : "No")</td>
+                </tr>
+            }
+        </tbody>
+    </table>
+}
+
+@code {
+    private ListResultDto<AdjustmentReasonDto>? _result;
+    private bool _showCreate;
+    private string _name = string.Empty, _description = string.Empty;
+    private bool _isInbound;
+    private string? _error;
+
+    protected override async Task OnInitializedAsync() => await LoadAsync();
+    private async Task LoadAsync() => _result = await Api.GetAsync();
+
+    private void ShowCreate()
+    {
+        _showCreate = true; _error = null;
+        _name = _description = string.Empty; _isInbound = false;
+    }
+
+    private async Task Submit()
+    {
+        if (string.IsNullOrWhiteSpace(_name)) { _error = "Name is required."; return; }
+        var created = await Api.CreateAsync(new CreateAdjustmentReasonRequest { Name = _name, Description = _description, IsInbound = _isInbound });
+        if (created == null) { _error = "Failed to create."; return; }
+        _showCreate = false;
+        await LoadAsync();
+    }
+}

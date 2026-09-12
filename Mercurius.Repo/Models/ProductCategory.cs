@@ -4,10 +4,12 @@ using System.ComponentModel.DataAnnotations;
 
 namespace Mercurius.Repo.Models;
 
-public partial class ProductCategory
+public partial class ProductCategory : ITenantScoped
 {
     [Key]
     public int Id { get; set; }
+
+    public int TenantId { get; set; }
 
     [Required]
 public string Name { get; set; }

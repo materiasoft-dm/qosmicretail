@@ -42,6 +42,9 @@ namespace Mercurius.Repo.Migrations
                     b.Property<bool>("IsActive")
                         .HasColumnType("INTEGER");
 
+                    b.Property<bool>("IsPlatformAdmin")
+                        .HasColumnType("INTEGER");
+
                     b.Property<string>("LastName")
                         .HasColumnType("TEXT");
 
@@ -70,6 +73,9 @@ namespace Mercurius.Repo.Migrations
 
                     b.Property<string>("SecurityStamp")
                         .HasColumnType("TEXT");
+
+                    b.Property<int>("TenantId")
+                        .HasColumnType("INTEGER");
 
                     b.Property<bool>("TwoFactorEnabled")
                         .HasColumnType("INTEGER");
@@ -123,6 +129,9 @@ namespace Mercurius.Repo.Migrations
                     b.Property<string>("Province")
                         .HasColumnType("TEXT");
 
+                    b.Property<int>("TenantId")
+                        .HasColumnType("INTEGER");
+
                     b.Property<Guid?>("UpdatedBy")
                         .HasColumnType("TEXT");
 
@@ -174,6 +183,9 @@ namespace Mercurius.Repo.Migrations
                     b.Property<int>("ReasonId")
                         .HasColumnType("INTEGER");
 
+                    b.Property<int>("TenantId")
+                        .HasColumnType("INTEGER");
+
                     b.Property<Guid?>("UpdatedBy")
                         .HasColumnType("TEXT");
 
@@ -215,56 +227,12 @@ namespace Mercurius.Repo.Migrations
                         .HasMaxLength(200)
                         .HasColumnType("TEXT");
 
+                    b.Property<int>("TenantId")
+                        .HasColumnType("INTEGER");
+
                     b.HasKey("Id");
 
                     b.ToTable("AdjustmentReasons");
-                });
-
-            modelBuilder.Entity("Mercurius.Repo.Models.Branch", b =>
-                {
-                    b.Property<int>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("INTEGER");
-
-                    b.Property<int>("AddressId")
-                        .HasColumnType("INTEGER");
-
-                    b.Property<string>("Description")
-                        .HasColumnType("TEXT");
-
-                    b.Property<bool>("IsActive")
-                        .HasColumnType("INTEGER");
-
-                    b.Property<string>("Name")
-                        .IsRequired()
-                        .HasColumnType("TEXT");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("AddressId");
-
-                    b.ToTable("Branches");
-                });
-
-            modelBuilder.Entity("Mercurius.Repo.Models.BranchContactInformation", b =>
-                {
-                    b.Property<int>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("INTEGER");
-
-                    b.Property<int>("BranchId")
-                        .HasColumnType("INTEGER");
-
-                    b.Property<int>("ContactInformationId")
-                        .HasColumnType("INTEGER");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("BranchId");
-
-                    b.HasIndex("ContactInformationId");
-
-                    b.ToTable("BranchContactInformations");
                 });
 
             modelBuilder.Entity("Mercurius.Repo.Models.BulkPackage", b =>
@@ -303,6 +271,9 @@ namespace Mercurius.Repo.Migrations
                     b.Property<decimal>("SalePrice")
                         .HasPrecision(18, 4)
                         .HasColumnType("TEXT");
+
+                    b.Property<int>("TenantId")
+                        .HasColumnType("INTEGER");
 
                     b.Property<Guid?>("UpdatedBy")
                         .HasColumnType("TEXT");
@@ -345,6 +316,9 @@ namespace Mercurius.Repo.Migrations
                     b.Property<int>("SortOrder")
                         .HasColumnType("INTEGER");
 
+                    b.Property<int>("TenantId")
+                        .HasColumnType("INTEGER");
+
                     b.HasKey("Id");
 
                     b.HasIndex("CategoryId");
@@ -375,6 +349,9 @@ namespace Mercurius.Repo.Migrations
 
                     b.Property<string>("PhoneNumber")
                         .HasColumnType("TEXT");
+
+                    b.Property<int>("TenantId")
+                        .HasColumnType("INTEGER");
 
                     b.Property<string>("Twitter")
                         .HasColumnType("TEXT");
@@ -437,6 +414,9 @@ namespace Mercurius.Repo.Migrations
                     b.Property<string>("MiddleName")
                         .HasColumnType("TEXT");
 
+                    b.Property<int>("TenantId")
+                        .HasColumnType("INTEGER");
+
                     b.Property<string>("Tinnumber")
                         .HasColumnType("TEXT");
 
@@ -470,6 +450,9 @@ namespace Mercurius.Repo.Migrations
                         .HasColumnType("INTEGER");
 
                     b.Property<bool>("IsDefault")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int>("TenantId")
                         .HasColumnType("INTEGER");
 
                     b.HasKey("Id");
@@ -510,6 +493,9 @@ namespace Mercurius.Repo.Migrations
                     b.Property<byte[]>("FileContent")
                         .IsRequired()
                         .HasColumnType("BLOB");
+
+                    b.Property<int>("TenantId")
+                        .HasColumnType("INTEGER");
 
                     b.HasKey("Id");
 
@@ -559,6 +545,9 @@ namespace Mercurius.Repo.Migrations
 
                     b.Property<Guid>("SyncId")
                         .HasColumnType("TEXT");
+
+                    b.Property<int>("TenantId")
+                        .HasColumnType("INTEGER");
 
                     b.Property<Guid?>("UpdateBy")
                         .HasColumnType("TEXT");
@@ -626,6 +615,9 @@ namespace Mercurius.Repo.Migrations
                     b.Property<Guid>("SyncId")
                         .HasColumnType("TEXT");
 
+                    b.Property<int>("TenantId")
+                        .HasColumnType("INTEGER");
+
                     b.Property<int?>("WholeSaleId")
                         .HasColumnType("INTEGER");
 
@@ -676,6 +668,9 @@ namespace Mercurius.Repo.Migrations
                     b.Property<string>("Remarks")
                         .HasColumnType("TEXT");
 
+                    b.Property<int>("TenantId")
+                        .HasColumnType("INTEGER");
+
                     b.Property<bool>("WasRestocked")
                         .HasColumnType("INTEGER");
 
@@ -725,6 +720,9 @@ namespace Mercurius.Repo.Migrations
 
                     b.Property<Guid>("RefundedByUserId")
                         .HasColumnType("TEXT");
+
+                    b.Property<int>("TenantId")
+                        .HasColumnType("INTEGER");
 
                     b.Property<Guid?>("UpdatedBy")
                         .HasColumnType("TEXT");
@@ -794,6 +792,9 @@ namespace Mercurius.Repo.Migrations
                         .HasPrecision(18, 4)
                         .HasColumnType("TEXT");
 
+                    b.Property<int>("TenantId")
+                        .HasColumnType("INTEGER");
+
                     b.Property<DateTime?>("TransactionDate")
                         .HasColumnType("TEXT");
 
@@ -832,6 +833,9 @@ namespace Mercurius.Repo.Migrations
                         .IsRequired()
                         .HasColumnType("TEXT");
 
+                    b.Property<int>("TenantId")
+                        .HasColumnType("INTEGER");
+
                     b.HasKey("Id");
 
                     b.HasIndex("AddressId");
@@ -858,6 +862,9 @@ namespace Mercurius.Repo.Migrations
                     b.Property<string>("SettingValue")
                         .IsRequired()
                         .HasColumnType("TEXT");
+
+                    b.Property<int>("TenantId")
+                        .HasColumnType("INTEGER");
 
                     b.HasKey("Id");
 
@@ -895,6 +902,9 @@ namespace Mercurius.Repo.Migrations
                         .HasColumnType("TEXT");
 
                     b.Property<int?>("StockReceiptId")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int>("TenantId")
                         .HasColumnType("INTEGER");
 
                     b.Property<decimal>("UnitCost")
@@ -985,6 +995,9 @@ namespace Mercurius.Repo.Migrations
                     b.Property<Guid>("SyncId")
                         .HasColumnType("TEXT");
 
+                    b.Property<int>("TenantId")
+                        .HasColumnType("INTEGER");
+
                     b.Property<Guid?>("UpdatedBy")
                         .HasColumnType("TEXT");
 
@@ -1030,6 +1043,9 @@ namespace Mercurius.Repo.Migrations
                     b.Property<string>("Name")
                         .IsRequired()
                         .HasColumnType("TEXT");
+
+                    b.Property<int>("TenantId")
+                        .HasColumnType("INTEGER");
 
                     b.Property<Guid?>("UpdatedBy")
                         .HasColumnType("TEXT");
@@ -1141,6 +1157,9 @@ namespace Mercurius.Repo.Migrations
                     b.Property<int>("SupplierId")
                         .HasColumnType("INTEGER");
 
+                    b.Property<int>("TenantId")
+                        .HasColumnType("INTEGER");
+
                     b.Property<DateTime?>("UpdatedDate")
                         .HasColumnType("TEXT");
 
@@ -1182,6 +1201,9 @@ namespace Mercurius.Repo.Migrations
                         .HasPrecision(18, 4)
                         .HasColumnType("TEXT");
 
+                    b.Property<int>("TenantId")
+                        .HasColumnType("INTEGER");
+
                     b.HasKey("Id");
 
                     b.HasIndex("ProductId");
@@ -1208,28 +1230,12 @@ namespace Mercurius.Repo.Migrations
                         .HasMaxLength(200)
                         .HasColumnType("TEXT");
 
+                    b.Property<int>("TenantId")
+                        .HasColumnType("INTEGER");
+
                     b.HasKey("Id");
 
                     b.ToTable("RefundReasons");
-                });
-
-            modelBuilder.Entity("Mercurius.Repo.Models.RoleModuleAccess", b =>
-                {
-                    b.Property<int>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("INTEGER");
-
-                    b.Property<string>("ModuleIdentifier")
-                        .IsRequired()
-                        .HasColumnType("TEXT");
-
-                    b.Property<string>("RoleId")
-                        .IsRequired()
-                        .HasColumnType("TEXT");
-
-                    b.HasKey("Id");
-
-                    b.ToTable("RoleModuleAccesses");
                 });
 
             modelBuilder.Entity("Mercurius.Repo.Models.ShipmentArrival", b =>
@@ -1269,6 +1275,9 @@ namespace Mercurius.Repo.Migrations
                         .HasColumnType("TEXT");
 
                     b.Property<int?>("SupplierId")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int>("TenantId")
                         .HasColumnType("INTEGER");
 
                     b.Property<string>("TrackingNumber")
@@ -1316,6 +1325,9 @@ namespace Mercurius.Repo.Migrations
                     b.Property<int>("ShipmentArrivalId")
                         .HasColumnType("INTEGER");
 
+                    b.Property<int>("TenantId")
+                        .HasColumnType("INTEGER");
+
                     b.HasKey("Id");
 
                     b.HasIndex("ProductId");
@@ -1360,109 +1372,33 @@ namespace Mercurius.Repo.Migrations
                         .IsRequired()
                         .HasColumnType("TEXT");
 
+                    b.Property<int>("TenantId")
+                        .HasColumnType("INTEGER");
+
                     b.HasKey("Id");
 
                     b.ToTable("Suppliers");
                 });
 
-            modelBuilder.Entity("Mercurius.Repo.Models.Transaction", b =>
+            modelBuilder.Entity("Mercurius.Repo.Models.Tenant", b =>
                 {
-                    b.Property<int>("TransactionId")
+                    b.Property<int>("Id")
                         .ValueGeneratedOnAdd()
                         .HasColumnType("INTEGER");
-
-                    b.Property<Guid>("CreatedBy")
-                        .HasColumnType("TEXT");
 
                     b.Property<DateTime>("CreatedDate")
                         .HasColumnType("TEXT");
 
-                    b.Property<int?>("CustomerId")
-                        .HasColumnType("INTEGER");
-
-                    b.Property<string>("Note")
-                        .HasColumnType("TEXT");
-
-                    b.Property<Guid?>("TransactionBy")
-                        .HasColumnType("TEXT");
-
-                    b.Property<DateTime?>("TransactionDate")
-                        .HasColumnType("TEXT");
-
-                    b.Property<int>("TransactionStatusId")
-                        .HasColumnType("INTEGER");
-
-                    b.Property<Guid?>("UpdatedBy")
-                        .HasColumnType("TEXT");
-
-                    b.Property<DateTime?>("UpdatedDate")
-                        .HasColumnType("TEXT");
-
-                    b.HasKey("TransactionId");
-
-                    b.HasIndex("CustomerId");
-
-                    b.ToTable("Transactions");
-                });
-
-            modelBuilder.Entity("Mercurius.Repo.Models.TransactionIdGenerator", b =>
-                {
-                    b.Property<int>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("INTEGER");
-
-                    b.Property<int>("CurrentCount")
+                    b.Property<bool>("IsActive")
                         .HasColumnType("INTEGER");
 
                     b.Property<string>("Name")
                         .IsRequired()
-                        .HasMaxLength(50)
-                        .HasColumnType("TEXT");
-
-                    b.Property<int?>("Padding")
-                        .HasColumnType("INTEGER");
-
-                    b.Property<string>("Prefix")
-                        .HasMaxLength(10)
-                        .HasColumnType("TEXT");
-
-                    b.Property<string>("Suffix")
-                        .HasMaxLength(10)
                         .HasColumnType("TEXT");
 
                     b.HasKey("Id");
 
-                    b.ToTable("TransactionIdGenerators");
-                });
-
-            modelBuilder.Entity("Mercurius.Repo.Models.TransactionItem", b =>
-                {
-                    b.Property<int>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("INTEGER");
-
-                    b.Property<decimal?>("CostPrice")
-                        .HasPrecision(18, 4)
-                        .HasColumnType("TEXT");
-
-                    b.Property<string>("Note")
-                        .HasColumnType("TEXT");
-
-                    b.Property<int>("ProductId")
-                        .HasColumnType("INTEGER");
-
-                    b.Property<decimal>("SalesPrice")
-                        .HasPrecision(18, 4)
-                        .HasColumnType("TEXT");
-
-                    b.Property<int>("TransactionId")
-                        .HasColumnType("INTEGER");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("TransactionId");
-
-                    b.ToTable("TransactionItems");
+                    b.ToTable("Tenants");
                 });
 
             modelBuilder.Entity("Mercurius.Repo.Models.UserCurrentLocation", b =>
@@ -1510,27 +1446,6 @@ namespace Mercurius.Repo.Migrations
                     b.ToTable("UserDashboardLayouts");
                 });
 
-            modelBuilder.Entity("Mercurius.Repo.Models.UserInformation", b =>
-                {
-                    b.Property<int>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("INTEGER");
-
-                    b.Property<string>("FirstName")
-                        .IsRequired()
-                        .HasColumnType("TEXT");
-
-                    b.Property<Guid>("IdentityUserId")
-                        .HasColumnType("TEXT");
-
-                    b.Property<string>("LastName")
-                        .HasColumnType("TEXT");
-
-                    b.HasKey("Id");
-
-                    b.ToTable("UserInformations");
-                });
-
             modelBuilder.Entity("Mercurius.Repo.Models.ZeroStockSaleAuditLog", b =>
                 {
                     b.Property<int>("Id")
@@ -1571,6 +1486,9 @@ namespace Mercurius.Repo.Migrations
                     b.Property<decimal>("StockAtTimeOfSale")
                         .HasPrecision(18, 4)
                         .HasColumnType("TEXT");
+
+                    b.Property<int>("TenantId")
+                        .HasColumnType("INTEGER");
 
                     b.HasKey("Id");
 
@@ -1736,36 +1654,6 @@ namespace Mercurius.Repo.Migrations
                     b.Navigation("Product");
 
                     b.Navigation("Reason");
-                });
-
-            modelBuilder.Entity("Mercurius.Repo.Models.Branch", b =>
-                {
-                    b.HasOne("Mercurius.Repo.Models.Address", "Address")
-                        .WithMany("Branches")
-                        .HasForeignKey("AddressId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
-
-                    b.Navigation("Address");
-                });
-
-            modelBuilder.Entity("Mercurius.Repo.Models.BranchContactInformation", b =>
-                {
-                    b.HasOne("Mercurius.Repo.Models.Branch", "Branch")
-                        .WithMany("BranchContactInformations")
-                        .HasForeignKey("BranchId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
-
-                    b.HasOne("Mercurius.Repo.Models.ContactInformation", "ContactInformation")
-                        .WithMany("BranchContactInformations")
-                        .HasForeignKey("ContactInformationId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
-
-                    b.Navigation("Branch");
-
-                    b.Navigation("ContactInformation");
                 });
 
             modelBuilder.Entity("Mercurius.Repo.Models.BulkPackage", b =>
@@ -2001,27 +1889,6 @@ namespace Mercurius.Repo.Migrations
                     b.Navigation("ShipmentArrival");
                 });
 
-            modelBuilder.Entity("Mercurius.Repo.Models.Transaction", b =>
-                {
-                    b.HasOne("Mercurius.Repo.Models.Customer", "Customer")
-                        .WithMany("Transactions")
-                        .HasForeignKey("CustomerId")
-                        .OnDelete(DeleteBehavior.Restrict);
-
-                    b.Navigation("Customer");
-                });
-
-            modelBuilder.Entity("Mercurius.Repo.Models.TransactionItem", b =>
-                {
-                    b.HasOne("Mercurius.Repo.Models.Transaction", "Transaction")
-                        .WithMany("TransactionItems")
-                        .HasForeignKey("TransactionId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
-
-                    b.Navigation("Transaction");
-                });
-
             modelBuilder.Entity("Microsoft.AspNetCore.Identity.IdentityRoleClaim<string>", b =>
                 {
                     b.HasOne("Microsoft.AspNetCore.Identity.IdentityRole", null)
@@ -2075,8 +1942,6 @@ namespace Mercurius.Repo.Migrations
 
             modelBuilder.Entity("Mercurius.Repo.Models.Address", b =>
                 {
-                    b.Navigation("Branches");
-
                     b.Navigation("Customers");
 
                     b.Navigation("Locations");
@@ -2087,15 +1952,8 @@ namespace Mercurius.Repo.Migrations
                     b.Navigation("Adjustments");
                 });
 
-            modelBuilder.Entity("Mercurius.Repo.Models.Branch", b =>
-                {
-                    b.Navigation("BranchContactInformations");
-                });
-
             modelBuilder.Entity("Mercurius.Repo.Models.ContactInformation", b =>
                 {
-                    b.Navigation("BranchContactInformations");
-
                     b.Navigation("CustomerContactInformations");
 
                     b.Navigation("Locations");
@@ -2106,8 +1964,6 @@ namespace Mercurius.Repo.Migrations
                     b.Navigation("CustomerContactInformations");
 
                     b.Navigation("Invoices");
-
-                    b.Navigation("Transactions");
                 });
 
             modelBuilder.Entity("Mercurius.Repo.Models.Invoice", b =>
@@ -2170,11 +2026,6 @@ namespace Mercurius.Repo.Migrations
             modelBuilder.Entity("Mercurius.Repo.Models.Supplier", b =>
                 {
                     b.Navigation("ShipmentArrivals");
-                });
-
-            modelBuilder.Entity("Mercurius.Repo.Models.Transaction", b =>
-                {
-                    b.Navigation("TransactionItems");
                 });
 #pragma warning restore 612, 618
         }

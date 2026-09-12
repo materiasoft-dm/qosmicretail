@@ -3,10 +3,12 @@ using System.ComponentModel.DataAnnotations;
 
 namespace Mercurius.Repo.Models;
 
-public class MedicineBatch
+public class MedicineBatch : ITenantScoped
 {
     [Key]
     public int Id { get; set; }
+
+    public int TenantId { get; set; }
 
     [Required]
     public int ProductId { get; set; }

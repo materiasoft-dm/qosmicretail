@@ -1,0 +1,162 @@
+@page "/invoices/{Id:int}"
+@attribute [Authorize]
+@inject InvoicesApiClient Api
+
+<PageTitle>Invoice @Id</PageTitle>
+
+@if (_invoice is null)
+{
+    <p><em>Loading...</em></p>
+}
+else
+{
+    <h1>Invoice @_invoice.InvoiceNumber</h1>
+    <div class="row mb-4">
+        <div class="col-md-3"><div class="text-muted small">Date</div><div>@_invoice.InvoiceDate.ToString("yyyy-MM-dd")</div></div>
+        <div class="col-md-3"><div class="text-muted small">Customer</div><div>@(string.IsNullOrEmpty(_invoice.CustomerName) ? "(no customer)" : _invoice.CustomerName)</div></div>
+        <div class="col-md-3"><div class="text-muted small">Status</div><div>@_invoice.StatusName</div></div>
+        <div class="col-md-3"><div class="text-muted small">Paid amount</div><div>@Money.Format(_invoice.PaidAmount)</div></div>
+    </div>
+
+    @if (_error != null) { <div class="alert alert-danger">@_error</div> }
+    @if (_message != null) { <div class="alert alert-success">@_message</div> }
+
+    <h5>Items</h5>
+    <table class="table table-striped mb-4">
+        <thead><tr><th>Product</th><th class="text-end">Qty sold</th><th class="text-end">Qty refunded</th><th class="text-end">Remaining</th><th class="text-end">Unit price</th><th>Actions</th></tr></thead>
+        <tbody>
+            @foreach (var item in _invoice.Items)
+            {
+                <tr>
+                    <td>@item.ProductName (@item.ProductCode)</td>
+                    <td class="text-end">@item.QuantitySold</td>
+                    <td class="text-end">@item.QuantityRefunded</td>
+                    <td class="text-end">@item.QuantityRemaining</td>
+                    <td class="text-end">@Money.Format(item.SalePrice)</td>
+                    <td>
+                        @if (item.QuantityRemaining > 0)
+                        {
+                            <button class="btn btn-sm btn-danger" @onclick="() => OpenRefund(item)">Refund</button>
+                        }
+                    </td>
+                </tr>
+            }
+        </tbody>
+    </table>
+
+    <h5>Refund History</h5>
+    @if (_invoice.RefundHistory.Count == 0)
+    {
+        <p class="text-muted">No refunds yet.</p>
+    }
+    else
+    {
+        <table class="table table-striped">
+            <thead><tr><th>Refund #</th><th>Date</th><th>Product</th><th class="text-end">Qty</th><th>Reason</th><th>Restocked</th><th>Remarks</th></tr></thead>
+            <tbody>
+                @foreach (var r in _invoice.RefundHistory)
+                {
+                    <tr>
+                        <td>@r.RefundNumber</td>
+                        <td>@r.DateRefunded.ToString("yyyy-MM-dd")</td>
+                        <td>@r.ProductName</td>
+                        <td class="text-end">@r.Quantity</td>
+                        <td>@r.ReasonName</td>
+                        <td>@(r.WasRestocked ? "Yes" : "No")</td>
+                        <td>@r.Remarks</td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    }
+}
+
+@if (_refundingItem != null)
+{
+    <div class="position-fixed top-0 start-0 w-100 h-100 d-flex align-items-center justify-content-center" style="background:rgba(0,0,0,0.5); z-index:1050;">
+        <div class="card" style="width:420px;">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <strong>Refund — @_refundingItem.ProductName</strong>
+                <button class="btn-close" @onclick="() => _refundingItem = null"></button>
+            </div>
+            <div class="card-body">
+                <div class="mb-3">
+                    <label class="form-label">Quantity (max @_refundingItem.QuantityRemaining)</label>
+                    <input type="number" min="0.01" max="@_refundingItem.QuantityRemaining" step="0.01" class="form-control" @bind="_refundQuantity" />
+                </div>
+                <div class="mb-3">
+                    <label class="form-label">Reason</label>
+                    <select class="form-select" @bind="_refundReasonId">
+                        <option value="0">-- Reason --</option>
+                        @foreach (var reason in _invoice!.ActiveRefundReasons)
+                        {
+                            <option value="@reason.Id">@reason.Name</option>
+                        }
+                    </select>
+                </div>
+                <div class="mb-3">
+                    <label class="form-label">Notes</label>
+                    <input class="form-control" @bind="_refundNotes" />
+                </div>
+                <div class="form-check mb-3">
+                    <input class="form-check-input" type="checkbox" id="restock" @bind="_refundRestock" />
+                    <label class="form-check-label" for="restock">Put stock back into inventory</label>
+                </div>
+                @if (_refundError != null) { <p class="text-danger">@_refundError</p> }
+                <button class="btn btn-danger w-100" @onclick="SubmitRefund">Refund</button>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    [Parameter] public int Id { get; set; }
+
+    private InvoiceDetailDto? _invoice;
+    private string? _error;
+    private string? _message;
+
+    private InvoiceItemRowDto? _refundingItem;
+    private decimal _refundQuantity;
+    private int _refundReasonId;
+    private string _refundNotes = string.Empty;
+    private bool _refundRestock = true;
+    private string? _refundError;
+
+    protected override async Task OnInitializedAsync() => await LoadAsync();
+    private async Task LoadAsync() => _invoice = await Api.GetDetailAsync(Id);
+
+    private void OpenRefund(InvoiceItemRowDto item)
+    {
+        _refundingItem = item;
+        _refundQuantity = item.QuantityRemaining;
+        _refundReasonId = 0;
+        _refundNotes = string.Empty;
+        _refundRestock = true;
+        _refundError = null;
+    }
+
+    private async Task SubmitRefund()
+    {
+        if (_refundingItem == null) return;
+        if (_refundQuantity <= 0 || _refundQuantity > _refundingItem.QuantityRemaining || _refundReasonId <= 0)
+        {
+            _refundError = "Enter a valid quantity and select a reason.";
+            return;
+        }
+        var (success, error) = await Api.CreateRefundAsync(new CreateRefundRequest
+        {
+            InvoiceItemId = _refundingItem.InvoiceItemId,
+            Quantity = _refundQuantity,
+            RefundReasonId = _refundReasonId,
+            Notes = _refundNotes,
+            Restock = _refundRestock
+        });
+        if (!success) { _refundError = error; return; }
+
+        _refundingItem = null;
+        _message = "Refund processed.";
+        _error = null;
+        await LoadAsync();
+    }
+}

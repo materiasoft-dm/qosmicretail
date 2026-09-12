@@ -71,7 +71,11 @@ namespace Mercurius.Controllers.Api
             {
                 new Claim(ClaimTypes.NameIdentifier, user.Id),
                 new Claim(ClaimTypes.Email, user.Email ?? ""),
-                new Claim(ClaimTypes.Name, user.FullName)
+                new Claim(ClaimTypes.Name, user.FullName),
+                // The tenant boundary — read by ICurrentTenantContext to drive
+                // MercuriusDbContext's global query filter for every sync/API call this token
+                // authenticates. See MULTITENANCY_ARCHITECTURE.md.
+                new Claim(Mercurius.Common.Constants.MercuriusClaimTypes.TenantId, user.TenantId.ToString())
             };
 
             var token = new JwtSecurityToken(

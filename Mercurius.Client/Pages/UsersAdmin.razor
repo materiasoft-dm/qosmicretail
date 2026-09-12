@@ -1,0 +1,105 @@
+@page "/users-admin"
+@attribute [Authorize]
+@inject UsersApiClient Api
+
+<PageTitle>Users</PageTitle>
+
+<h1>Users</h1>
+
+<div class="form-check mb-3">
+    <input class="form-check-input" type="checkbox" id="showDeactivated" @bind="_showDeactivated" @bind:after="LoadAsync" />
+    <label class="form-check-label" for="showDeactivated">Show deactivated users</label>
+</div>
+
+@if (_error != null) { <p class="text-danger">@_error</p> }
+
+@if (_result is null)
+{
+    <p><em>Loading...</em></p>
+}
+else
+{
+    <table class="table table-striped">
+        <thead><tr><th>Username</th><th>First name</th><th>Last name</th><th>Roles</th><th>Active</th><th>Actions</th></tr></thead>
+        <tbody>
+            @foreach (var u in _result.Items)
+            {
+                <tr>
+                    <td>@u.UserName</td>
+                    <td>@u.FirstName</td>
+                    <td>@u.LastName</td>
+                    <td>@u.Roles</td>
+                    <td>@(u.IsActive ? "Yes" : "No")</td>
+                    <td>
+                        <button class="btn btn-sm btn-light" @onclick="() => ShowAssignRoles(u.Id)">Roles</button>
+                        <button class="btn btn-sm @(u.IsActive ? "btn-warning" : "btn-success")" @onclick="() => ToggleActive(u.Id, !u.IsActive)">
+                            @(u.IsActive ? "Deactivate" : "Activate")
+                        </button>
+                    </td>
+                </tr>
+            }
+        </tbody>
+    </table>
+}
+
+@if (_assignUserId != null)
+{
+    <div class="card mt-3">
+        <div class="card-body">
+            <h5>Assign roles</h5>
+            @foreach (var r in _allRoles)
+            {
+                <div class="form-check">
+                    <input class="form-check-input" type="checkbox" id="role-@r.Id"
+                           checked="@_selectedRoleIds.Contains(r.Id)"
+                           @onchange="e => ToggleRole(r.Id, (bool)(e.Value ?? false))" />
+                    <label class="form-check-label" for="role-@r.Id">@r.Name</label>
+                </div>
+            }
+            <div class="mt-2">
+                <button class="btn btn-primary" @onclick="SaveRoles">Save</button>
+                <button class="btn btn-light" @onclick="() => _assignUserId = null">Cancel</button>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    private ListResultDto<UserListItemDto>? _result;
+    private bool _showDeactivated;
+    private string? _error;
+    private string? _assignUserId;
+    private List<RoleDto> _allRoles = new();
+    private HashSet<string> _selectedRoleIds = new();
+
+    protected override async Task OnInitializedAsync() => await LoadAsync();
+    private async Task LoadAsync() => _result = await Api.GetAsync(_showDeactivated);
+
+    private async void ShowAssignRoles(string userId)
+    {
+        _assignUserId = userId;
+        _allRoles = await Api.GetRolesAsync();
+        StateHasChanged();
+    }
+
+    private void ToggleRole(string roleId, bool isChecked)
+    {
+        if (isChecked) _selectedRoleIds.Add(roleId); else _selectedRoleIds.Remove(roleId);
+    }
+
+    private async Task SaveRoles()
+    {
+        if (_assignUserId == null) return;
+        await Api.AssignRolesAsync(_assignUserId, _selectedRoleIds.ToList());
+        _assignUserId = null;
+        await LoadAsync();
+    }
+
+    private async Task ToggleActive(string id, bool activate)
+    {
+        var (success, error) = await Api.SetActiveAsync(id, activate);
+        if (!success) { _error = error; return; }
+        _error = null;
+        await LoadAsync();
+    }
+}

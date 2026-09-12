@@ -4,10 +4,12 @@ using System.ComponentModel.DataAnnotations;
 
 namespace Mercurius.Repo.Models;
 
-public partial class InvoiceItemRefund
+public partial class InvoiceItemRefund : ITenantScoped
 {
     [Key]
     public int Id { get; set; }
+
+    public int TenantId { get; set; }
 
     public int InvoiceItemId { get; set; }
 

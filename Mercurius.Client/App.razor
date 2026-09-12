@@ -1,0 +1,31 @@
+<CascadingAuthenticationState>
+    <Router AppAssembly="@typeof(App).Assembly">
+        <Found Context="routeData">
+            <AuthorizeRouteView RouteData="@routeData" DefaultLayout="@typeof(MainLayout)">
+                <NotAuthorized>
+                    @{ RedirectToLogin(); }
+                </NotAuthorized>
+            </AuthorizeRouteView>
+            <FocusOnNavigate RouteData="@routeData" Selector="h1" />
+        </Found>
+        <NotFound>
+            <PageTitle>Not found</PageTitle>
+            <LayoutView Layout="@typeof(MainLayout)">
+                <p role="alert">Sorry, there's nothing at this address.</p>
+            </LayoutView>
+        </NotFound>
+    </Router>
+</CascadingAuthenticationState>
+
+@code {
+    [Inject] private NavigationManager Nav { get; set; } = default!;
+
+    // No Blazor-side login form for this first slice — sign-in still happens on the existing
+    // Identity cookie login page (a plain form POST), then the browser is sent back here, where
+    // AuthenticationStateProvider now finds the cookie and api/account/me reflects it.
+    private void RedirectToLogin()
+    {
+        var returnUrl = Uri.EscapeDataString(Nav.Uri);
+        Nav.NavigateTo($"/Identity/Account/Login?returnUrl={returnUrl}", forceLoad: true);
+    }
+}

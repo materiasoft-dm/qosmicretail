@@ -1,0 +1,136 @@
+@page "/purchase-orders"
+@attribute [Authorize]
+@inject PurchaseOrdersApiClient Api
+
+<PageTitle>Purchase Orders</PageTitle>
+
+<div class="d-flex justify-content-between align-items-center mb-3">
+    <h1>Purchase Orders</h1>
+    <button class="btn btn-primary" @onclick="ShowCreate">New Purchase Order</button>
+</div>
+
+@if (_showCreate)
+{
+    <div class="card mb-3">
+        <div class="card-body">
+            <div class="row g-2 mb-2">
+                <div class="col-md-4">
+                    <select class="form-select" @bind="_supplierId">
+                        <option value="0">-- Supplier --</option>
+                        @foreach (var s in _suppliers)
+                        {
+                            <option value="@s.Id">@s.Name</option>
+                        }
+                    </select>
+                </div>
+                <div class="col-md-4"><input class="form-control" placeholder="Notes" @bind="_notes" /></div>
+            </div>
+
+            <h6>Line items</h6>
+            @for (int i = 0; i < _lines.Count; i++)
+            {
+                var idx = i;
+                <div class="row g-2 mb-1">
+                    <div class="col-md-5">
+                        <select class="form-select" @bind="_lines[idx].ProductId">
+                            <option value="0">-- Product --</option>
+                            @foreach (var p in _products)
+                            {
+                                <option value="@p.Id">@p.Name (@p.ProductCode)</option>
+                            }
+                        </select>
+                    </div>
+                    <div class="col-md-3"><input type="number" min="0" step="0.01" class="form-control" placeholder="Quantity" @bind="_lines[idx].Quantity" /></div>
+                    <div class="col-md-3"><input type="number" min="0" step="0.01" class="form-control" placeholder="Est. unit cost" @bind="_lines[idx].EstimatedUnitCost" /></div>
+                </div>
+            }
+            <button class="btn btn-sm btn-light mb-2" @onclick="AddLine">+ Add line</button>
+
+            @if (_error != null) { <p class="text-danger mb-0">@_error</p> }
+            <div class="mt-2">
+                <button class="btn btn-primary" @onclick="Submit">Save</button>
+                <button class="btn btn-light" @onclick="() => _showCreate = false">Cancel</button>
+            </div>
+        </div>
+    </div>
+}
+
+@if (_result is null)
+{
+    <p><em>Loading...</em></p>
+}
+else
+{
+    <table class="table table-striped">
+        <thead><tr><th>Order #</th><th>Supplier</th><th>Status</th><th>Date</th><th>Actions</th></tr></thead>
+        <tbody>
+            @foreach (var o in _result.Items)
+            {
+                <tr>
+                    <td>@o.OrderNumber</td>
+                    <td>@o.SupplierName</td>
+                    <td><span class="badge badge-light-info">@o.Status</span></td>
+                    <td>@o.OrderDate.ToString("yyyy-MM-dd")</td>
+                    <td>
+                        @if (o.Status == "PendingApproval")
+                        {
+                            <button class="btn btn-sm btn-success" @onclick="() => Approve(o.Id)">Approve</button>
+                        }
+                        else if (o.Status == "Approved")
+                        {
+                            <button class="btn btn-sm btn-primary" @onclick="() => MarkSent(o.Id)">Mark Sent</button>
+                        }
+                        else if (o.Status == "OrderSent")
+                        {
+                            <button class="btn btn-sm btn-success" @onclick="() => MarkReceived(o.Id, true)">Received (complete)</button>
+                            <button class="btn btn-sm btn-warning" @onclick="() => MarkReceived(o.Id, false)">Received (incomplete)</button>
+                        }
+                    </td>
+                </tr>
+            }
+        </tbody>
+    </table>
+}
+
+@code {
+    private ListResultDto<PurchaseOrderListItemDto>? _result;
+    private List<SupplierOptionDto> _suppliers = new();
+    private List<ProductOptionDto> _products = new();
+    private bool _showCreate;
+    private int _supplierId;
+    private string _notes = string.Empty;
+    private List<CreatePurchaseOrderLineRequest> _lines = new();
+    private string? _error;
+
+    protected override async Task OnInitializedAsync() => await LoadAsync();
+    private async Task LoadAsync() => _result = await Api.GetAsync();
+
+    private async void ShowCreate()
+    {
+        _showCreate = true; _error = null;
+        _supplierId = 0; _notes = string.Empty;
+        _lines = new List<CreatePurchaseOrderLineRequest> { new() };
+        _suppliers = await Api.GetSuppliersAsync();
+        _products = await Api.GetProductsAsync(null);
+        StateHasChanged();
+    }
+
+    private void AddLine() => _lines.Add(new CreatePurchaseOrderLineRequest());
+
+    private async Task Submit()
+    {
+        if (_supplierId <= 0 || !_lines.Any(l => l.ProductId > 0 && l.Quantity > 0))
+        {
+            _error = "Supplier and at least one valid product line are required.";
+            return;
+        }
+        var (success, error) = await Api.CreateAsync(new CreatePurchaseOrderRequest { SupplierId = _supplierId, Notes = _notes, Lines = _lines });
+        if (!success) { _error = error; return; }
+        _showCreate = false;
+        await LoadAsync();
+    }
+
+    private async Task Approve(int id) { await Api.ApproveAsync(id); await LoadAsync(); }
+    private async Task MarkSent(int id) { await Api.MarkSentAsync(id); await LoadAsync(); }
+    private async Task MarkReceived(int id, bool complete) { await Api.MarkReceivedAsync(id, complete); await LoadAsync(); }
+}

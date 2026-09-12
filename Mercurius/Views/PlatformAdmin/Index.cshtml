@@ -1,0 +1,49 @@
+@model IEnumerable<Mercurius.Repo.Models.Tenant>
+@{
+    ViewData["Title"] = "Platform Admin — Tenants";
+    Layout = "~/Views/Shared/_Layout.cshtml";
+}
+
+<div id="kt_app_toolbar" class="app-toolbar py-3 py-lg-6">
+    <div id="kt_app_toolbar_container" class="app-container container-xxl d-flex flex-stack">
+        <div class="page-title d-flex flex-column justify-content-center flex-wrap me-3">
+            <h1 class="page-heading d-flex text-dark fw-bold fs-3 flex-column justify-content-center my-0">Tenants</h1>
+        </div>
+    </div>
+</div>
+
+@if (TempData["Message"] != null)
+{
+    <div class="alert alert-success">@TempData["Message"]</div>
+}
+
+<div class="card">
+    <div class="card-header border-0 pt-6">
+        <div class="card-toolbar">
+            <a asp-action="Create" class="btn btn-primary">Create New Tenant</a>
+        </div>
+    </div>
+    <div class="card-body pt-0">
+        <table class="table table-hover table-rounded border gy-7 gs-7">
+            <thead>
+                <tr class="fw-bold fs-6 text-gray-800 border-bottom border-gray-200">
+                    <th>Id</th>
+                    <th>Name</th>
+                    <th>Active</th>
+                    <th>Created</th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach (var tenant in Model)
+                {
+                    <tr>
+                        <td>@tenant.Id</td>
+                        <td>@tenant.Name</td>
+                        <td>@(tenant.IsActive ? "Yes" : "No")</td>
+                        <td>@tenant.CreatedDate.ToString("yyyy-MM-dd")</td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    </div>
+</div>

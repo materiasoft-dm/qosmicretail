@@ -14,12 +14,14 @@ namespace Mercurius.ViewComponents
         private readonly UserManager<MercuriusUser> _userManager;
         private readonly IUnitOfWork _unitOfWork;
         private readonly IMemoryCache _cache;
+        private readonly ICurrentTenantContext _currentTenantContext;
 
-        public HeaderViewComponent(UserManager<MercuriusUser> userManager, IUnitOfWork unitOfWork, IMemoryCache cache)
+        public HeaderViewComponent(UserManager<MercuriusUser> userManager, IUnitOfWork unitOfWork, IMemoryCache cache, ICurrentTenantContext currentTenantContext)
         {
             _userManager = userManager;
             _unitOfWork = unitOfWork;
             _cache = cache;
+            _currentTenantContext = currentTenantContext;
         }
 
         public async Task<IViewComponentResult> InvokeAsync()
@@ -35,8 +37,12 @@ namespace Mercurius.ViewComponents
 
             model.User = user;
             
-            // Get locations from cache to avoid DB I/O on every page load (M4)
-            var cacheKey = "all_locations";
+            // Get locations from cache to avoid DB I/O on every page load (M4). Keyed per tenant
+            // — the underlying query is already tenant-filtered, but a shared cache KEY isn't:
+            // without this, the first tenant to populate the cache would have their location
+            // list served to every other tenant for the next 10 minutes. Confirmed as a real gap
+            // via a cross-tenant test — see MULTITENANCY_ARCHITECTURE.md §2.1.
+            var cacheKey = $"all_locations_{_currentTenantContext.TenantId}";
             var locations = await _cache.GetOrCreateAsync(cacheKey, async entry =>
             {
                 entry.AbsoluteExpirationRelativeToNow = TimeSpan.FromMinutes(10);

@@ -3,10 +3,12 @@ using System.ComponentModel.DataAnnotations;
 
 namespace Mercurius.Repo.Models;
 
-public class ZeroStockSaleAuditLog
+public class ZeroStockSaleAuditLog : ITenantScoped
 {
     [Key]
     public int Id { get; set; }
+
+    public int TenantId { get; set; }
 
     public int ProductId { get; set; }
 

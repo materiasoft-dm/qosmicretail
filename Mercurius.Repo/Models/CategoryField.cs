@@ -6,10 +6,12 @@ namespace Mercurius.Repo.Models;
 /// Defines a custom field that appears on product forms when a specific
 /// category is selected. Values are stored as JSON in Product.CustomFields.
 /// </summary>
-public class CategoryField
+public class CategoryField : ITenantScoped
 {
     [Key]
     public int Id { get; set; }
+
+    public int TenantId { get; set; }
 
     [Required]
     public int CategoryId { get; set; }

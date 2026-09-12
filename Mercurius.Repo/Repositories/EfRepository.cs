@@ -6,6 +6,7 @@ using System.Reflection;
 using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.EntityFrameworkCore;
+using Mercurius.Repo.Models;
 
 namespace Mercurius.Repo.Repositories
 {
@@ -22,11 +23,13 @@ namespace Mercurius.Repo.Repositories
 
         private readonly MercuriusDbContext _context;
         private readonly DbSet<T> _dbSet;
+        private readonly ICurrentTenantContext _currentTenantContext;
 
-        public EfRepository(MercuriusDbContext context)
+        public EfRepository(MercuriusDbContext context, ICurrentTenantContext currentTenantContext)
         {
             _context = context ?? throw new ArgumentNullException(nameof(context));
             _dbSet = _context.Set<T>();
+            _currentTenantContext = currentTenantContext;
         }
 
         public async Task<T?> GetByIdAsync(int id, CancellationToken cancellationToken = default)
@@ -51,6 +54,7 @@ namespace Mercurius.Repo.Repositories
 
         public async Task<T> AddAsync(T entity, CancellationToken cancellationToken = default)
         {
+            StampTenant(entity);
             await _dbSet.AddAsync(entity, cancellationToken);
             return entity;
         }
@@ -58,8 +62,21 @@ namespace Mercurius.Repo.Repositories
         public async Task<IReadOnlyList<T>> AddRangeAsync(IEnumerable<T> entities, CancellationToken cancellationToken = default)
         {
             var entityList = entities.ToList();
+            foreach (var entity in entityList) StampTenant(entity);
             await _dbSet.AddRangeAsync(entityList, cancellationToken);
             return entityList;
+        }
+
+        // No caller has to remember to set TenantId — the same class of bug that left
+        // Invoice.LocationId unset for months (see CLAUDE.md) until it was caught. A caller that
+        // has already set a different TenantId explicitly (rare — platform-admin tooling) wins;
+        // this only fills in the common case of "not set yet".
+        private void StampTenant(T entity)
+        {
+            if (entity is ITenantScoped scoped && scoped.TenantId == 0)
+            {
+                scoped.TenantId = _currentTenantContext.TenantId;
+            }
         }
 
         public Task UpdateAsync(T entity, CancellationToken cancellationToken = default)

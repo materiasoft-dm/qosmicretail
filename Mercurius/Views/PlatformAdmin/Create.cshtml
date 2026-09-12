@@ -1,0 +1,55 @@
+@model Mercurius.Controllers.CreateTenantRequest
+@{
+    ViewData["Title"] = "Create Tenant";
+    Layout = "~/Views/Shared/_Layout.cshtml";
+}
+
+<div id="kt_app_toolbar" class="app-toolbar py-3 py-lg-6">
+    <div id="kt_app_toolbar_container" class="app-container container-xxl d-flex flex-stack">
+        <div class="page-title d-flex flex-column justify-content-center flex-wrap me-3">
+            <h1 class="page-heading d-flex text-dark fw-bold fs-3 flex-column justify-content-center my-0">Create Tenant</h1>
+        </div>
+    </div>
+</div>
+
+<div class="card">
+    <div class="card-body">
+        <form asp-action="Create" method="post">
+            <div asp-validation-summary="All" class="text-danger"></div>
+
+            <div class="mb-4">
+                <label class="form-label">Tenant / company name</label>
+                <input asp-for="TenantName" class="form-control" />
+            </div>
+            <div class="mb-4">
+                <label class="form-label">First pharmacy/branch name</label>
+                <input asp-for="FirstLocationName" class="form-control" />
+            </div>
+
+            <hr />
+            <h5>First admin user</h5>
+
+            <div class="mb-4">
+                <label class="form-label">Email</label>
+                <input asp-for="AdminEmail" class="form-control" />
+            </div>
+            <div class="row">
+                <div class="col-md-6 mb-4">
+                    <label class="form-label">First name</label>
+                    <input asp-for="AdminFirstName" class="form-control" />
+                </div>
+                <div class="col-md-6 mb-4">
+                    <label class="form-label">Last name</label>
+                    <input asp-for="AdminLastName" class="form-control" />
+                </div>
+            </div>
+            <div class="mb-4">
+                <label class="form-label">Password</label>
+                <input asp-for="AdminPassword" type="password" class="form-control" />
+            </div>
+
+            <button type="submit" class="btn btn-primary">Create Tenant</button>
+            <a asp-action="Index" class="btn btn-light">Cancel</a>
+        </form>
+    </div>
+</div>

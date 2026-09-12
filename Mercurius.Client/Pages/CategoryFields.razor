@@ -1,0 +1,105 @@
+@page "/category-fields"
+@attribute [Authorize]
+@inject CategoryFieldsApiClient Api
+
+<PageTitle>Category Custom Fields</PageTitle>
+
+<div class="d-flex justify-content-between align-items-center mb-3">
+    <h1>Category Custom Fields</h1>
+    <button class="btn btn-primary" @onclick="ShowCreate">Add Field</button>
+</div>
+
+@if (_showCreate)
+{
+    <div class="card mb-3">
+        <div class="card-body">
+            <div class="row g-2">
+                <div class="col-md-3">
+                    <select class="form-select" @bind="_categoryId">
+                        <option value="0">-- Category --</option>
+                        @foreach (var c in _categories)
+                        {
+                            <option value="@c.Id">@c.Name</option>
+                        }
+                    </select>
+                </div>
+                <div class="col-md-3"><input class="form-control" placeholder="Field name (code)" @bind="_fieldName" /></div>
+                <div class="col-md-3"><input class="form-control" placeholder="Display label" @bind="_displayLabel" /></div>
+                <div class="col-md-3">
+                    <select class="form-select" @bind="_fieldType">
+                        <option value="text">Text</option>
+                        <option value="number">Number</option>
+                        <option value="select">Select</option>
+                        <option value="checkbox">Checkbox</option>
+                        <option value="date">Date</option>
+                        <option value="textarea">Textarea</option>
+                    </select>
+                </div>
+            </div>
+            @if (_error != null) { <p class="text-danger mt-2 mb-0">@_error</p> }
+            <div class="mt-3">
+                <button class="btn btn-primary" @onclick="Submit">Save</button>
+                <button class="btn btn-light" @onclick="() => _showCreate = false">Cancel</button>
+            </div>
+        </div>
+    </div>
+}
+
+@if (_result is null)
+{
+    <p><em>Loading...</em></p>
+}
+else
+{
+    <table class="table table-striped">
+        <thead><tr><th>Category</th><th>Field name</th><th>Label</th><th>Type</th></tr></thead>
+        <tbody>
+            @foreach (var f in _result.Items)
+            {
+                <tr><td>@f.CategoryName</td><td>@f.FieldName</td><td>@f.DisplayLabel</td><td>@f.FieldType</td></tr>
+            }
+        </tbody>
+    </table>
+}
+
+@code {
+    private ListResultDto<CategoryFieldDto>? _result;
+    private List<ProductCategoryDto> _categories = new();
+    private bool _showCreate;
+    private int _categoryId;
+    private string _fieldName = string.Empty, _displayLabel = string.Empty, _fieldType = "text";
+    private string? _error;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadAsync();
+        _categories = await Api.GetCategoriesAsync();
+    }
+
+    private async Task LoadAsync() => _result = await Api.GetAsync();
+
+    private void ShowCreate()
+    {
+        _showCreate = true; _error = null;
+        _categoryId = 0; _fieldName = _displayLabel = string.Empty; _fieldType = "text";
+    }
+
+    private async Task Submit()
+    {
+        if (_categoryId <= 0 || string.IsNullOrWhiteSpace(_fieldName))
+        {
+            _error = "Category and field name are required.";
+            return;
+        }
+        var (success, error) = await Api.CreateAsync(new CreateCategoryFieldRequest
+        {
+            CategoryId = _categoryId,
+            FieldName = _fieldName,
+            DisplayLabel = string.IsNullOrWhiteSpace(_displayLabel) ? _fieldName : _displayLabel,
+            FieldType = _fieldType
+        });
+        if (!success) { _error = error; return; }
+        _showCreate = false;
+        await LoadAsync();
+    }
+}

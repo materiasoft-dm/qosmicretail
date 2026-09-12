@@ -1,3 +1,4 @@
+using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.AspNetCore.Authorization;
@@ -22,6 +23,20 @@ namespace Mercurius.Controllers
         public async Task<IActionResult> SetLocation(int id, string returnUrl, CancellationToken ct = default)
         {
             ct.ThrowIfCancellationRequested();
+
+            // The target Location must belong to the caller's own tenant. Query<T>() is already
+            // filtered by MercuriusDbContext's global tenant query filter, so a Location from a
+            // different tenant simply doesn't exist as far as this lookup is concerned — this
+            // isn't "extra" tenant-checking logic, it's just not bypassing the filter the way the
+            // old blind upsert (below) effectively did. Confirmed via a real cross-tenant test:
+            // before this check, a tenant's admin could switch UserCurrentLocation to point at
+            // another tenant's Location id just by guessing/incrementing it.
+            var targetLocation = _unitOfWork.Query<Location>().FirstOrDefault(l => l.Id == id);
+            if (targetLocation == null)
+            {
+                return Forbid();
+            }
+
             var userId = User.FindFirstValue(ClaimTypes.NameIdentifier) ?? string.Empty;
             var userLocationRepo = _unitOfWork.Repository<UserCurrentLocation>();
             var userLocations = await userLocationRepo.FindAsync(c => c.UserId == userId, ct);

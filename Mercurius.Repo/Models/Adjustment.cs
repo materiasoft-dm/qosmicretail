@@ -4,10 +4,12 @@ using System.ComponentModel.DataAnnotations;
 
 namespace Mercurius.Repo.Models;
 
-public partial class Adjustment
+public partial class Adjustment : ITenantScoped
 {
     [Key]
     public int Id { get; set; }
+
+    public int TenantId { get; set; }
 public DateTime AdjustmentDate { get; set; }
 
     public int ReasonId { get; set; }

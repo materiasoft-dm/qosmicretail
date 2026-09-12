@@ -1,0 +1,83 @@
+@page "/products"
+@attribute [Authorize]
+@inject ProductsApiClient Api
+
+<PageTitle>Products</PageTitle>
+
+<h1>Products</h1>
+
+<input class="form-control mb-3" style="max-width: 320px;" placeholder="Search by name or SKU..."
+       value="@_search" @oninput="OnSearchInput" />
+
+@if (_loading)
+{
+    <p><em>Loading...</em></p>
+}
+else if (_result is null || _result.Items.Count == 0)
+{
+    <p>No products found.</p>
+}
+else
+{
+    <table class="table table-striped">
+        <thead>
+            <tr>
+                <th>SKU</th>
+                <th>Name</th>
+                <th>Category</th>
+                <th>Stock</th>
+                <th>Sale price</th>
+            </tr>
+        </thead>
+        <tbody>
+            @foreach (var p in _result.Items)
+            {
+                <tr>
+                    <td>@p.ProductCode</td>
+                    <td>@p.Name</td>
+                    <td>@p.Category</td>
+                    <td class="@(p.Stock <= p.LowStockCount ? "text-danger" : "text-success")">@p.Stock</td>
+                    <td>@(p.SalePrice.HasValue ? Money.Format(p.SalePrice.Value) : "-")</td>
+                </tr>
+            }
+        </tbody>
+    </table>
+    <p class="text-muted">Showing @_result.Items.Count of @_result.Total</p>
+}
+
+@code {
+    private ProductListResultDto? _result;
+    private bool _loading = true;
+    private string _search = string.Empty;
+    private CancellationTokenSource? _debounce;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadAsync();
+    }
+
+    private async Task LoadAsync()
+    {
+        _loading = true;
+        _result = await Api.GetAsync(_search, page: 1, pageSize: 50);
+        _loading = false;
+    }
+
+    private async Task OnSearchInput(ChangeEventArgs e)
+    {
+        _search = e.Value?.ToString() ?? string.Empty;
+        _debounce?.Cancel();
+        _debounce = new CancellationTokenSource();
+        var token = _debounce.Token;
+        try
+        {
+            await Task.Delay(300, token);
+            await LoadAsync();
+            StateHasChanged();
+        }
+        catch (TaskCanceledException)
+        {
+            // Superseded by a newer keystroke — ignore.
+        }
+    }
+}

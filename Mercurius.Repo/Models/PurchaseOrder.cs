@@ -8,10 +8,12 @@ namespace Mercurius.Repo.Models;
 /// Purchase Order — a list of products to be ordered from a supplier.
 /// Status workflow: Pending Approval → Approved → Order Sent → Received Complete / Received Incomplete.
 /// </summary>
-public class PurchaseOrder
+public class PurchaseOrder : ITenantScoped
 {
     [Key]
     public int Id { get; set; }
+
+    public int TenantId { get; set; }
 
     /// <summary>FK to Supplier.</summary>
     [Required]
@@ -63,10 +65,12 @@ public class PurchaseOrder
 /// <summary>
 /// Line item on a purchase order — one product with quantity and cost.
 /// </summary>
-public class PurchaseOrderItem
+public class PurchaseOrderItem : ITenantScoped
 {
     [Key]
     public int Id { get; set; }
+
+    public int TenantId { get; set; }
 
     /// <summary>FK to PurchaseOrder.</summary>
     [Required]

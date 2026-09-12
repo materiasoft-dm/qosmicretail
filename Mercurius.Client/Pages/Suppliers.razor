@@ -1,0 +1,123 @@
+@page "/suppliers"
+@attribute [Authorize]
+@inject SuppliersApiClient Api
+
+<PageTitle>Suppliers</PageTitle>
+
+<div class="d-flex justify-content-between align-items-center mb-3">
+    <h1>Suppliers</h1>
+    <button class="btn btn-primary" @onclick="ShowCreateForm">Add Supplier</button>
+</div>
+
+<input class="form-control mb-3" style="max-width: 320px;" placeholder="Search suppliers..."
+       value="@_search" @oninput="OnSearchInput" />
+
+@if (_showCreate)
+{
+    <div class="card mb-3">
+        <div class="card-body">
+            <div class="row g-2">
+                <div class="col-md-6">
+                    <input class="form-control" placeholder="Supplier name" @bind="_newName" />
+                </div>
+            </div>
+            @if (!string.IsNullOrEmpty(_createError))
+            {
+                <p class="text-danger mt-2 mb-0">@_createError</p>
+            }
+            <div class="mt-3">
+                <button class="btn btn-primary" @onclick="SubmitCreate">Save</button>
+                <button class="btn btn-light" @onclick="() => _showCreate = false">Cancel</button>
+            </div>
+        </div>
+    </div>
+}
+
+@if (_loading)
+{
+    <p><em>Loading...</em></p>
+}
+else if (_result is null || _result.Items.Count == 0)
+{
+    <p>No suppliers found.</p>
+}
+else
+{
+    <table class="table table-striped">
+        <thead>
+            <tr>
+                <th>Name</th>
+                <th>Active</th>
+            </tr>
+        </thead>
+        <tbody>
+            @foreach (var s in _result.Items)
+            {
+                <tr>
+                    <td>@s.Name</td>
+                    <td>@(s.IsActive ? "Yes" : "No")</td>
+                </tr>
+            }
+        </tbody>
+    </table>
+    <p class="text-muted">Showing @_result.Items.Count of @_result.Total</p>
+}
+
+@code {
+    private SupplierListResultDto? _result;
+    private bool _loading = true;
+    private string _search = string.Empty;
+    private CancellationTokenSource? _debounce;
+
+    private bool _showCreate;
+    private string _newName = string.Empty;
+    private string? _createError;
+
+    protected override async Task OnInitializedAsync() => await LoadAsync();
+
+    private async Task LoadAsync()
+    {
+        _loading = true;
+        _result = await Api.GetAsync(_search, page: 1, pageSize: 50);
+        _loading = false;
+    }
+
+    private async Task OnSearchInput(ChangeEventArgs e)
+    {
+        _search = e.Value?.ToString() ?? string.Empty;
+        _debounce?.Cancel();
+        _debounce = new CancellationTokenSource();
+        var token = _debounce.Token;
+        try
+        {
+            await Task.Delay(300, token);
+            await LoadAsync();
+            StateHasChanged();
+        }
+        catch (TaskCanceledException) { }
+    }
+
+    private void ShowCreateForm()
+    {
+        _showCreate = true;
+        _createError = null;
+        _newName = string.Empty;
+    }
+
+    private async Task SubmitCreate()
+    {
+        if (string.IsNullOrWhiteSpace(_newName))
+        {
+            _createError = "Name is required.";
+            return;
+        }
+        var created = await Api.CreateAsync(new CreateSupplierRequest { Name = _newName });
+        if (created == null)
+        {
+            _createError = "Failed to create supplier.";
+            return;
+        }
+        _showCreate = false;
+        await LoadAsync();
+    }
+}

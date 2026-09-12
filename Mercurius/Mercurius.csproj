@@ -30,6 +30,7 @@
     <PackageReference Include="CsvHelper" Version="33.1.0" />
     <PackageReference Include="MailKit" Version="4.17.0" />
     <PackageReference Include="Microsoft.AspNetCore.Authentication.JwtBearer" Version="9.0.14" />
+    <PackageReference Include="Microsoft.AspNetCore.Components.WebAssembly.Server" Version="9.0.9" />
     <PackageReference Include="Microsoft.AspNetCore.Identity.UI" Version="9.0.14" />
     <PackageReference Include="Microsoft.AspNetCore.Mvc.Versioning" Version="5.1.0" />
     <PackageReference Include="Microsoft.CodeAnalysis.Elfie" Version="1.0.0" />
@@ -47,6 +48,9 @@
   <ItemGroup>
     <ProjectReference Include="..\Mercurius.Common\Mercurius.Common.csproj" />
     <ProjectReference Include="..\Mercurius.Repo\Mercurius.Repo.csproj" />
+    <ProjectReference Include="..\Mercurius.Repo.Migrations.SqlServer\Mercurius.Repo.Migrations.SqlServer.csproj" />
+    <ProjectReference Include="..\Mercurius.Shared\Mercurius.Shared.csproj" />
+    <ProjectReference Include="..\Mercurius.Client\Mercurius.Client.csproj" />
   </ItemGroup>
 
   <ItemGroup>

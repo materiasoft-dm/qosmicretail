@@ -3,10 +3,12 @@ using System.Collections.Generic;
 using System.ComponentModel.DataAnnotations;
 
 namespace Mercurius.Repo.Models;
-public partial class CustomerContactInformation
+public partial class CustomerContactInformation : ITenantScoped
 {
     [Key]
     public int Id { get; set; }
+
+    public int TenantId { get; set; }
 
     public int CustomerId { get; set; }
 

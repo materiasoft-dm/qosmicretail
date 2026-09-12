@@ -1,0 +1,108 @@
+@page "/invoices"
+@attribute [Authorize]
+@inject InvoicesApiClient Api
+@inject NavigationManager Nav
+
+<PageTitle>Invoices</PageTitle>
+
+<h1>Invoices</h1>
+
+<input class="form-control mb-3" style="max-width: 320px;" placeholder="Search by invoice # or customer..."
+       value="@_search" @oninput="OnSearchInput" />
+
+@if (_loading)
+{
+    <p><em>Loading...</em></p>
+}
+else if (_result is null || _result.Items.Count == 0)
+{
+    <p>No invoices found.</p>
+}
+else
+{
+    <table class="table table-striped">
+        <thead>
+            <tr>
+                <th>Invoice #</th>
+                <th>Date</th>
+                <th>Customer</th>
+                <th>Status</th>
+                <th class="text-end">Paid amount</th>
+                <th></th>
+            </tr>
+        </thead>
+        <tbody>
+            @foreach (var i in _result.Items)
+            {
+                <tr style="cursor:pointer" @onclick="() => GoToInvoice(i.Id)">
+                    <td>@i.InvoiceNumber</td>
+                    <td>@i.InvoiceDate.ToString("yyyy-MM-dd")</td>
+                    <td>@(string.IsNullOrEmpty(i.CustomerName) ? "(no customer)" : i.CustomerName)</td>
+                    <td>
+                        <span class="badge @StatusBadgeClass(i.StatusId)">@i.StatusName</span>
+                        @if (i.HasRefund)
+                        {
+                            <i class="bi bi-arrow-counterclockwise ms-1" title="Has refund"></i>
+                        }
+                    </td>
+                    <td class="text-end">@(i.PaidAmount.HasValue ? Money.Format(i.PaidAmount.Value) : "-")</td>
+                    <td><a href="invoices/@i.Id" @onclick:stopPropagation="true">View</a></td>
+                </tr>
+            }
+        </tbody>
+    </table>
+    <p class="text-muted">Showing @_result.Items.Count of @_result.Total</p>
+}
+
+@code {
+    private InvoiceListResultDto? _result;
+    private bool _loading = true;
+    private string _search = string.Empty;
+    private CancellationTokenSource? _debounce;
+
+    protected override async Task OnInitializedAsync() => await LoadAsync();
+
+    // Deliberately no leading "/" — this app is hosted under /app (see
+    // Mercurius.Client.csproj's StaticWebAssetBasePath), and a leading-slash path resolves
+    // against the site root per normal browser URL rules, ignoring <base href>. That sent
+    // real browser navigations to /invoices/{id} on the server (which the MVC app doesn't
+    // recognize — a 404) instead of staying inside the Blazor router. A relative path resolves
+    // against the current <base href> correctly.
+    private void GoToInvoice(int id) => Nav.NavigateTo("invoices/" + id);
+
+    private async Task LoadAsync()
+    {
+        _loading = true;
+        _result = await Api.GetAsync(_search, page: 1, pageSize: 50);
+        _loading = false;
+    }
+
+    private async Task OnSearchInput(ChangeEventArgs e)
+    {
+        _search = e.Value?.ToString() ?? string.Empty;
+        _debounce?.Cancel();
+        _debounce = new CancellationTokenSource();
+        var token = _debounce.Token;
+        try
+        {
+            await Task.Delay(300, token);
+            await LoadAsync();
+            StateHasChanged();
+        }
+        catch (TaskCanceledException) { }
+    }
+
+    // Mirrors Views/Invoices/Index.cshtml's statusBadgeClass(): 1 Draft, 2 Completed,
+    // 3 Finalized, 4 Refunded, 5 Deleted, 6 DeferredPayment, 7 PartiallyPaid.
+    private static string StatusBadgeClass(int statusId) => statusId switch
+    {
+        1 => "badge-secondary",
+        2 => "badge-success",
+        3 => "badge-primary",
+        4 => "badge-danger",
+        5 => "badge-dark",
+        6 => "badge-warning",
+        7 => "badge-info",
+        _ => "badge-light"
+    };
+}

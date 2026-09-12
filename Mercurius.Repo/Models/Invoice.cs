@@ -4,10 +4,12 @@ using System.ComponentModel.DataAnnotations;
 
 namespace Mercurius.Repo.Models;
 
-public partial class Invoice
+public partial class Invoice : ITenantScoped
 {
     [Key]
     public int Id { get; set; }
+
+    public int TenantId { get; set; }
 
     // Stable cross-device identity for offline-first sync with the future mobile app — see
     // Product.SyncId for the rationale.

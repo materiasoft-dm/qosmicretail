@@ -1,5 +1,6 @@
 using Mercurius.Repo.Models;
 using Mercurius.Repo.Repositories;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 
 namespace Mercurius.Models;
@@ -11,45 +12,53 @@ namespace Mercurius.Models;
 /// </summary>
 public static class PharmacySeedData
 {
-    public static async Task SeedAsync(IUnitOfWork unitOfWork, ILogger logger)
+    // ProductCategory/CategoryField are tenant-scoped (DosageForm is deliberately global/shared
+    // reference data — see MULTITENANCY_ARCHITECTURE.md). Takes the raw DbContext, not just
+    // IUnitOfWork, because startup seeding runs with no HttpContext — ICurrentTenantContext
+    // resolves to -1, so a filtered "already seeded?" check here would always see zero rows and
+    // re-seed duplicates on every restart, and a filtered Add would stamp -1 instead of a real
+    // tenant id. Both need to be explicit and unfiltered, same reasoning as Program.cs's own
+    // seeding bypasses.
+    public static async Task SeedAsync(IUnitOfWork unitOfWork, MercuriusDbContext dbContext, int tenantId, ILogger logger)
     {
-        await SeedProductCategoriesAsync(unitOfWork, logger);
-        await SeedCategoryFieldsAsync(unitOfWork, logger);
+        await SeedProductCategoriesAsync(unitOfWork, dbContext, tenantId, logger);
+        await SeedCategoryFieldsAsync(unitOfWork, dbContext, tenantId, logger);
         await SeedDosageFormsAsync(unitOfWork, logger);
     }
 
-    private static async Task SeedProductCategoriesAsync(IUnitOfWork unitOfWork, ILogger logger)
+    private static async Task SeedProductCategoriesAsync(IUnitOfWork unitOfWork, MercuriusDbContext dbContext, int tenantId, ILogger logger)
     {
-        var repo = unitOfWork.Repository<ProductCategory>();
-        var existing = await repo.GetAllAsync();
-        if (existing.Any(c => c.Name == "Prescription Drugs")) return; // already seeded
+        var alreadySeeded = await dbContext.ProductCategories.IgnoreQueryFilters()
+            .AnyAsync(c => c.TenantId == tenantId && c.Name == "Prescription Drugs");
+        if (alreadySeeded) return;
 
         var categories = new[]
         {
-            new ProductCategory { Name = "Prescription Drugs", Description = "Rx medicines requiring a doctor's prescription", IsActive = true },
-            new ProductCategory { Name = "OTC Medicines", Description = "Over-the-counter drugs, no prescription needed", IsActive = true },
-            new ProductCategory { Name = "Vitamins & Supplements", Description = "Dietary supplements, vitamins, minerals", IsActive = true },
-            new ProductCategory { Name = "Personal Care", Description = "Soap, shampoo, lotion, deodorant, oral care", IsActive = true },
-            new ProductCategory { Name = "Baby Care", Description = "Diapers, formula, baby wipes, feeding accessories", IsActive = true },
-            new ProductCategory { Name = "Medical Supplies", Description = "Bandages, syringes, gloves, masks, cotton", IsActive = true },
-            new ProductCategory { Name = "First Aid", Description = "First aid kits, antiseptics, wound care", IsActive = true },
-            new ProductCategory { Name = "Health Devices", Description = "Thermometers, BP monitors, glucometers, nebulizers", IsActive = true },
-            new ProductCategory { Name = "Family Planning", Description = "Contraceptives, pregnancy tests, fertility products", IsActive = true },
+            new ProductCategory { TenantId = tenantId, Name = "Prescription Drugs", Description = "Rx medicines requiring a doctor's prescription", IsActive = true },
+            new ProductCategory { TenantId = tenantId, Name = "OTC Medicines", Description = "Over-the-counter drugs, no prescription needed", IsActive = true },
+            new ProductCategory { TenantId = tenantId, Name = "Vitamins & Supplements", Description = "Dietary supplements, vitamins, minerals", IsActive = true },
+            new ProductCategory { TenantId = tenantId, Name = "Personal Care", Description = "Soap, shampoo, lotion, deodorant, oral care", IsActive = true },
+            new ProductCategory { TenantId = tenantId, Name = "Baby Care", Description = "Diapers, formula, baby wipes, feeding accessories", IsActive = true },
+            new ProductCategory { TenantId = tenantId, Name = "Medical Supplies", Description = "Bandages, syringes, gloves, masks, cotton", IsActive = true },
+            new ProductCategory { TenantId = tenantId, Name = "First Aid", Description = "First aid kits, antiseptics, wound care", IsActive = true },
+            new ProductCategory { TenantId = tenantId, Name = "Health Devices", Description = "Thermometers, BP monitors, glucometers, nebulizers", IsActive = true },
+            new ProductCategory { TenantId = tenantId, Name = "Family Planning", Description = "Contraceptives, pregnancy tests, fertility products", IsActive = true },
         };
 
+        var repo = unitOfWork.Repository<ProductCategory>();
         await repo.AddRangeAsync(categories);
         await unitOfWork.SaveChangesAsync();
         logger.LogInformation("Seeded {Count} pharmacy product categories", categories.Length);
     }
 
-    private static async Task SeedCategoryFieldsAsync(IUnitOfWork unitOfWork, ILogger logger)
+    private static async Task SeedCategoryFieldsAsync(IUnitOfWork unitOfWork, MercuriusDbContext dbContext, int tenantId, ILogger logger)
     {
-        var repo = unitOfWork.Repository<CategoryField>();
-        var existing = await repo.GetAllAsync();
-        if (existing.Any()) return;
+        var alreadySeeded = await dbContext.CategoryFields.IgnoreQueryFilters().AnyAsync(f => f.TenantId == tenantId);
+        if (alreadySeeded) return;
 
-        // Fetch categories by name
-        var categories = await unitOfWork.Repository<ProductCategory>().GetAllAsync();
+        // Fetch categories by name — unfiltered for the same startup-has-no-tenant-context reason.
+        var categories = await dbContext.ProductCategories.IgnoreQueryFilters()
+            .Where(c => c.TenantId == tenantId).ToListAsync();
         var catDict = categories.ToDictionary(c => c.Name, c => c.Id);
 
         int GetId(string name) => catDict.TryGetValue(name, out var id) ? id : 0;
@@ -61,6 +70,7 @@ public static class PharmacySeedData
         {
             fields.Add(new CategoryField
             {
+                TenantId = tenantId,
                 CategoryId = GetId(cat),
                 FieldName = name,
                 DisplayLabel = label,
@@ -148,7 +158,7 @@ public static class PharmacySeedData
             "[\"Oral Contraceptive\",\"Injectable\",\"Implant\",\"IUD\",\"Barrier\",\"Emergency\"]");
         Add("Family Planning", "PackSize", "Pack Size", "text");
 
-        await repo.AddRangeAsync(fields);
+        await unitOfWork.Repository<CategoryField>().AddRangeAsync(fields);
         await unitOfWork.SaveChangesAsync();
         logger.LogInformation("Seeded {Count} category custom fields across 9 categories", fields.Count);
     }

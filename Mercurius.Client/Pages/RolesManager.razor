@@ -1,0 +1,94 @@
+@page "/roles-manager"
+@attribute [Authorize]
+@inject RolesApiClient Api
+
+<PageTitle>Roles Manager</PageTitle>
+
+<div class="d-flex justify-content-between align-items-center mb-3">
+    <h1>Roles</h1>
+    <button class="btn btn-primary" @onclick="ShowCreate">New Role</button>
+</div>
+
+@if (_showCreate)
+{
+    <div class="card mb-3">
+        <div class="card-body">
+            <input class="form-control mb-3" style="max-width:300px" placeholder="Role name" @bind="_roleName" />
+            <div class="row" style="max-height: 300px; overflow-y: auto;">
+                @foreach (var module in _modules)
+                {
+                    <div class="col-md-4">
+                        <div class="form-check">
+                            <input class="form-check-input" type="checkbox" id="mod-@module.GetHashCode()"
+                                   checked="@_selectedPages.Contains(module)"
+                                   @onchange="e => TogglePage(module, (bool)(e.Value ?? false))" />
+                            <label class="form-check-label" for="mod-@module.GetHashCode()">@module</label>
+                        </div>
+                    </div>
+                }
+            </div>
+            @if (_error != null) { <p class="text-danger mt-2 mb-0">@_error</p> }
+            <div class="mt-3">
+                <button class="btn btn-primary" @onclick="Submit">Save</button>
+                <button class="btn btn-light" @onclick="() => _showCreate = false">Cancel</button>
+            </div>
+        </div>
+    </div>
+}
+
+@if (_result is null)
+{
+    <p><em>Loading...</em></p>
+}
+else
+{
+    <table class="table table-striped">
+        <thead><tr><th>Name</th><th></th></tr></thead>
+        <tbody>
+            @foreach (var r in _result.Items)
+            {
+                <tr><td>@r.Name</td><td><button class="btn btn-sm btn-danger" @onclick="() => Delete(r.Id)">Delete</button></td></tr>
+            }
+        </tbody>
+    </table>
+}
+
+@code {
+    private ListResultDto<RoleDto>? _result;
+    private List<string> _modules = new();
+    private HashSet<string> _selectedPages = new();
+    private bool _showCreate;
+    private string _roleName = string.Empty;
+    private string? _error;
+
+    protected override async Task OnInitializedAsync() => await LoadAsync();
+    private async Task LoadAsync() => _result = await Api.GetAsync();
+
+    private async void ShowCreate()
+    {
+        _showCreate = true; _error = null;
+        _roleName = string.Empty; _selectedPages = new();
+        _modules = await Api.GetModulesAsync();
+        StateHasChanged();
+    }
+
+    private void TogglePage(string module, bool isChecked)
+    {
+        if (isChecked) _selectedPages.Add(module); else _selectedPages.Remove(module);
+    }
+
+    private async Task Submit()
+    {
+        if (string.IsNullOrWhiteSpace(_roleName)) { _error = "Role name is required."; return; }
+        var (success, error) = await Api.CreateAsync(new CreateRoleRequest { Name = _roleName, Pages = _selectedPages.ToList() });
+        if (!success) { _error = error; return; }
+        _showCreate = false;
+        await LoadAsync();
+    }
+
+    private async Task Delete(string id)
+    {
+        await Api.DeleteAsync(id);
+        await LoadAsync();
+    }
+}
