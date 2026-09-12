@@ -27,6 +27,7 @@ builder.Services.AddScoped<AdjustmentReasonsApiClient>();
 builder.Services.AddScoped<ProductCategoriesApiClient>();
 builder.Services.AddScoped<LocationsApiClient>();
 builder.Services.AddScoped<CategoryFieldsApiClient>();
+builder.Services.AddScoped<RefundReasonsApiClient>();
 builder.Services.AddScoped<AdjustmentsApiClient>();
 builder.Services.AddScoped<PurchaseOrdersApiClient>();
 builder.Services.AddScoped<ShipmentsApiClient>();

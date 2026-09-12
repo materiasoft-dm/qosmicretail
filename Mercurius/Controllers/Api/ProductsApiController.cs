@@ -82,6 +82,38 @@ namespace Mercurius.Controllers.Api
             return Ok(new ProductListResultDto { Items = items, Total = total });
         }
 
+        [HttpPost]
+        [Authorize(Policy = Mercurius.Common.ModuleRegistry.Pages.PRODUCTS_CREATE)]
+        public async Task<IActionResult> Create(CreateProductRequest request, CancellationToken ct = default)
+        {
+            if (string.IsNullOrWhiteSpace(request.Name) || string.IsNullOrWhiteSpace(request.ProductCode))
+            {
+                return BadRequest(new { error = "Name and SKU are required." });
+            }
+
+            var product = new Product
+            {
+                ProductCode = request.ProductCode,
+                Name = request.Name,
+                Description = request.Description ?? string.Empty,
+                ProductCategoryId = request.ProductCategoryId,
+                CurrentCostPrice = request.CurrentCostPrice,
+                MarkUpPercentage = request.MarkUpPercentage,
+                CurrentSalePrice = request.CurrentSalePrice,
+                LeadTimeDays = request.LeadTimeDays,
+                LowStockCount = request.LowStockCount,
+                Note = request.Note ?? string.Empty,
+                CustomWarning = string.Empty,
+                Model = string.Empty,
+                ImageFilename = string.Empty,
+                IsActive = true,
+                CreateDate = DateTime.UtcNow
+            };
+            await _unitOfWork.Repository<Product>().AddAsync(product, ct);
+            await _unitOfWork.SaveChangesAsync(ct);
+            return Ok(new { id = product.Id });
+        }
+
         // GET/PUT for the Edit page. Deliberately a smaller field set than
         // ProductsController.Edit (no image upload, no per-category custom fields) — the highest
         // -value core fields, not full parity; see MULTITENANCY_ARCHITECTURE.md's Blazor

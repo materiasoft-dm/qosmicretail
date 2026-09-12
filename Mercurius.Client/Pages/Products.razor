@@ -4,7 +4,42 @@
 
 <PageTitle>Products</PageTitle>
 
-<h1>Products</h1>
+<div class="d-flex justify-content-between align-items-center mb-3">
+    <h1 class="mb-0">Products</h1>
+    <button class="btn btn-primary" @onclick="ShowCreate">Add Product</button>
+</div>
+
+@if (_showCreate)
+{
+    <div class="card mb-3">
+        <div class="card-body">
+            <div class="row g-2">
+                <div class="col-md-3"><input class="form-control" placeholder="SKU" @bind="_createCode" /></div>
+                <div class="col-md-4"><input class="form-control" placeholder="Name" @bind="_createName" /></div>
+                <div class="col-md-3">
+                    <select class="form-select" @bind="_createCategoryId">
+                        <option value="">Category...</option>
+                        @foreach (var c in _categories)
+                        {
+                            <option value="@c.Id">@c.Name</option>
+                        }
+                    </select>
+                </div>
+                <div class="col-md-2"><input class="form-control" placeholder="Lead time (days)" type="number" @bind="_createLeadTimeDays" /></div>
+                <div class="col-md-3"><input class="form-control" placeholder="Cost price" type="number" step="0.01" @bind="_createCostPrice" /></div>
+                <div class="col-md-3"><input class="form-control" placeholder="Markup %" type="number" step="0.01" @bind="_createMarkUpPercentage" /></div>
+                <div class="col-md-3"><input class="form-control" placeholder="Sale price" type="number" step="0.01" @bind="_createSalePrice" /></div>
+                <div class="col-md-3"><input class="form-control" placeholder="Low stock count" type="number" step="0.01" @bind="_createLowStockCount" /></div>
+                <div class="col-12"><input class="form-control" placeholder="Note" @bind="_createNote" /></div>
+            </div>
+            @if (_createError != null) { <p class="text-danger mt-2 mb-0">@_createError</p> }
+            <div class="mt-3">
+                <button class="btn btn-primary" @onclick="SubmitCreate">Save</button>
+                <button class="btn btn-light" @onclick="() => _showCreate = false">Cancel</button>
+            </div>
+        </div>
+    </div>
+}
 
 <input class="form-control mb-3" style="max-width: 320px;" placeholder="Search by name or SKU..."
        value="@_search" @oninput="OnSearchInput" />
@@ -53,8 +88,65 @@ else
     private string _search = string.Empty;
     private CancellationTokenSource? _debounce;
 
+    private List<Mercurius.Shared.Configuration.ProductCategoryDto> _categories = new();
+    private bool _showCreate;
+    private string _createCode = string.Empty;
+    private string _createName = string.Empty;
+    private string? _createCategoryId;
+    private int? _createLeadTimeDays;
+    private decimal? _createCostPrice;
+    private decimal _createMarkUpPercentage;
+    private decimal? _createSalePrice;
+    private decimal _createLowStockCount;
+    private string _createNote = string.Empty;
+    private string? _createError;
+
     protected override async Task OnInitializedAsync()
     {
+        await LoadAsync();
+        _categories = await Api.GetCategoryOptionsAsync();
+    }
+
+    private void ShowCreate()
+    {
+        _showCreate = true;
+        _createError = null;
+        _createCode = _createName = _createNote = string.Empty;
+        _createCategoryId = null;
+        _createLeadTimeDays = null;
+        _createCostPrice = null;
+        _createSalePrice = null;
+        _createMarkUpPercentage = 0;
+        _createLowStockCount = 0;
+    }
+
+    private async Task SubmitCreate()
+    {
+        if (string.IsNullOrWhiteSpace(_createCode) || string.IsNullOrWhiteSpace(_createName))
+        {
+            _createError = "SKU and Name are required.";
+            return;
+        }
+
+        var request = new CreateProductRequest
+        {
+            ProductCode = _createCode,
+            Name = _createName,
+            ProductCategoryId = int.TryParse(_createCategoryId, out var catId) ? catId : null,
+            CurrentCostPrice = _createCostPrice,
+            MarkUpPercentage = _createMarkUpPercentage,
+            CurrentSalePrice = _createSalePrice,
+            LeadTimeDays = _createLeadTimeDays,
+            LowStockCount = _createLowStockCount,
+            Note = _createNote
+        };
+        var (success, error) = await Api.CreateAsync(request);
+        if (!success)
+        {
+            _createError = error;
+            return;
+        }
+        _showCreate = false;
         await LoadAsync();
     }
 

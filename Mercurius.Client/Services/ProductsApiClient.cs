@@ -32,5 +32,13 @@ namespace Mercurius.Client.Services
             var body = await response.Content.ReadFromJsonAsync<Dictionary<string, string>>();
             return (false, body != null && body.TryGetValue("error", out var e) ? e : "Failed to save product.");
         }
+
+        public async Task<(bool Success, string? Error)> CreateAsync(CreateProductRequest request)
+        {
+            var response = await _http.PostAsJsonAsync("api/products", request);
+            if (response.IsSuccessStatusCode) return (true, null);
+            var body = await response.Content.ReadFromJsonAsync<Dictionary<string, string>>();
+            return (false, body != null && body.TryGetValue("error", out var e) ? e : "Failed to create product.");
+        }
     }
 }

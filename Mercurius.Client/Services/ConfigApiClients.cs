@@ -58,6 +58,27 @@ namespace Mercurius.Client.Services
         }
     }
 
+    public class RefundReasonsApiClient
+    {
+        private readonly HttpClient _http;
+        public RefundReasonsApiClient(HttpClient http) => _http = http;
+
+        public async Task<ListResultDto<RefundReasonDto>> GetAsync(string? search = null)
+        {
+            var url = "api/refund-reasons?search=" + Uri.EscapeDataString(search ?? string.Empty);
+            return await _http.GetFromJsonAsync<ListResultDto<RefundReasonDto>>(url) ?? new();
+        }
+
+        public async Task<RefundReasonDto?> CreateAsync(CreateRefundReasonRequest request)
+        {
+            var response = await _http.PostAsJsonAsync("api/refund-reasons", request);
+            return response.IsSuccessStatusCode ? await response.Content.ReadFromJsonAsync<RefundReasonDto>() : null;
+        }
+
+        public async Task<bool> UpdateAsync(int id, UpdateRefundReasonRequest request) =>
+            (await _http.PutAsJsonAsync($"api/refund-reasons/{id}", request)).IsSuccessStatusCode;
+    }
+
     public class CategoryFieldsApiClient
     {
         private readonly HttpClient _http;
