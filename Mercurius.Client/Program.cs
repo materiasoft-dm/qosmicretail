@@ -3,6 +3,7 @@ using Microsoft.AspNetCore.Components.Web;
 using Microsoft.AspNetCore.Components.WebAssembly.Hosting;
 using Mercurius.Client;
 using Mercurius.Client.Services;
+using MudBlazor.Services;
 
 var builder = WebAssemblyHostBuilder.CreateDefault(args);
 builder.RootComponents.Add<App>("#app");
@@ -19,6 +20,7 @@ builder.Services.AddScoped(sp => new HttpClient { BaseAddress = new Uri(siteRoot
 // separate Blazor-side login flow needed. See CookieAuthenticationStateProvider.
 builder.Services.AddAuthorizationCore();
 builder.Services.AddScoped<AuthenticationStateProvider, CookieAuthenticationStateProvider>();
+builder.Services.AddMudServices();
 builder.Services.AddScoped<ProductsApiClient>();
 builder.Services.AddScoped<CustomersApiClient>();
 builder.Services.AddScoped<SuppliersApiClient>();
@@ -37,5 +39,8 @@ builder.Services.AddScoped<UsersApiClient>();
 builder.Services.AddScoped<LogsApiClient>();
 builder.Services.AddScoped<DashboardApiClient>();
 builder.Services.AddScoped<SalesApiClient>();
+builder.Services.AddScoped<OfflineStoreService>();
+builder.Services.AddScoped<OfflineSyncService>();
+builder.Services.AddScoped<PwaService>();
 
 await builder.Build().RunAsync();

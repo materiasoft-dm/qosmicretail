@@ -1,67 +1,54 @@
 @page "/suppliers"
 @attribute [Authorize]
 @inject SuppliersApiClient Api
+@inject ISnackbar Snackbar
 
 <PageTitle>Suppliers</PageTitle>
 
-<div class="d-flex justify-content-between align-items-center mb-3">
-    <h1>Suppliers</h1>
-    <button class="btn btn-primary" @onclick="ShowCreateForm">Add Supplier</button>
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <MudText Typo="Typo.h4">Suppliers</MudText>
+    <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Filled.Add" OnClick="ShowCreateForm">
+        Add Supplier
+    </MudButton>
 </div>
 
-<input class="form-control mb-3" style="max-width: 320px;" placeholder="Search suppliers..."
-       value="@_search" @oninput="OnSearchInput" />
+<MudTextField T="string" Value="_search" ValueChanged="OnSearchChanged" Label="Search suppliers..." Variant="Variant.Outlined"
+              Immediate="true" Adornment="Adornment.Start" AdornmentIcon="@Icons.Material.Filled.Search" Class="mb-4" Style="max-width:320px;" />
 
 @if (_showCreate)
 {
-    <div class="card mb-3">
-        <div class="card-body">
-            <div class="row g-2">
-                <div class="col-md-6">
-                    <input class="form-control" placeholder="Supplier name" @bind="_newName" />
-                </div>
-            </div>
-            @if (!string.IsNullOrEmpty(_createError))
-            {
-                <p class="text-danger mt-2 mb-0">@_createError</p>
-            }
-            <div class="mt-3">
-                <button class="btn btn-primary" @onclick="SubmitCreate">Save</button>
-                <button class="btn btn-light" @onclick="() => _showCreate = false">Cancel</button>
-            </div>
+    <MudPaper Class="pa-4 mb-4" Elevation="2">
+        <MudTextField @bind-Value="_newName" Label="Supplier name" Variant="Variant.Outlined" Style="max-width:400px;" />
+        @if (!string.IsNullOrEmpty(_createError))
+        {
+            <MudAlert Severity="Severity.Error" Class="mt-3">@_createError</MudAlert>
+        }
+        <div class="mt-3">
+            <MudButton Color="Color.Primary" Variant="Variant.Filled" OnClick="SubmitCreate">Save</MudButton>
+            <MudButton OnClick="@(() => _showCreate = false)">Cancel</MudButton>
         </div>
-    </div>
+    </MudPaper>
 }
 
-@if (_loading)
-{
-    <p><em>Loading...</em></p>
-}
-else if (_result is null || _result.Items.Count == 0)
-{
-    <p>No suppliers found.</p>
-}
-else
-{
-    <table class="table table-striped">
-        <thead>
-            <tr>
-                <th>Name</th>
-                <th>Active</th>
-            </tr>
-        </thead>
-        <tbody>
-            @foreach (var s in _result.Items)
-            {
-                <tr>
-                    <td>@s.Name</td>
-                    <td>@(s.IsActive ? "Yes" : "No")</td>
-                </tr>
-            }
-        </tbody>
-    </table>
-    <p class="text-muted">Showing @_result.Items.Count of @_result.Total</p>
-}
+<MudPaper Class="pa-2" Elevation="2">
+    <MudTable Items="@(_result?.Items ?? new())" Loading="_loading" Hover="true" Dense="true">
+        <HeaderContent>
+            <MudTh>Name</MudTh>
+            <MudTh>Active</MudTh>
+        </HeaderContent>
+        <RowTemplate>
+            <MudTd DataLabel="Name">@context.Name</MudTd>
+            <MudTd DataLabel="Active">@(context.IsActive ? "Yes" : "No")</MudTd>
+        </RowTemplate>
+        <NoRecordsContent>
+            <MudText>No suppliers found.</MudText>
+        </NoRecordsContent>
+    </MudTable>
+    @if (_result is not null && _result.Items.Count > 0)
+    {
+        <MudText Typo="Typo.caption" Class="pa-2 d-block">Showing @_result.Items.Count of @_result.Total</MudText>
+    }
+</MudPaper>
 
 @code {
     private SupplierListResultDto? _result;
@@ -82,9 +69,9 @@ else
         _loading = false;
     }
 
-    private async Task OnSearchInput(ChangeEventArgs e)
+    private async Task OnSearchChanged(string value)
     {
-        _search = e.Value?.ToString() ?? string.Empty;
+        _search = value;
         _debounce?.Cancel();
         _debounce = new CancellationTokenSource();
         var token = _debounce.Token;
@@ -118,6 +105,7 @@ else
             return;
         }
         _showCreate = false;
+        Snackbar.Add("Supplier created.", Severity.Success);
         await LoadAsync();
     }
 }

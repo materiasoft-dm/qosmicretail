@@ -7,9 +7,18 @@
     <title>Mercurius</title>
     <base href="/app/" />
     <link rel="stylesheet" href="css/bootstrap/bootstrap.min.css" />
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" />
     <link rel="stylesheet" href="css/app.css" />
+    <!-- Vendored locally rather than referenced via _content/MudBlazor/... — this host's static
+         web assets manifest doesn't resolve RCL package assets under the hosted-WASM setup, so the
+         standard _content path 404s. Re-copy from the MudBlazor NuGet package's staticwebassets
+         folder when upgrading the MudBlazor version. -->
+    <link href="css/mudblazor/MudBlazor.min.css" rel="stylesheet" />
     <link rel="icon" type="image/png" href="favicon.png" />
     <link href="Mercurius.Client.styles.css" rel="stylesheet" />
+    <link rel="manifest" href="manifest.webmanifest" />
+    <link rel="apple-touch-icon" sizes="512x512" href="icon-512.png" />
+    <meta name="theme-color" content="#0f172a" />
 </head>
 
 <body>
@@ -27,6 +36,10 @@
         <a class="dismiss">🗙</a>
     </div>
     <script src="_framework/blazor.webassembly.js"></script>
+    <script src="js/MudBlazor.min.js"></script>
+    <script src="js/offlineStore.js"></script>
+    <script src="js/pwaHelpers.js"></script>
+    <script>navigator.serviceWorker.register('service-worker.js');</script>
 </body>
 
 </html>

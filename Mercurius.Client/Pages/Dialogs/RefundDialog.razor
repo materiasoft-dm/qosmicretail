@@ -1,0 +1,60 @@
+@inject InvoicesApiClient Api
+
+<MudDialog>
+    <DialogContent>
+        <MudNumericField @bind-Value="_quantity" Min="0.01M" Max="Item.QuantityRemaining" Format="N2"
+                         Label="@($"Quantity (max {Item.QuantityRemaining})")" Variant="Variant.Outlined" Class="mb-3" />
+        <MudSelect T="int" @bind-Value="_reasonId" Label="Reason" Variant="Variant.Outlined" Class="mb-3">
+            <MudSelectItem T="int" Value="0">-- Reason --</MudSelectItem>
+            @foreach (var reason in Reasons)
+            {
+                <MudSelectItem T="int" Value="@reason.Id">@reason.Name</MudSelectItem>
+            }
+        </MudSelect>
+        <MudTextField @bind-Value="_notes" Label="Notes" Variant="Variant.Outlined" Class="mb-3" />
+        <MudSwitch @bind-Value="_restock" Color="Color.Primary" Label="Put stock back into inventory" />
+        @if (_error != null)
+        {
+            <MudAlert Severity="Severity.Error" Class="mt-2">@_error</MudAlert>
+        }
+    </DialogContent>
+    <DialogActions>
+        <MudButton OnClick="Cancel">Cancel</MudButton>
+        <MudButton Color="Color.Error" Variant="Variant.Filled" OnClick="Submit">Refund</MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    [CascadingParameter] private IMudDialogInstance MudDialog { get; set; } = default!;
+    [Parameter] public InvoiceItemRowDto Item { get; set; } = default!;
+    [Parameter] public List<RefundReasonOptionDto> Reasons { get; set; } = new();
+
+    private decimal _quantity;
+    private int _reasonId;
+    private string _notes = string.Empty;
+    private bool _restock = true;
+    private string? _error;
+
+    protected override void OnInitialized() => _quantity = Item.QuantityRemaining;
+
+    private async Task Submit()
+    {
+        if (_quantity <= 0 || _quantity > Item.QuantityRemaining || _reasonId <= 0)
+        {
+            _error = "Enter a valid quantity and select a reason.";
+            return;
+        }
+        var (success, error) = await Api.CreateRefundAsync(new CreateRefundRequest
+        {
+            InvoiceItemId = Item.InvoiceItemId,
+            Quantity = _quantity,
+            RefundReasonId = _reasonId,
+            Notes = _notes,
+            Restock = _restock
+        });
+        if (!success) { _error = error; return; }
+        MudDialog.Close(DialogResult.Ok(true));
+    }
+
+    private void Cancel() => MudDialog.Cancel();
+}

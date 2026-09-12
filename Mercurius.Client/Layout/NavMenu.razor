@@ -1,119 +1,173 @@
-﻿<div class="top-row ps-3 navbar navbar-dark">
-    <div class="container-fluid">
-        <a class="navbar-brand" href="">Mercurius</a>
-        <button title="Navigation menu" class="navbar-toggler" @onclick="ToggleNavMenu">
-            <span class="navbar-toggler-icon"></span>
-        </button>
-    </div>
+@implements IDisposable
+@inject NavigationManager Nav
+@inject Mercurius.Client.Services.PwaService Pwa
+
+<div class="sidebar-topbar">
+    <a class="brand" href="">
+        <span class="brand-icon"><i class="bi bi-heart-pulse-fill"></i></span>
+        <span class="brand-text">
+            <span class="brand-name">Mercurius</span>
+            <span class="brand-sub">Pharmacy POS</span>
+        </span>
+    </a>
+    <button title="Menu" class="mobile-toggle d-lg-none" @onclick="ToggleMobile">
+        <i class="bi @(_mobileOpen ? "bi-x-lg" : "bi-list")"></i>
+    </button>
 </div>
 
-<div class="@NavMenuCssClass nav-scrollable" @onclick="ToggleNavMenu">
-    <nav class="flex-column">
-        <div class="nav-item px-3">
-            <NavLink class="nav-link" href="" Match="NavLinkMatch.All">
-                <span class="bi bi-house-door-fill-nav-menu" aria-hidden="true"></span> Home
-            </NavLink>
+@if (_mobileOpen)
+{
+    <div class="sidebar-backdrop d-lg-none" @onclick="CloseMobile"></div>
+}
+
+<nav class="sidebar-nav @(_mobileOpen ? "mobile-open" : "")">
+    <NavLink class="nav-link standalone" href="" Match="NavLinkMatch.All" @onclick="CloseMobile">
+        <i class="bi bi-speedometer2"></i> <span>Dashboard</span>
+    </NavLink>
+
+    <NavLink class="nav-link standalone nav-link-cta" href="sell" @onclick="CloseMobile">
+        <i class="bi bi-lightning-charge-fill"></i> <span>Sell</span>
+    </NavLink>
+
+    @foreach (var group in _groups)
+    {
+        <div class="nav-group">
+            <button type="button" class="nav-group-header" @onclick="() => ToggleGroup(group.Title)">
+                <i class="bi @group.Icon"></i>
+                <span class="nav-group-title">@group.Title</span>
+                <i class="bi bi-chevron-right chevron @(IsExpanded(group.Title) ? "chevron-open" : "")"></i>
+            </button>
+            <div class="nav-group-items @(IsExpanded(group.Title) ? "expanded" : "")">
+                <div>
+                    @foreach (var item in group.Items)
+                    {
+                        <NavLink class="nav-link" href="@item.Href" @onclick="CloseMobile">
+                            <i class="bi @item.Icon"></i> <span>@item.Text</span>
+                        </NavLink>
+                    }
+                </div>
+            </div>
         </div>
-        <div class="nav-item px-3">
-            <NavLink class="nav-link" href="sell">
-                <span class="bi bi-list-nested-nav-menu" aria-hidden="true"></span> Sell
-            </NavLink>
-        </div>
-        <div class="nav-item px-3">
-            <NavLink class="nav-link" href="products">
-                <span class="bi bi-list-nested-nav-menu" aria-hidden="true"></span> Products
-            </NavLink>
-        </div>
-        <div class="nav-item px-3">
-            <NavLink class="nav-link" href="invoices">
-                <span class="bi bi-list-nested-nav-menu" aria-hidden="true"></span> Invoices
-            </NavLink>
-        </div>
-        <div class="nav-item px-3">
-            <NavLink class="nav-link" href="customers">
-                <span class="bi bi-list-nested-nav-menu" aria-hidden="true"></span> Customers
-            </NavLink>
-        </div>
-        <div class="nav-item px-3">
-            <NavLink class="nav-link" href="suppliers">
-                <span class="bi bi-list-nested-nav-menu" aria-hidden="true"></span> Suppliers
-            </NavLink>
-        </div>
-        <div class="nav-item px-3">
-            <NavLink class="nav-link" href="adjustments">
-                <span class="bi bi-list-nested-nav-menu" aria-hidden="true"></span> Adjustments
-            </NavLink>
-        </div>
-        <div class="nav-item px-3">
-            <NavLink class="nav-link" href="purchase-orders">
-                <span class="bi bi-list-nested-nav-menu" aria-hidden="true"></span> Purchase Orders
-            </NavLink>
-        </div>
-        <div class="nav-item px-3">
-            <NavLink class="nav-link" href="shipments">
-                <span class="bi bi-list-nested-nav-menu" aria-hidden="true"></span> Shipments
-            </NavLink>
-        </div>
-        <div class="nav-item px-3">
-            <NavLink class="nav-link" href="product-categories">
-                <span class="bi bi-list-nested-nav-menu" aria-hidden="true"></span> Product Categories
-            </NavLink>
-        </div>
-        <div class="nav-item px-3">
-            <NavLink class="nav-link" href="category-fields">
-                <span class="bi bi-list-nested-nav-menu" aria-hidden="true"></span> Category Fields
-            </NavLink>
-        </div>
-        <div class="nav-item px-3">
-            <NavLink class="nav-link" href="adjustment-reasons">
-                <span class="bi bi-list-nested-nav-menu" aria-hidden="true"></span> Adjustment Reasons
-            </NavLink>
-        </div>
-        <div class="nav-item px-3">
-            <NavLink class="nav-link" href="refund-reasons">
-                <span class="bi bi-list-nested-nav-menu" aria-hidden="true"></span> Refund Reasons
-            </NavLink>
-        </div>
-        <div class="nav-item px-3">
-            <NavLink class="nav-link" href="locations">
-                <span class="bi bi-list-nested-nav-menu" aria-hidden="true"></span> Locations
-            </NavLink>
-        </div>
-        <div class="nav-item px-3">
-            <NavLink class="nav-link" href="reports">
-                <span class="bi bi-list-nested-nav-menu" aria-hidden="true"></span> Reports
-            </NavLink>
-        </div>
-        <div class="nav-item px-3">
-            <NavLink class="nav-link" href="settings">
-                <span class="bi bi-list-nested-nav-menu" aria-hidden="true"></span> Settings
-            </NavLink>
-        </div>
-        <div class="nav-item px-3">
-            <NavLink class="nav-link" href="roles-manager">
-                <span class="bi bi-list-nested-nav-menu" aria-hidden="true"></span> Roles
-            </NavLink>
-        </div>
-        <div class="nav-item px-3">
-            <NavLink class="nav-link" href="users-admin">
-                <span class="bi bi-list-nested-nav-menu" aria-hidden="true"></span> Users
-            </NavLink>
-        </div>
-        <div class="nav-item px-3">
-            <NavLink class="nav-link" href="logs">
-                <span class="bi bi-list-nested-nav-menu" aria-hidden="true"></span> Logs
-            </NavLink>
-        </div>
-    </nav>
-</div>
+    }
+
+    <NavLink class="nav-link standalone" href="reports" @onclick="CloseMobile">
+        <i class="bi bi-bar-chart-line-fill"></i> <span>Reports</span>
+    </NavLink>
+
+    @if (_showInstallButton)
+    {
+        <button type="button" class="nav-link standalone install-button" @onclick="InstallApp">
+            <i class="bi bi-download"></i> <span>Install app</span>
+        </button>
+    }
+</nav>
 
 @code {
-    private bool collapseNavMenu = true;
+    private record NavItem(string Text, string Href, string Icon);
+    private record NavGroup(string Title, string Icon, List<NavItem> Items);
 
-    private string? NavMenuCssClass => collapseNavMenu ? "collapse" : null;
-
-    private void ToggleNavMenu()
+    private readonly List<NavGroup> _groups = new()
     {
-        collapseNavMenu = !collapseNavMenu;
+        new("Sales", "bi-receipt-cutoff", new()
+        {
+            new("Invoices", "invoices", "bi-journal-text"),
+            new("Customers", "customers", "bi-people-fill"),
+            new("Refund Reasons", "refund-reasons", "bi-arrow-return-left"),
+        }),
+        new("Catalog", "bi-box-seam", new()
+        {
+            new("Products", "products", "bi-capsule"),
+            new("Product Categories", "product-categories", "bi-tags-fill"),
+            new("Category Fields", "category-fields", "bi-input-cursor-text"),
+        }),
+        new("Purchasing", "bi-truck", new()
+        {
+            new("Suppliers", "suppliers", "bi-building"),
+            new("Purchase Orders", "purchase-orders", "bi-clipboard-check"),
+            new("Shipments", "shipments", "bi-box-arrow-in-down"),
+        }),
+        new("Inventory", "bi-archive-fill", new()
+        {
+            new("Adjustments", "adjustments", "bi-sliders"),
+            new("Adjustment Reasons", "adjustment-reasons", "bi-list-check"),
+            new("Locations", "locations", "bi-geo-alt-fill"),
+        }),
+        new("Administration", "bi-shield-lock-fill", new()
+        {
+            new("Roles", "roles-manager", "bi-person-badge-fill"),
+            new("Users", "users-admin", "bi-people"),
+            new("Logs", "logs", "bi-terminal-fill"),
+            new("Settings", "settings", "bi-gear-fill"),
+        }),
+    };
+
+    private readonly HashSet<string> _expandedGroups = new();
+    private bool _mobileOpen;
+    private bool _showInstallButton;
+
+    protected override void OnInitialized()
+    {
+        Nav.LocationChanged += OnLocationChanged;
+        ExpandActiveGroup();
     }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!firstRender) return;
+
+        // The browser only fires "beforeinstallprompt" (which pwaHelpers.js needs to have
+        // captured before we can trigger it on demand) shortly after load, and only when the
+        // PWA criteria are met and it isn't already installed — check once, a beat after render.
+        await Task.Delay(1500);
+        if (await Pwa.IsInstalledAsync()) return;
+        if (await Pwa.CanPromptInstallAsync())
+        {
+            _showInstallButton = true;
+            StateHasChanged();
+        }
+    }
+
+    private async Task InstallApp()
+    {
+        var outcome = await Pwa.PromptInstallAsync();
+        if (outcome != "unavailable")
+        {
+            _showInstallButton = false;
+            StateHasChanged();
+        }
+    }
+
+    private void ExpandActiveGroup()
+    {
+        var relativePath = Nav.ToBaseRelativePath(Nav.Uri);
+        foreach (var group in _groups)
+        {
+            if (group.Items.Any(i => relativePath.StartsWith(i.Href, StringComparison.OrdinalIgnoreCase)))
+            {
+                _expandedGroups.Add(group.Title);
+            }
+        }
+    }
+
+    private void OnLocationChanged(object? sender, Microsoft.AspNetCore.Components.Routing.LocationChangedEventArgs e)
+    {
+        ExpandActiveGroup();
+        InvokeAsync(StateHasChanged);
+    }
+
+    private bool IsExpanded(string title) => _expandedGroups.Contains(title);
+
+    private void ToggleGroup(string title)
+    {
+        if (!_expandedGroups.Add(title))
+        {
+            _expandedGroups.Remove(title);
+        }
+    }
+
+    private void ToggleMobile() => _mobileOpen = !_mobileOpen;
+
+    private void CloseMobile() => _mobileOpen = false;
+
+    public void Dispose() => Nav.LocationChanged -= OnLocationChanged;
 }

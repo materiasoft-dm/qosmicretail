@@ -1,80 +1,63 @@
 @page "/customers"
 @attribute [Authorize]
 @inject CustomersApiClient Api
+@inject ISnackbar Snackbar
 
 <PageTitle>Customers</PageTitle>
 
-<div class="d-flex justify-content-between align-items-center mb-3">
-    <h1>Customers</h1>
-    <button class="btn btn-primary" @onclick="ShowCreateForm">Add Customer</button>
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <MudText Typo="Typo.h4">Customers</MudText>
+    <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Filled.Add" OnClick="ShowCreateForm">
+        Add Customer
+    </MudButton>
 </div>
 
-<input class="form-control mb-3" style="max-width: 320px;" placeholder="Search customers..."
-       value="@_search" @oninput="OnSearchInput" />
+<MudTextField T="string" Value="_search" ValueChanged="OnSearchChanged" Label="Search customers..." Variant="Variant.Outlined"
+              Immediate="true" Adornment="Adornment.Start" AdornmentIcon="@Icons.Material.Filled.Search" Class="mb-4" Style="max-width:320px;" />
 
 @if (_showCreate)
 {
-    <div class="card mb-3">
-        <div class="card-body">
-            <div class="row g-2">
-                <div class="col-md-3">
-                    <input class="form-control" placeholder="First name" @bind="_newFirstName" />
-                </div>
-                <div class="col-md-3">
-                    <input class="form-control" placeholder="Last name" @bind="_newLastName" />
-                </div>
-                <div class="col-md-3">
-                    <input class="form-control" placeholder="Contact number" @bind="_newContactNumber" />
-                </div>
-                <div class="col-md-3">
-                    <input class="form-control" placeholder="Email" @bind="_newEmail" />
-                </div>
-            </div>
-            @if (!string.IsNullOrEmpty(_createError))
-            {
-                <p class="text-danger mt-2 mb-0">@_createError</p>
-            }
-            <div class="mt-3">
-                <button class="btn btn-primary" @onclick="SubmitCreate">Save</button>
-                <button class="btn btn-light" @onclick="() => _showCreate = false">Cancel</button>
-            </div>
+    <MudPaper Class="pa-4 mb-4" Elevation="2">
+        <MudGrid>
+            <MudItem xs="12" md="3"><MudTextField @bind-Value="_newFirstName" Label="First name" Variant="Variant.Outlined" /></MudItem>
+            <MudItem xs="12" md="3"><MudTextField @bind-Value="_newLastName" Label="Last name" Variant="Variant.Outlined" /></MudItem>
+            <MudItem xs="12" md="3"><MudTextField @bind-Value="_newContactNumber" Label="Contact number" Variant="Variant.Outlined" /></MudItem>
+            <MudItem xs="12" md="3"><MudTextField @bind-Value="_newEmail" Label="Email" Variant="Variant.Outlined" /></MudItem>
+        </MudGrid>
+        @if (!string.IsNullOrEmpty(_createError))
+        {
+            <MudAlert Severity="Severity.Error" Class="mt-3">@_createError</MudAlert>
+        }
+        <div class="mt-3">
+            <MudButton Color="Color.Primary" Variant="Variant.Filled" OnClick="SubmitCreate">Save</MudButton>
+            <MudButton OnClick="@(() => _showCreate = false)">Cancel</MudButton>
         </div>
-    </div>
+    </MudPaper>
 }
 
-@if (_loading)
-{
-    <p><em>Loading...</em></p>
-}
-else if (_result is null || _result.Items.Count == 0)
-{
-    <p>No customers found.</p>
-}
-else
-{
-    <table class="table table-striped">
-        <thead>
-            <tr>
-                <th>First name</th>
-                <th>Last name</th>
-                <th>Contact number</th>
-                <th>Email</th>
-            </tr>
-        </thead>
-        <tbody>
-            @foreach (var c in _result.Items)
-            {
-                <tr>
-                    <td>@c.FirstName</td>
-                    <td>@c.LastName</td>
-                    <td>@c.ContactNumber</td>
-                    <td>@c.EmailAddress</td>
-                </tr>
-            }
-        </tbody>
-    </table>
-    <p class="text-muted">Showing @_result.Items.Count of @_result.Total</p>
-}
+<MudPaper Class="pa-2" Elevation="2">
+    <MudTable Items="@(_result?.Items ?? new())" Loading="_loading" Hover="true" Dense="true">
+        <HeaderContent>
+            <MudTh>First name</MudTh>
+            <MudTh>Last name</MudTh>
+            <MudTh>Contact number</MudTh>
+            <MudTh>Email</MudTh>
+        </HeaderContent>
+        <RowTemplate>
+            <MudTd DataLabel="First name">@context.FirstName</MudTd>
+            <MudTd DataLabel="Last name">@context.LastName</MudTd>
+            <MudTd DataLabel="Contact number">@context.ContactNumber</MudTd>
+            <MudTd DataLabel="Email">@context.EmailAddress</MudTd>
+        </RowTemplate>
+        <NoRecordsContent>
+            <MudText>No customers found.</MudText>
+        </NoRecordsContent>
+    </MudTable>
+    @if (_result is not null && _result.Items.Count > 0)
+    {
+        <MudText Typo="Typo.caption" Class="pa-2 d-block">Showing @_result.Items.Count of @_result.Total</MudText>
+    }
+</MudPaper>
 
 @code {
     private CustomerListResultDto? _result;
@@ -98,9 +81,9 @@ else
         _loading = false;
     }
 
-    private async Task OnSearchInput(ChangeEventArgs e)
+    private async Task OnSearchChanged(string value)
     {
-        _search = e.Value?.ToString() ?? string.Empty;
+        _search = value;
         _debounce?.Cancel();
         _debounce = new CancellationTokenSource();
         var token = _debounce.Token;
@@ -140,6 +123,7 @@ else
             return;
         }
         _showCreate = false;
+        Snackbar.Add("Customer created.", Severity.Success);
         await LoadAsync();
     }
 }

@@ -5,54 +5,46 @@
 
 <PageTitle>Invoices</PageTitle>
 
-<h1>Invoices</h1>
+<MudText Typo="Typo.h4" Class="mb-4">Invoices</MudText>
 
-<input class="form-control mb-3" style="max-width: 320px;" placeholder="Search by invoice # or customer..."
-       value="@_search" @oninput="OnSearchInput" />
+<MudTextField T="string" Value="_search" ValueChanged="OnSearchChanged" Label="Search by invoice # or customer..." Variant="Variant.Outlined"
+              Immediate="true" Adornment="Adornment.Start" AdornmentIcon="@Icons.Material.Filled.Search" Class="mb-4" Style="max-width:320px;" />
 
-@if (_loading)
-{
-    <p><em>Loading...</em></p>
-}
-else if (_result is null || _result.Items.Count == 0)
-{
-    <p>No invoices found.</p>
-}
-else
-{
-    <table class="table table-striped">
-        <thead>
-            <tr>
-                <th>Invoice #</th>
-                <th>Date</th>
-                <th>Customer</th>
-                <th>Status</th>
-                <th class="text-end">Paid amount</th>
-                <th></th>
-            </tr>
-        </thead>
-        <tbody>
-            @foreach (var i in _result.Items)
-            {
-                <tr style="cursor:pointer" @onclick="() => GoToInvoice(i.Id)">
-                    <td>@i.InvoiceNumber</td>
-                    <td>@i.InvoiceDate.ToString("yyyy-MM-dd")</td>
-                    <td>@(string.IsNullOrEmpty(i.CustomerName) ? "(no customer)" : i.CustomerName)</td>
-                    <td>
-                        <span class="badge @StatusBadgeClass(i.StatusId)">@i.StatusName</span>
-                        @if (i.HasRefund)
-                        {
-                            <i class="bi bi-arrow-counterclockwise ms-1" title="Has refund"></i>
-                        }
-                    </td>
-                    <td class="text-end">@(i.PaidAmount.HasValue ? Money.Format(i.PaidAmount.Value) : "-")</td>
-                    <td><a href="invoices/@i.Id" @onclick:stopPropagation="true">View</a></td>
-                </tr>
-            }
-        </tbody>
-    </table>
-    <p class="text-muted">Showing @_result.Items.Count of @_result.Total</p>
-}
+<MudPaper Class="pa-2" Elevation="2">
+    <MudTable Items="@(_result?.Items ?? new())" Loading="_loading" Hover="true" Dense="true" OnRowClick="@((TableRowClickEventArgs<InvoiceListItemDto> e) => GoToInvoice(e.Item?.Id ?? 0))" T="InvoiceListItemDto">
+        <HeaderContent>
+            <MudTh>Invoice #</MudTh>
+            <MudTh>Date</MudTh>
+            <MudTh>Customer</MudTh>
+            <MudTh>Status</MudTh>
+            <MudTh Style="text-align:right;">Paid amount</MudTh>
+            <MudTh></MudTh>
+        </HeaderContent>
+        <RowTemplate>
+            <MudTd DataLabel="Invoice #">@context.InvoiceNumber</MudTd>
+            <MudTd DataLabel="Date">@context.InvoiceDate.ToString("yyyy-MM-dd")</MudTd>
+            <MudTd DataLabel="Customer">@(string.IsNullOrEmpty(context.CustomerName) ? "(no customer)" : context.CustomerName)</MudTd>
+            <MudTd DataLabel="Status">
+                <MudChip T="string" Size="Size.Small" Color="@StatusColor(context.StatusId)">@context.StatusName</MudChip>
+                @if (context.HasRefund)
+                {
+                    <MudIcon Icon="@Icons.Material.Filled.Replay" Size="Size.Small" Title="Has refund" Class="ms-1" />
+                }
+            </MudTd>
+            <MudTd DataLabel="Paid amount" Style="text-align:right;">@(context.PaidAmount.HasValue ? Money.Format(context.PaidAmount.Value) : "-")</MudTd>
+            <MudTd @onclick:stopPropagation="true">
+                <MudButton Size="Size.Small" Href="@($"invoices/{context.Id}")">View</MudButton>
+            </MudTd>
+        </RowTemplate>
+        <NoRecordsContent>
+            <MudText>No invoices found.</MudText>
+        </NoRecordsContent>
+    </MudTable>
+    @if (_result is not null && _result.Items.Count > 0)
+    {
+        <MudText Typo="Typo.caption" Class="pa-2 d-block">Showing @_result.Items.Count of @_result.Total</MudText>
+    }
+</MudPaper>
 
 @code {
     private InvoiceListResultDto? _result;
@@ -77,9 +69,9 @@ else
         _loading = false;
     }
 
-    private async Task OnSearchInput(ChangeEventArgs e)
+    private async Task OnSearchChanged(string value)
     {
-        _search = e.Value?.ToString() ?? string.Empty;
+        _search = value;
         _debounce?.Cancel();
         _debounce = new CancellationTokenSource();
         var token = _debounce.Token;
@@ -94,15 +86,15 @@ else
 
     // Mirrors Views/Invoices/Index.cshtml's statusBadgeClass(): 1 Draft, 2 Completed,
     // 3 Finalized, 4 Refunded, 5 Deleted, 6 DeferredPayment, 7 PartiallyPaid.
-    private static string StatusBadgeClass(int statusId) => statusId switch
+    private static Color StatusColor(int statusId) => statusId switch
     {
-        1 => "badge-secondary",
-        2 => "badge-success",
-        3 => "badge-primary",
-        4 => "badge-danger",
-        5 => "badge-dark",
-        6 => "badge-warning",
-        7 => "badge-info",
-        _ => "badge-light"
+        1 => Color.Secondary,
+        2 => Color.Success,
+        3 => Color.Primary,
+        4 => Color.Error,
+        5 => Color.Dark,
+        6 => Color.Warning,
+        7 => Color.Info,
+        _ => Color.Default
     };
 }

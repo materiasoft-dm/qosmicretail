@@ -1,66 +1,73 @@
 @page "/category-fields"
 @attribute [Authorize]
 @inject CategoryFieldsApiClient Api
+@inject ISnackbar Snackbar
 
 <PageTitle>Category Custom Fields</PageTitle>
 
-<div class="d-flex justify-content-between align-items-center mb-3">
-    <h1>Category Custom Fields</h1>
-    <button class="btn btn-primary" @onclick="ShowCreate">Add Field</button>
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <MudText Typo="Typo.h4">Category Custom Fields</MudText>
+    <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Filled.Add" OnClick="ShowCreate">
+        Add Field
+    </MudButton>
 </div>
 
 @if (_showCreate)
 {
-    <div class="card mb-3">
-        <div class="card-body">
-            <div class="row g-2">
-                <div class="col-md-3">
-                    <select class="form-select" @bind="_categoryId">
-                        <option value="0">-- Category --</option>
-                        @foreach (var c in _categories)
-                        {
-                            <option value="@c.Id">@c.Name</option>
-                        }
-                    </select>
-                </div>
-                <div class="col-md-3"><input class="form-control" placeholder="Field name (code)" @bind="_fieldName" /></div>
-                <div class="col-md-3"><input class="form-control" placeholder="Display label" @bind="_displayLabel" /></div>
-                <div class="col-md-3">
-                    <select class="form-select" @bind="_fieldType">
-                        <option value="text">Text</option>
-                        <option value="number">Number</option>
-                        <option value="select">Select</option>
-                        <option value="checkbox">Checkbox</option>
-                        <option value="date">Date</option>
-                        <option value="textarea">Textarea</option>
-                    </select>
-                </div>
-            </div>
-            @if (_error != null) { <p class="text-danger mt-2 mb-0">@_error</p> }
-            <div class="mt-3">
-                <button class="btn btn-primary" @onclick="Submit">Save</button>
-                <button class="btn btn-light" @onclick="() => _showCreate = false">Cancel</button>
-            </div>
+    <MudPaper Class="pa-4 mb-4" Elevation="2">
+        <MudGrid>
+            <MudItem xs="12" md="3">
+                <MudSelect T="int" @bind-Value="_categoryId" Label="Category" Variant="Variant.Outlined">
+                    <MudSelectItem T="int" Value="0">-- Category --</MudSelectItem>
+                    @foreach (var c in _categories)
+                    {
+                        <MudSelectItem T="int" Value="@c.Id">@c.Name</MudSelectItem>
+                    }
+                </MudSelect>
+            </MudItem>
+            <MudItem xs="12" md="3"><MudTextField @bind-Value="_fieldName" Label="Field name (code)" Variant="Variant.Outlined" /></MudItem>
+            <MudItem xs="12" md="3"><MudTextField @bind-Value="_displayLabel" Label="Display label" Variant="Variant.Outlined" /></MudItem>
+            <MudItem xs="12" md="3">
+                <MudSelect T="string" @bind-Value="_fieldType" Label="Field type" Variant="Variant.Outlined">
+                    <MudSelectItem T="string" Value="@("text")">Text</MudSelectItem>
+                    <MudSelectItem T="string" Value="@("number")">Number</MudSelectItem>
+                    <MudSelectItem T="string" Value="@("select")">Select</MudSelectItem>
+                    <MudSelectItem T="string" Value="@("checkbox")">Checkbox</MudSelectItem>
+                    <MudSelectItem T="string" Value="@("date")">Date</MudSelectItem>
+                    <MudSelectItem T="string" Value="@("textarea")">Textarea</MudSelectItem>
+                </MudSelect>
+            </MudItem>
+        </MudGrid>
+        @if (_error != null)
+        {
+            <MudAlert Severity="Severity.Error" Class="mt-3">@_error</MudAlert>
+        }
+        <div class="mt-3">
+            <MudButton Color="Color.Primary" Variant="Variant.Filled" OnClick="Submit">Save</MudButton>
+            <MudButton OnClick="@(() => _showCreate = false)">Cancel</MudButton>
         </div>
-    </div>
+    </MudPaper>
 }
 
-@if (_result is null)
-{
-    <p><em>Loading...</em></p>
-}
-else
-{
-    <table class="table table-striped">
-        <thead><tr><th>Category</th><th>Field name</th><th>Label</th><th>Type</th></tr></thead>
-        <tbody>
-            @foreach (var f in _result.Items)
-            {
-                <tr><td>@f.CategoryName</td><td>@f.FieldName</td><td>@f.DisplayLabel</td><td>@f.FieldType</td></tr>
-            }
-        </tbody>
-    </table>
-}
+<MudPaper Class="pa-2" Elevation="2">
+    <MudTable Items="@(_result?.Items ?? new())" Loading="@(_result is null)" Hover="true" Dense="true">
+        <HeaderContent>
+            <MudTh>Category</MudTh>
+            <MudTh>Field name</MudTh>
+            <MudTh>Label</MudTh>
+            <MudTh>Type</MudTh>
+        </HeaderContent>
+        <RowTemplate>
+            <MudTd DataLabel="Category">@context.CategoryName</MudTd>
+            <MudTd DataLabel="Field name">@context.FieldName</MudTd>
+            <MudTd DataLabel="Label">@context.DisplayLabel</MudTd>
+            <MudTd DataLabel="Type">@context.FieldType</MudTd>
+        </RowTemplate>
+        <NoRecordsContent>
+            <MudText>No custom fields yet.</MudText>
+        </NoRecordsContent>
+    </MudTable>
+</MudPaper>
 
 @code {
     private ListResultDto<CategoryFieldDto>? _result;
@@ -100,6 +107,7 @@ else
         });
         if (!success) { _error = error; return; }
         _showCreate = false;
+        Snackbar.Add("Custom field created.", Severity.Success);
         await LoadAsync();
     }
 }

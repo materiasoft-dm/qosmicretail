@@ -1,117 +1,72 @@
 @page "/refund-reasons"
 @attribute [Authorize]
+@using Mercurius.Client.Pages.Dialogs
 @inject RefundReasonsApiClient Api
+@inject IDialogService DialogService
+@inject ISnackbar Snackbar
 
 <PageTitle>Refund Reasons</PageTitle>
 
-<div class="d-flex justify-content-between align-items-center mb-3">
-    <h1>Refund Reasons</h1>
-    <button class="btn btn-primary" @onclick="ShowCreate">Add Reason</button>
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <MudText Typo="Typo.h4">Refund Reasons</MudText>
+    <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Filled.Add" OnClick="OpenCreate">
+        Add Reason
+    </MudButton>
 </div>
 
-@if (_showCreate)
-{
-    <div class="card mb-3">
-        <div class="card-body">
-            <div class="row g-2">
-                <div class="col-md-4"><input class="form-control" placeholder="Name" @bind="_name" /></div>
-                <div class="col-md-6"><input class="form-control" placeholder="Description" @bind="_description" /></div>
-            </div>
-            @if (_error != null) { <p class="text-danger mt-2 mb-0">@_error</p> }
-            <div class="mt-3">
-                <button class="btn btn-primary" @onclick="Submit">Save</button>
-                <button class="btn btn-light" @onclick="() => _showCreate = false">Cancel</button>
-            </div>
-        </div>
-    </div>
-}
-
-@if (_editingId.HasValue)
-{
-    <div class="card mb-3">
-        <div class="card-body">
-            <div class="row g-2">
-                <div class="col-md-4"><input class="form-control" placeholder="Name" @bind="_editName" /></div>
-                <div class="col-md-4"><input class="form-control" placeholder="Description" @bind="_editDescription" /></div>
-                <div class="col-md-2 d-flex align-items-center">
-                    <div class="form-check">
-                        <input class="form-check-input" type="checkbox" id="editActive" @bind="_editIsActive" />
-                        <label class="form-check-label" for="editActive">Active</label>
-                    </div>
-                </div>
-            </div>
-            @if (_editError != null) { <p class="text-danger mt-2 mb-0">@_editError</p> }
-            <div class="mt-3">
-                <button class="btn btn-primary" @onclick="SaveEdit">Save</button>
-                <button class="btn btn-light" @onclick="() => _editingId = null">Cancel</button>
-            </div>
-        </div>
-    </div>
-}
-
-@if (_result is null)
-{
-    <p><em>Loading...</em></p>
-}
-else
-{
-    <table class="table table-striped">
-        <thead><tr><th>Name</th><th>Description</th><th>Active</th><th></th></tr></thead>
-        <tbody>
-            @foreach (var r in _result.Items)
-            {
-                <tr>
-                    <td>@r.Name</td>
-                    <td>@r.Description</td>
-                    <td>@(r.IsActive ? "Yes" : "No")</td>
-                    <td><button class="btn btn-sm btn-light" @onclick="() => StartEdit(r)">Edit</button></td>
-                </tr>
-            }
-        </tbody>
-    </table>
-}
+<MudPaper Class="pa-2" Elevation="2">
+    <MudTable Items="@(_result?.Items ?? new())" Loading="@(_result is null)" Hover="true" Dense="true">
+        <HeaderContent>
+            <MudTh>Name</MudTh>
+            <MudTh>Description</MudTh>
+            <MudTh>Status</MudTh>
+            <MudTh></MudTh>
+        </HeaderContent>
+        <RowTemplate>
+            <MudTd DataLabel="Name">@context.Name</MudTd>
+            <MudTd DataLabel="Description">@context.Description</MudTd>
+            <MudTd DataLabel="Status">
+                <MudChip T="string" Size="Size.Small" Color="@(context.IsActive ? Color.Success : Color.Default)">
+                    @(context.IsActive ? "Active" : "Inactive")
+                </MudChip>
+            </MudTd>
+            <MudTd>
+                <MudIconButton Icon="@Icons.Material.Filled.Edit" Size="Size.Small" OnClick="() => OpenEdit(context)" />
+            </MudTd>
+        </RowTemplate>
+        <NoRecordsContent>
+            <MudText>No refund reasons yet.</MudText>
+        </NoRecordsContent>
+    </MudTable>
+</MudPaper>
 
 @code {
     private ListResultDto<RefundReasonDto>? _result;
-    private bool _showCreate;
-    private string _name = string.Empty, _description = string.Empty;
-    private string? _error;
-
-    private int? _editingId;
-    private string _editName = string.Empty, _editDescription = string.Empty;
-    private bool _editIsActive;
-    private string? _editError;
 
     protected override async Task OnInitializedAsync() => await LoadAsync();
+
     private async Task LoadAsync() => _result = await Api.GetAsync();
 
-    private void ShowCreate() { _showCreate = true; _error = null; _name = _description = string.Empty; }
-
-    private async Task Submit()
+    private async Task OpenCreate()
     {
-        if (string.IsNullOrWhiteSpace(_name)) { _error = "Name is required."; return; }
-        var created = await Api.CreateAsync(new CreateRefundReasonRequest { Name = _name, Description = _description });
-        if (created == null) { _error = "Failed to create."; return; }
-        _showCreate = false;
-        await LoadAsync();
+        var dialog = await DialogService.ShowAsync<RefundReasonDialog>("Add Refund Reason");
+        var result = await dialog.Result;
+        if (result is { Canceled: false })
+        {
+            Snackbar.Add("Refund reason created.", Severity.Success);
+            await LoadAsync();
+        }
     }
 
-    private void StartEdit(RefundReasonDto r)
+    private async Task OpenEdit(RefundReasonDto reason)
     {
-        _editingId = r.Id;
-        _editName = r.Name;
-        _editDescription = r.Description ?? string.Empty;
-        _editIsActive = r.IsActive;
-        _editError = null;
-    }
-
-    private async Task SaveEdit()
-    {
-        if (_editingId == null) return;
-        if (string.IsNullOrWhiteSpace(_editName)) { _editError = "Name is required."; return; }
-        var success = await Api.UpdateAsync(_editingId.Value, new UpdateRefundReasonRequest { Name = _editName, Description = _editDescription, IsActive = _editIsActive });
-        if (!success) { _editError = "Failed to save."; return; }
-        _editingId = null;
-        await LoadAsync();
+        var parameters = new DialogParameters<RefundReasonDialog> { { d => d.Existing, reason } };
+        var dialog = await DialogService.ShowAsync<RefundReasonDialog>("Edit Refund Reason", parameters);
+        var result = await dialog.Result;
+        if (result is { Canceled: false })
+        {
+            Snackbar.Add("Refund reason updated.", Severity.Success);
+            await LoadAsync();
+        }
     }
 }

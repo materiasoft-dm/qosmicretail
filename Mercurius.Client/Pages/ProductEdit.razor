@@ -2,82 +2,54 @@
 @attribute [Authorize]
 @inject ProductsApiClient Api
 @inject NavigationManager Nav
+@inject ISnackbar Snackbar
 
 <PageTitle>Edit Product</PageTitle>
 
 @if (_product is null)
 {
-    <p><em>Loading...</em></p>
+    <MudText><em>Loading...</em></MudText>
 }
 else
 {
-    <h1>Edit Product</h1>
+    <MudText Typo="Typo.h4" Class="mb-4">Edit Product</MudText>
 
-    @if (_error != null) { <div class="alert alert-danger">@_error</div> }
+    @if (_error != null)
+    {
+        <MudAlert Severity="Severity.Error" Class="mb-3">@_error</MudAlert>
+    }
 
-    <div class="row g-3" style="max-width:900px;">
-        <div class="col-md-6">
-            <label class="form-label">SKU</label>
-            <input class="form-control" @bind="_product.ProductCode" />
-        </div>
-        <div class="col-md-6">
-            <label class="form-label">Category</label>
-            <select class="form-select" @bind="_product.ProductCategoryId">
-                <option value="">-- None --</option>
-                @foreach (var c in _categories)
-                {
-                    <option value="@c.Id">@c.Name</option>
-                }
-            </select>
-        </div>
-        <div class="col-12">
-            <label class="form-label">Name</label>
-            <input class="form-control" @bind="_product.Name" />
-        </div>
-        <div class="col-12">
-            <label class="form-label">Description</label>
-            <textarea class="form-control" rows="3" @bind="_product.Description"></textarea>
-        </div>
-        <div class="col-md-3">
-            <label class="form-label">Cost price</label>
-            <input type="number" step="0.01" class="form-control" @bind="_product.CurrentCostPrice" />
-        </div>
-        <div class="col-md-3">
-            <label class="form-label">Markup %</label>
-            <input type="number" step="0.01" class="form-control" @bind="_product.MarkUpPercentage" />
-        </div>
-        <div class="col-md-3">
-            <label class="form-label">Sale price</label>
-            <input type="number" step="0.01" class="form-control" @bind="_product.CurrentSalePrice" />
-        </div>
-        <div class="col-md-3">
-            <label class="form-label">Lead time (days)</label>
-            <input type="number" class="form-control" @bind="_product.LeadTimeDays" />
-        </div>
-        <div class="col-md-3">
-            <label class="form-label">Current stock (read-only)</label>
-            <input class="form-control" value="@_product.CurrentStock" disabled />
-        </div>
-        <div class="col-md-3">
-            <label class="form-label">Low stock warning</label>
-            <input type="number" step="0.01" class="form-control" @bind="_product.LowStockCount" />
-        </div>
-        <div class="col-md-3 d-flex align-items-end">
-            <div class="form-check">
-                <input class="form-check-input" type="checkbox" id="isActive" @bind="_product.IsActive" />
-                <label class="form-check-label" for="isActive">Active</label>
-            </div>
-        </div>
-        <div class="col-12">
-            <label class="form-label">Note</label>
-            <textarea class="form-control" rows="2" @bind="_product.Note"></textarea>
-        </div>
-    </div>
+    <MudPaper Class="pa-4" Elevation="2" Style="max-width:900px;">
+        <MudGrid>
+            <MudItem xs="12" md="6"><MudTextField @bind-Value="_product.ProductCode" Label="SKU" Variant="Variant.Outlined" /></MudItem>
+            <MudItem xs="12" md="6">
+                <MudSelect T="int?" @bind-Value="_product.ProductCategoryId" Label="Category" Variant="Variant.Outlined">
+                    <MudSelectItem T="int?" Value="@((int?)null)">-- None --</MudSelectItem>
+                    @foreach (var c in _categories)
+                    {
+                        <MudSelectItem T="int?" Value="@((int?)c.Id)">@c.Name</MudSelectItem>
+                    }
+                </MudSelect>
+            </MudItem>
+            <MudItem xs="12"><MudTextField @bind-Value="_product.Name" Label="Name" Variant="Variant.Outlined" /></MudItem>
+            <MudItem xs="12"><MudTextField @bind-Value="_product.Description" Label="Description" Variant="Variant.Outlined" Lines="3" /></MudItem>
+            <MudItem xs="12" md="3"><MudNumericField @bind-Value="_product.CurrentCostPrice" Format="N2" Label="Cost price" Variant="Variant.Outlined" /></MudItem>
+            <MudItem xs="12" md="3"><MudNumericField @bind-Value="_product.MarkUpPercentage" Format="N2" Label="Markup %" Variant="Variant.Outlined" /></MudItem>
+            <MudItem xs="12" md="3"><MudNumericField @bind-Value="_product.CurrentSalePrice" Format="N2" Label="Sale price" Variant="Variant.Outlined" /></MudItem>
+            <MudItem xs="12" md="3"><MudNumericField @bind-Value="_product.LeadTimeDays" Label="Lead time (days)" Variant="Variant.Outlined" /></MudItem>
+            <MudItem xs="12" md="3"><MudTextField Value="@CurrentStockDisplay" Label="Current stock (read-only)" Variant="Variant.Outlined" ReadOnly="true" /></MudItem>
+            <MudItem xs="12" md="3"><MudNumericField @bind-Value="_product.LowStockCount" Format="N2" Label="Low stock warning" Variant="Variant.Outlined" /></MudItem>
+            <MudItem xs="12" md="3" Class="d-flex align-items-center">
+                <MudSwitch @bind-Value="_product.IsActive" Color="Color.Primary" Label="Active" />
+            </MudItem>
+            <MudItem xs="12"><MudTextField @bind-Value="_product.Note" Label="Note" Variant="Variant.Outlined" Lines="2" /></MudItem>
+        </MudGrid>
 
-    <div class="mt-4">
-        <button class="btn btn-primary" @onclick="Save">Save</button>
-        <button class="btn btn-light" @onclick="Cancel">Cancel</button>
-    </div>
+        <div class="mt-4">
+            <MudButton Color="Color.Primary" Variant="Variant.Filled" OnClick="Save">Save</MudButton>
+            <MudButton OnClick="Cancel">Cancel</MudButton>
+        </div>
+    </MudPaper>
 }
 
 @code {
@@ -86,6 +58,8 @@ else
     private ProductDetailDto? _product;
     private List<Mercurius.Shared.Configuration.ProductCategoryDto> _categories = new();
     private string? _error;
+
+    private string CurrentStockDisplay => _product?.CurrentStock.ToString("0.##") ?? string.Empty;
 
     protected override async Task OnInitializedAsync()
     {
@@ -111,6 +85,7 @@ else
             IsActive = _product.IsActive
         });
         if (!success) { _error = error; return; }
+        Snackbar.Add("Product saved.", Severity.Success);
         Nav.NavigateTo("products");
     }
 

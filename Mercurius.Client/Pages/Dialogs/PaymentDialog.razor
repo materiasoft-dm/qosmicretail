@@ -1,0 +1,155 @@
+@inject SalesApiClient SalesApi
+@inject OfflineStoreService OfflineStore
+
+<MudDialog>
+    <DialogContent>
+        @if (_error != null)
+        {
+            <MudAlert Severity="Severity.Error" Class="mb-3">@_error</MudAlert>
+        }
+        <div class="text-center mb-4">
+            <MudText Typo="Typo.h4" Class="fw-bold">@Money.Format(Total)</MudText>
+            <MudText Color="Color.Secondary">Total amount due</MudText>
+        </div>
+        <MudNumericField T="decimal?" Value="_cashReceived" ValueChanged="OnCashReceivedChanged" Immediate="true" Min="0" Format="N2"
+                         Label="Cash received" Variant="Variant.Outlined" Class="mb-1" />
+        <MudText Typo="Typo.body2" Color="@(_changeIsValid ? Color.Success : Color.Error)" Class="mb-3">@_changeLabel</MudText>
+
+        <MudGrid Class="mb-4">
+            @foreach (var amount in _quickAmounts)
+            {
+                <MudItem xs="6">
+                    <MudButton Variant="Variant.Outlined" FullWidth="true" OnClick="@(() => SetCashReceived(amount))">@Money.Format(amount)</MudButton>
+                </MudItem>
+            }
+        </MudGrid>
+
+        <MudButton Color="Color.Primary" Variant="Variant.Filled" FullWidth="true" Class="mb-3" Disabled="@(!_changeIsValid)" OnClick="ChargeCash">
+            Charge Cash
+        </MudButton>
+        <MudDivider Class="mb-3" />
+        <MudButton Color="Color.Secondary" Variant="Variant.Filled" FullWidth="true" OnClick="ChargeCard">
+            Charge Card
+        </MudButton>
+    </DialogContent>
+</MudDialog>
+
+@code {
+    [CascadingParameter] private IMudDialogInstance MudDialog { get; set; } = default!;
+    [Parameter] public decimal Total { get; set; }
+    [Parameter] public int CustomerId { get; set; }
+    [Parameter] public string Notes { get; set; } = string.Empty;
+    [Parameter] public List<CartLineRequest> Items { get; set; } = new();
+
+    private decimal? _cashReceived;
+    private string _changeLabel = string.Empty;
+    private bool _changeIsValid;
+    private List<decimal> _quickAmounts = new();
+    private string? _error;
+
+    // Mirrors PaymentPage.xaml.cs's BuildQuickAmounts exactly: total + round tiers >= total,
+    // deduped, ascending, capped at 4.
+    private static readonly decimal[] Tiers = { 20, 50, 100, 500, 1000 };
+
+    protected override void OnInitialized()
+    {
+        var suggestions = new List<decimal> { Total };
+        foreach (var t in Tiers)
+        {
+            if (t >= Total && !suggestions.Contains(t)) suggestions.Add(t);
+        }
+        _quickAmounts = suggestions.Distinct().OrderBy(v => v).Take(4).ToList();
+    }
+
+    private void OnCashReceivedChanged(decimal? value)
+    {
+        _cashReceived = value;
+        UpdateChangeLabel();
+    }
+
+    private void SetCashReceived(decimal amount)
+    {
+        _cashReceived = amount;
+        UpdateChangeLabel();
+    }
+
+    private void UpdateChangeLabel()
+    {
+        if (_cashReceived.HasValue && _cashReceived.Value >= Total)
+        {
+            var change = _cashReceived.Value - Total;
+            _changeLabel = change > 0 ? $"Change: {Money.Format(change)}" : "Exact amount";
+            _changeIsValid = true;
+        }
+        else
+        {
+            _changeLabel = _cashReceived.HasValue ? "Amount is less than the total due" : "";
+            _changeIsValid = false;
+        }
+    }
+
+    private async Task ChargeCash()
+    {
+        var received = _cashReceived.GetValueOrDefault();
+        if (received <= 0) received = Total;
+        await Submit("Cash", received);
+    }
+
+    private async Task ChargeCard() => await Submit("Card", Total);
+
+    private async Task Submit(string method, decimal amountReceived)
+    {
+        _error = null;
+        var request = new CheckoutRequest
+        {
+            CustomerId = CustomerId,
+            Notes = Notes,
+            PaymentMethod = method,
+            AmountReceived = amountReceived,
+            Items = Items
+        };
+
+        bool success;
+        CheckoutResultDto? result;
+        string? error;
+        try
+        {
+            (success, result, error) = await SalesApi.CheckoutAsync(request);
+        }
+        catch
+        {
+            // Couldn't reach the server at all — assume offline rather than surface a scary
+            // network error. Queue the sale locally; OfflineSyncService replays it once a
+            // connection comes back (see Sell.razor's manual "Sync now" and startup pull).
+            await QueueOfflineAsync(request);
+            MudDialog.Close(DialogResult.Ok(new SaleOutcome { SavedOffline = true }));
+            return;
+        }
+
+        if (!success || result == null)
+        {
+            _error = error;
+            return;
+        }
+        MudDialog.Close(DialogResult.Ok(new SaleOutcome { SavedOffline = false, InvoiceNumber = result.InvoiceNumber }));
+    }
+
+    private async Task QueueOfflineAsync(CheckoutRequest request)
+    {
+        var offlineSale = new OfflineSaleRequest
+        {
+            SyncId = Guid.NewGuid(),
+            CreatedAtUtc = DateTime.UtcNow,
+            CustomerId = request.CustomerId,
+            Notes = request.Notes,
+            PaymentMethod = request.PaymentMethod,
+            AmountReceived = request.AmountReceived,
+            Items = request.Items
+        };
+        await OfflineStore.QueueSaleAsync(offlineSale);
+        foreach (var line in request.Items)
+        {
+            await OfflineStore.DecrementProductStockAsync(line.ProductId, line.Quantity);
+        }
+    }
+}

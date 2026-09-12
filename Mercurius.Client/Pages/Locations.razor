@@ -1,47 +1,50 @@
 @page "/locations"
 @attribute [Authorize]
 @inject LocationsApiClient Api
+@inject ISnackbar Snackbar
 
 <PageTitle>Locations</PageTitle>
 
-<div class="d-flex justify-content-between align-items-center mb-3">
-    <h1>Locations</h1>
-    <button class="btn btn-primary" @onclick="ShowCreate">Add Location</button>
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <MudText Typo="Typo.h4">Locations</MudText>
+    <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Filled.Add" OnClick="ShowCreate">
+        Add Location
+    </MudButton>
 </div>
 
 @if (_showCreate)
 {
-    <div class="card mb-3">
-        <div class="card-body">
-            <div class="row g-2">
-                <div class="col-md-4"><input class="form-control" placeholder="Name" @bind="_name" /></div>
-                <div class="col-md-4"><input class="form-control" placeholder="Mobile phone" @bind="_mobile" /></div>
-            </div>
-            @if (_error != null) { <p class="text-danger mt-2 mb-0">@_error</p> }
-            <div class="mt-3">
-                <button class="btn btn-primary" @onclick="Submit">Save</button>
-                <button class="btn btn-light" @onclick="() => _showCreate = false">Cancel</button>
-            </div>
+    <MudPaper Class="pa-4 mb-4" Elevation="2">
+        <MudGrid>
+            <MudItem xs="12" md="4"><MudTextField @bind-Value="_name" Label="Name" Variant="Variant.Outlined" /></MudItem>
+            <MudItem xs="12" md="4"><MudTextField @bind-Value="_mobile" Label="Mobile phone" Variant="Variant.Outlined" /></MudItem>
+        </MudGrid>
+        @if (_error != null)
+        {
+            <MudAlert Severity="Severity.Error" Class="mt-3">@_error</MudAlert>
+        }
+        <div class="mt-3">
+            <MudButton Color="Color.Primary" Variant="Variant.Filled" OnClick="Submit">Save</MudButton>
+            <MudButton OnClick="@(() => _showCreate = false)">Cancel</MudButton>
         </div>
-    </div>
+    </MudPaper>
 }
 
-@if (_result is null)
-{
-    <p><em>Loading...</em></p>
-}
-else
-{
-    <table class="table table-striped">
-        <thead><tr><th>Name</th><th>Mobile</th></tr></thead>
-        <tbody>
-            @foreach (var l in _result.Items)
-            {
-                <tr><td>@l.Name</td><td>@l.MobilePhone</td></tr>
-            }
-        </tbody>
-    </table>
-}
+<MudPaper Class="pa-2" Elevation="2">
+    <MudTable Items="@(_result?.Items ?? new())" Loading="@(_result is null)" Hover="true" Dense="true">
+        <HeaderContent>
+            <MudTh>Name</MudTh>
+            <MudTh>Mobile</MudTh>
+        </HeaderContent>
+        <RowTemplate>
+            <MudTd DataLabel="Name">@context.Name</MudTd>
+            <MudTd DataLabel="Mobile">@context.MobilePhone</MudTd>
+        </RowTemplate>
+        <NoRecordsContent>
+            <MudText>No locations yet.</MudText>
+        </NoRecordsContent>
+    </MudTable>
+</MudPaper>
 
 @code {
     private ListResultDto<LocationDto>? _result;
@@ -60,6 +63,7 @@ else
         var created = await Api.CreateAsync(new CreateLocationRequest { Name = _name, MobilePhone = _mobile });
         if (created == null) { _error = "Failed to create."; return; }
         _showCreate = false;
+        Snackbar.Add("Location created.", Severity.Success);
         await LoadAsync();
     }
 }

@@ -1,60 +1,88 @@
 @page "/sell"
 @attribute [Authorize]
+@using Mercurius.Client.Pages.Dialogs
 @inject ProductsApiClient ProductsApi
 @inject ProductCategoriesApiClient CategoriesApi
 @inject SalesApiClient SalesApi
 @inject IJSRuntime JS
+@inject IDialogService DialogService
+@inject ISnackbar Snackbar
+@inject OfflineStoreService OfflineStore
+@inject OfflineSyncService OfflineSync
 
 <PageTitle>Sell</PageTitle>
 
-<div class="row g-4">
-    <div class="col-md-8">
+@if (_usingOfflineCatalog || _pendingSaleCount > 0)
+{
+    <MudAlert Severity="@(_usingOfflineCatalog ? Severity.Warning : Severity.Info)" Class="mb-3" Dense="true">
+        <div class="d-flex align-items-center justify-content-between flex-wrap gap-2">
+            <span>
+                @if (_usingOfflineCatalog)
+                {
+                    <text>Offline — showing the last synced catalog. Sales made now will be saved on this device.</text>
+                }
+                @if (_pendingSaleCount > 0)
+                {
+                    <text> @_pendingSaleCount sale(s) waiting to sync.</text>
+                }
+            </span>
+            @if (_pendingSaleCount > 0)
+            {
+                <MudButton Size="Size.Small" Variant="Variant.Outlined" OnClick="SyncNow">Sync now</MudButton>
+            }
+        </div>
+    </MudAlert>
+}
+
+<MudGrid>
+    <MudItem xs="12" md="8">
         <div class="d-flex flex-wrap gap-2 align-items-center mb-3">
-            <input class="form-control" style="max-width:280px" placeholder="Search by name or SKU..." value="@_search" @oninput="OnSearchInput" />
-            <div class="btn-group btn-group-sm">
-                <button class="btn @(_isGridView ? "btn-dark" : "btn-light")" @onclick="() => SetViewMode(true)">Grid</button>
-                <button class="btn @(!_isGridView ? "btn-dark" : "btn-light")" @onclick="() => SetViewMode(false)">List</button>
-            </div>
+            <MudTextField T="string" Value="_search" ValueChanged="OnSearchChanged" Immediate="true" Placeholder="Search by name or SKU..." Variant="Variant.Outlined"
+                          Adornment="Adornment.Start" AdornmentIcon="@Icons.Material.Filled.Search" Style="max-width:280px" Margin="Margin.Dense" />
+            <MudButtonGroup Variant="Variant.Filled" Size="Size.Small">
+                <MudButton Color="@(_isGridView ? Color.Primary : Color.Default)" OnClick="@(() => SetViewMode(true))">Grid</MudButton>
+                <MudButton Color="@(!_isGridView ? Color.Primary : Color.Default)" OnClick="@(() => SetViewMode(false))">List</MudButton>
+            </MudButtonGroup>
         </div>
 
         <div class="d-flex flex-nowrap gap-2 mb-3 overflow-auto pb-2">
-            <button class="btn btn-sm @(_categoryId == 0 ? "btn-dark" : "btn-light")" @onclick="() => SelectCategory(0)">All</button>
+            <MudChip T="string" Color="@(_categoryId == 0 ? Color.Primary : Color.Default)" OnClick="@(() => SelectCategory(0))">All</MudChip>
             @foreach (var c in _categories)
             {
-                <button class="btn btn-sm @(_categoryId == c.Id ? "btn-dark" : "btn-light")" @onclick="() => SelectCategory(c.Id)">@c.Name</button>
+                <MudChip T="string" Color="@(_categoryId == c.Id ? Color.Primary : Color.Default)" OnClick="@(() => SelectCategory(c.Id))">@c.Name</MudChip>
             }
         </div>
 
         @if (_loading)
         {
-            <p><em>Loading...</em></p>
+            <MudText><em>Loading...</em></MudText>
         }
         else if (_products.Count == 0)
         {
-            <p>No products found.</p>
+            <MudText>No products found.</MudText>
         }
         else if (_isGridView)
         {
-            <div class="row row-cols-2 row-cols-md-3 row-cols-lg-4 g-3">
+            <MudGrid>
                 @foreach (var p in _products)
                 {
                     var qtyInCart = CartQtyFor(p.Id);
-                    <div class="col">
-                        <div class="card h-100 position-relative" style="cursor:pointer" @onclick="() => AddToCart(p)">
+                    <MudItem xs="6" md="4" lg="3">
+                        <MudCard Class="h-100" Style="cursor:pointer; position:relative;" @onclick="() => AddToCart(p)">
                             @if (qtyInCart > 0)
                             {
-                                <span class="badge bg-primary position-absolute top-0 end-0 m-2">@qtyInCart</span>
+                                <MudBadge Content="@qtyInCart" Color="Color.Primary" Overlap="true" Class="position-absolute" Style="top:8px; right:8px; z-index:1;" />
                             }
-                            <div class="card-body p-3">
-                                <div class="fw-bold text-truncate">@p.Name</div>
-                                <div class="text-muted small text-truncate">@p.Category</div>
-                                <div class="fw-bold text-primary mt-1">@Money.Format(p.SalePrice)</div>
-                                <div class="small @(p.Stock <= p.LowStockCount ? "text-danger" : "text-success")">@p.Stock.ToString("0") in stock</div>
-                            </div>
-                        </div>
-                    </div>
+                            <MudCardContent>
+                                <MudText Class="fw-bold text-truncate">@p.Name</MudText>
+                                <MudText Typo="Typo.caption" Color="Color.Secondary" Class="text-truncate">@p.Category</MudText>
+                                <MudText Color="Color.Primary" Class="fw-bold mt-1">@Money.Format(p.SalePrice)</MudText>
+                                <MudText Typo="Typo.caption" Color="@(p.Stock <= p.LowStockCount ? Color.Error : Color.Success)">@p.Stock.ToString("0") in stock</MudText>
+                            </MudCardContent>
+                        </MudCard>
+                    </MudItem>
                 }
-            </div>
+            </MudGrid>
         }
         else
         {
@@ -63,120 +91,77 @@
                 var qtyInCart = CartQtyFor(p.Id);
                 <div class="d-flex align-items-center justify-content-between border-bottom py-2" style="cursor:pointer" @onclick="() => AddToCart(p)">
                     <div class="flex-grow-1">
-                        <div class="fw-bold">@p.Name @(qtyInCart > 0 ? $"({qtyInCart} in cart)" : "")</div>
-                        <div class="text-muted small">@p.Category</div>
+                        <MudText Class="fw-bold">@p.Name @(qtyInCart > 0 ? $"({qtyInCart} in cart)" : "")</MudText>
+                        <MudText Typo="Typo.caption" Color="Color.Secondary">@p.Category</MudText>
                     </div>
-                    <div class="text-end me-4 small @(p.Stock <= p.LowStockCount ? "text-danger" : "text-success")">@p.Stock.ToString("0") in stock</div>
-                    <div class="fw-bold text-primary" style="min-width:80px;text-align:right;">@Money.Format(p.SalePrice)</div>
+                    <MudText Typo="Typo.caption" Color="@(p.Stock <= p.LowStockCount ? Color.Error : Color.Success)" Class="me-4" Style="min-width:80px;">@p.Stock.ToString("0") in stock</MudText>
+                    <MudText Color="Color.Primary" Class="fw-bold" Style="min-width:80px;text-align:right;">@Money.Format(p.SalePrice)</MudText>
                 </div>
             }
         }
-    </div>
+    </MudItem>
 
-    <div class="col-md-4">
-        <div class="card" style="position:sticky; top:20px;">
-            <div class="card-body">
-                <div class="mb-3">
-                    <label class="form-label">Customer</label>
-                    <select class="form-select form-select-sm" @bind="_customerId">
-                        <option value="0">-- Optional --</option>
-                        @foreach (var c in _customers)
-                        {
-                            <option value="@c.Id">@c.Name</option>
-                        }
-                    </select>
-                </div>
-                <div class="mb-3">
-                    <label class="form-label">Notes</label>
-                    <input class="form-control form-control-sm" @bind="_notes" />
-                </div>
-                <hr />
-                <div class="d-flex justify-content-between align-items-center mb-2">
-                    <h5 class="mb-0">Ticket</h5>
-                    <span class="badge bg-light text-dark">@CartTotalItems() items</span>
-                </div>
-
-                @if (_cart.Count == 0)
+    <MudItem xs="12" md="4">
+        <MudPaper Class="pa-4" Elevation="2" Style="position:sticky; top:20px;">
+            <MudSelect T="int" @bind-Value="_customerId" Label="Customer" Variant="Variant.Outlined" Margin="Margin.Dense" Class="mb-3">
+                <MudSelectItem T="int" Value="0">-- Optional --</MudSelectItem>
+                @foreach (var c in _customers)
                 {
-                    <div class="text-center text-muted py-5">
-                        <div>Ticket is empty</div>
-                        <div class="small">Tap a product to add it</div>
-                    </div>
+                    <MudSelectItem T="int" Value="@c.Id">@c.Name</MudSelectItem>
                 }
-                else
-                {
-                    <div style="max-height:45vh; overflow-y:auto;">
-                        @foreach (var line in _cart)
-                        {
-                            <div class="d-flex justify-content-between align-items-center py-2 border-bottom">
-                                <div class="flex-grow-1 me-2">
-                                    <div class="fw-bold text-truncate">@line.Name</div>
-                                    <div class="d-flex align-items-center gap-2 mt-1">
-                                        <button class="btn btn-sm btn-icon btn-light" @onclick="() => Decrement(line.ProductId)">-</button>
-                                        <span>@line.Quantity</span>
-                                        <button class="btn btn-sm btn-icon btn-light" @onclick="() => Increment(line.ProductId)">+</button>
-                                        <span class="text-muted small ms-2">@Money.Format(line.Price) ea</span>
-                                    </div>
-                                </div>
-                                <div class="text-end">
-                                    <div class="fw-bold">@Money.Format(line.Price * line.Quantity)</div>
-                                    <span class="text-danger" style="cursor:pointer" @onclick="() => RemoveLine(line.ProductId)">&#10005;</span>
+            </MudSelect>
+            <MudTextField @bind-Value="_notes" Label="Notes" Variant="Variant.Outlined" Margin="Margin.Dense" Class="mb-3" />
+            <MudDivider Class="mb-3" />
+            <div class="d-flex justify-content-between align-items-center mb-2">
+                <MudText Typo="Typo.h6">Ticket</MudText>
+                <MudChip T="string" Size="Size.Small">@CartTotalItems() items</MudChip>
+            </div>
+
+            @if (_cart.Count == 0)
+            {
+                <div class="text-center py-5">
+                    <MudText Color="Color.Secondary">Ticket is empty</MudText>
+                    <MudText Typo="Typo.caption" Color="Color.Secondary">Tap a product to add it</MudText>
+                </div>
+            }
+            else
+            {
+                <div style="max-height:45vh; overflow-y:auto;">
+                    @foreach (var line in _cart)
+                    {
+                        <div class="d-flex justify-content-between align-items-center py-2 border-bottom">
+                            <div class="flex-grow-1 me-2">
+                                <MudText Class="fw-bold text-truncate">@line.Name</MudText>
+                                <div class="d-flex align-items-center gap-2 mt-1">
+                                    <MudIconButton Icon="@Icons.Material.Filled.Remove" Size="Size.Small" Variant="Variant.Filled" OnClick="@(() => Decrement(line.ProductId))" />
+                                    <MudText>@line.Quantity</MudText>
+                                    <MudIconButton Icon="@Icons.Material.Filled.Add" Size="Size.Small" Variant="Variant.Filled" OnClick="@(() => Increment(line.ProductId))" />
+                                    <MudText Typo="Typo.caption" Color="Color.Secondary" Class="ms-2">@Money.Format(line.Price) ea</MudText>
                                 </div>
                             </div>
-                        }
-                    </div>
-                }
-
-                <hr />
-                <div class="d-flex justify-content-between align-items-center mb-3">
-                    <span class="fw-bold">Total</span>
-                    <span class="fs-4 fw-bold text-primary">@Money.Format(CartTotal())</span>
-                </div>
-                <div class="d-flex gap-2">
-                    <button class="btn btn-light flex-grow-1" @onclick="ClearCart">Clear</button>
-                    <button class="btn btn-primary flex-grow-1" disabled="@(_cart.Count == 0)" @onclick="OpenPayment">
-                        @(_cart.Count == 0 ? "Charge" : $"Charge {Money.Format(CartTotal())}")
-                    </button>
-                </div>
-            </div>
-        </div>
-    </div>
-</div>
-
-@if (_showPayment)
-{
-    <div class="position-fixed top-0 start-0 w-100 h-100 d-flex align-items-center justify-content-center" style="background:rgba(0,0,0,0.5); z-index:1050;">
-        <div class="card" style="width:400px;">
-            <div class="card-header d-flex justify-content-between align-items-center">
-                <strong>Payment</strong>
-                <button class="btn-close" @onclick="() => _showPayment = false"></button>
-            </div>
-            <div class="card-body">
-                @if (_paymentError != null) { <div class="alert alert-danger">@_paymentError</div> }
-                <div class="text-center mb-4">
-                    <div class="fs-1 fw-bold">@Money.Format(CartTotal())</div>
-                    <div class="text-muted small">Total amount due</div>
-                </div>
-                <div class="mb-3">
-                    <label class="form-label">Cash received</label>
-                    <input type="number" step="0.01" min="0" class="form-control" value="@_cashReceivedText" @oninput="OnCashReceivedChanged" />
-                    <div class="small fw-bold mt-1 @(_changeIsValid ? "text-success" : "text-danger")">@_changeLabel</div>
-                </div>
-                <div class="row g-2 mb-4">
-                    @foreach (var amount in _quickAmounts)
-                    {
-                        <div class="col-6">
-                            <button class="btn btn-light w-100" @onclick="() => SetCashReceived(amount)">@Money.Format(amount)</button>
+                            <div class="text-end">
+                                <MudText Class="fw-bold">@Money.Format(line.Price * line.Quantity)</MudText>
+                                <MudIconButton Icon="@Icons.Material.Filled.Close" Size="Size.Small" Color="Color.Error" OnClick="@(() => RemoveLine(line.ProductId))" />
+                            </div>
                         </div>
                     }
                 </div>
-                <button class="btn btn-primary w-100 mb-2" disabled="@(!_changeIsValid)" @onclick="ChargeCash">Charge Cash</button>
-                <hr />
-                <button class="btn btn-secondary w-100" @onclick="ChargeCard">Charge Card</button>
+            }
+
+            <MudDivider Class="my-3" />
+            <div class="d-flex justify-content-between align-items-center mb-3">
+                <MudText Class="fw-bold">Total</MudText>
+                <MudText Typo="Typo.h5" Color="Color.Primary" Class="fw-bold">@Money.Format(CartTotal())</MudText>
             </div>
-        </div>
-    </div>
-}
+            <div class="d-flex gap-2">
+                <MudButton Variant="Variant.Outlined" FullWidth="true" OnClick="ClearCart">Clear</MudButton>
+                <MudButton Variant="Variant.Filled" Color="Color.Primary" FullWidth="true" Disabled="@(_cart.Count == 0)" OnClick="OpenPayment">
+                    @(_cart.Count == 0 ? "Charge" : $"Charge {Money.Format(CartTotal())}")
+                </MudButton>
+            </div>
+        </MudPaper>
+    </MudItem>
+</MudGrid>
 
 @code {
     private List<ProductListItemDto> _products = new();
@@ -193,12 +178,8 @@
     private int _customerId;
     private string _notes = string.Empty;
 
-    private bool _showPayment;
-    private string _cashReceivedText = string.Empty;
-    private string _changeLabel = string.Empty;
-    private bool _changeIsValid;
-    private List<decimal> _quickAmounts = new();
-    private string? _paymentError;
+    private bool _usingOfflineCatalog;
+    private int _pendingSaleCount;
 
     protected override async Task OnInitializedAsync()
     {
@@ -209,22 +190,79 @@
         }
         catch { }
 
-        _categories = (await CategoriesApi.GetAsync()).Items;
-        _customers = await SalesApi.GetCustomersAsync(null);
+        try
+        {
+            _categories = (await CategoriesApi.GetAsync()).Items;
+            _customers = await SalesApi.GetCustomersAsync(null);
+        }
+        catch
+        {
+            // Categories/customers are conveniences (filtering, optional tagging) — selling still
+            // works without them, so don't block the page on a failed fetch while offline.
+        }
         await LoadProductsAsync();
+        await RefreshPendingCountAsync();
+
+        // Best-effort, non-blocking: refresh the offline catalog and flush anything queued from
+        // a previous offline session, in case connectivity is back.
+        _ = BackgroundSyncAsync();
+    }
+
+    private async Task BackgroundSyncAsync()
+    {
+        var synced = await OfflineSync.PushPendingSalesAsync();
+        await OfflineSync.PullProductCatalogAsync();
+        await RefreshPendingCountAsync();
+        if (synced > 0)
+        {
+            Snackbar.Add($"Synced {synced} offline sale(s).", Severity.Success);
+        }
+        await InvokeAsync(StateHasChanged);
+    }
+
+    private async Task RefreshPendingCountAsync()
+    {
+        _pendingSaleCount = (await OfflineStore.GetPendingSalesAsync()).Count;
+    }
+
+    private async Task SyncNow()
+    {
+        var synced = await OfflineSync.PushPendingSalesAsync();
+        await RefreshPendingCountAsync();
+        Snackbar.Add(synced > 0 ? $"Synced {synced} offline sale(s)." : "Still offline — nothing synced.", synced > 0 ? Severity.Success : Severity.Warning);
     }
 
     private async Task LoadProductsAsync()
     {
         _loading = true;
-        var result = await ProductsApi.GetAsync(_search, 1, 100, _categoryId);
-        _products = result.Items;
+        try
+        {
+            var result = await ProductsApi.GetAsync(_search, 1, 100, _categoryId);
+            _products = result.Items;
+            _usingOfflineCatalog = false;
+        }
+        catch
+        {
+            // No connection — search the last-synced catalog cached in IndexedDB instead.
+            var offline = await OfflineStore.GetAllProductsAsync();
+            IEnumerable<OfflineProductDto> filtered = offline;
+            if (_categoryId > 0) filtered = filtered.Where(p => p.CategoryId == _categoryId);
+            if (!string.IsNullOrWhiteSpace(_search))
+            {
+                var s = _search.Trim();
+                filtered = filtered.Where(p => p.Name.Contains(s, StringComparison.OrdinalIgnoreCase) || p.ProductCode.Contains(s, StringComparison.OrdinalIgnoreCase));
+            }
+            _products = filtered.OrderBy(p => p.Name).Take(100)
+                .Select(p => new ProductListItemDto { Id = p.Id, ProductCode = p.ProductCode, Name = p.Name, Category = p.Category, Stock = p.Stock, SalePrice = p.SalePrice, LowStockCount = p.LowStockCount, IsActive = true })
+                .ToList();
+            _usingOfflineCatalog = true;
+        }
         _loading = false;
     }
 
-    private async Task OnSearchInput(ChangeEventArgs e)
+    private async Task OnSearchChanged(string value)
     {
-        _search = e.Value?.ToString() ?? string.Empty;
+        _search = value;
         _debounce?.Cancel();
         _debounce = new CancellationTokenSource();
         var token = _debounce.Token;
@@ -262,86 +300,33 @@
     private void RemoveLine(int productId) => _cart.RemoveAll(l => l.ProductId == productId);
     private void ClearCart() => _cart.Clear();
 
-    // Mirrors PaymentPage.xaml.cs's BuildQuickAmounts exactly: total + round tiers >= total,
-    // deduped, ascending, capped at 4.
-    private static readonly decimal[] Tiers = { 20, 50, 100, 500, 1000 };
-    private void BuildQuickAmounts()
+    private async Task OpenPayment()
     {
-        var total = CartTotal();
-        var suggestions = new List<decimal> { total };
-        foreach (var t in Tiers)
+        var parameters = new DialogParameters<PaymentDialog>
         {
-            if (t >= total && !suggestions.Contains(t)) suggestions.Add(t);
+            { d => d.Total, CartTotal() },
+            { d => d.CustomerId, _customerId },
+            { d => d.Notes, _notes },
+            { d => d.Items, _cart.Select(l => new CartLineRequest { ProductId = l.ProductId, Quantity = l.Quantity }).ToList() }
+        };
+        var options = new DialogOptions { MaxWidth = MaxWidth.ExtraSmall, FullWidth = true };
+        var dialog = await DialogService.ShowAsync<PaymentDialog>("Payment", parameters, options);
+        var result = await dialog.Result;
+        if (result is { Canceled: false })
+        {
+            _cart.Clear();
+            _notes = string.Empty;
+            var outcome = result.Data as SaleOutcome;
+            if (outcome is { SavedOffline: true })
+            {
+                Snackbar.Add("Saved offline — will sync when back online.", Severity.Warning);
+                await RefreshPendingCountAsync();
+            }
+            else
+            {
+                Snackbar.Add("Sale complete.", Severity.Success);
+            }
+            await LoadProductsAsync();
         }
-        _quickAmounts = suggestions.Distinct().OrderBy(v => v).Take(4).ToList();
-    }
-
-    private void OpenPayment()
-    {
-        _paymentError = null;
-        _cashReceivedText = string.Empty;
-        _changeLabel = string.Empty;
-        _changeIsValid = false;
-        BuildQuickAmounts();
-        _showPayment = true;
-    }
-
-    private void OnCashReceivedChanged(ChangeEventArgs e)
-    {
-        _cashReceivedText = e.Value?.ToString() ?? string.Empty;
-        UpdateChangeLabel();
-    }
-
-    private void SetCashReceived(decimal amount)
-    {
-        _cashReceivedText = amount.ToString("0.00");
-        UpdateChangeLabel();
-    }
-
-    private void UpdateChangeLabel()
-    {
-        var total = CartTotal();
-        if (decimal.TryParse(_cashReceivedText, out var received) && received >= total)
-        {
-            var change = received - total;
-            _changeLabel = change > 0 ? $"Change: {Money.Format(change)}" : "Exact amount";
-            _changeIsValid = true;
-        }
-        else
-        {
-            _changeLabel = string.IsNullOrEmpty(_cashReceivedText) ? "" : "Amount is less than the total due";
-            _changeIsValid = false;
-        }
-    }
-
-    private async Task ChargeCash()
-    {
-        decimal.TryParse(_cashReceivedText, out var received);
-        if (received <= 0) received = CartTotal();
-        await Submit("Cash", received);
-    }
-
-    private async Task ChargeCard() => await Submit("Card", CartTotal());
-
-    private async Task Submit(string method, decimal amountReceived)
-    {
-        _paymentError = null;
-        var (success, result, error) = await SalesApi.CheckoutAsync(new CheckoutRequest
-        {
-            CustomerId = _customerId,
-            Notes = _notes,
-            PaymentMethod = method,
-            AmountReceived = amountReceived,
-            Items = _cart.Select(l => new CartLineRequest { ProductId = l.ProductId, Quantity = l.Quantity }).ToList()
-        });
-        if (!success || result == null)
-        {
-            _paymentError = error;
-            return;
-        }
-        _showPayment = false;
-        _cart.Clear();
-        _notes = string.Empty;
-        await LoadProductsAsync();
     }
 }

@@ -1,112 +1,92 @@
 @page "/invoices/{Id:int}"
 @attribute [Authorize]
+@using Mercurius.Client.Pages.Dialogs
 @inject InvoicesApiClient Api
+@inject IDialogService DialogService
+@inject ISnackbar Snackbar
 
 <PageTitle>Invoice @Id</PageTitle>
 
 @if (_invoice is null)
 {
-    <p><em>Loading...</em></p>
+    <MudText><em>Loading...</em></MudText>
 }
 else
 {
-    <h1>Invoice @_invoice.InvoiceNumber</h1>
-    <div class="row mb-4">
-        <div class="col-md-3"><div class="text-muted small">Date</div><div>@_invoice.InvoiceDate.ToString("yyyy-MM-dd")</div></div>
-        <div class="col-md-3"><div class="text-muted small">Customer</div><div>@(string.IsNullOrEmpty(_invoice.CustomerName) ? "(no customer)" : _invoice.CustomerName)</div></div>
-        <div class="col-md-3"><div class="text-muted small">Status</div><div>@_invoice.StatusName</div></div>
-        <div class="col-md-3"><div class="text-muted small">Paid amount</div><div>@Money.Format(_invoice.PaidAmount)</div></div>
-    </div>
+    <MudText Typo="Typo.h4" Class="mb-4">Invoice @_invoice.InvoiceNumber</MudText>
+    <MudGrid Class="mb-4">
+        <MudItem xs="6" md="3"><MudText Typo="Typo.caption" Color="Color.Secondary">Date</MudText><MudText>@_invoice.InvoiceDate.ToString("yyyy-MM-dd")</MudText></MudItem>
+        <MudItem xs="6" md="3"><MudText Typo="Typo.caption" Color="Color.Secondary">Customer</MudText><MudText>@(string.IsNullOrEmpty(_invoice.CustomerName) ? "(no customer)" : _invoice.CustomerName)</MudText></MudItem>
+        <MudItem xs="6" md="3"><MudText Typo="Typo.caption" Color="Color.Secondary">Status</MudText><MudText>@_invoice.StatusName</MudText></MudItem>
+        <MudItem xs="6" md="3"><MudText Typo="Typo.caption" Color="Color.Secondary">Paid amount</MudText><MudText>@Money.Format(_invoice.PaidAmount)</MudText></MudItem>
+    </MudGrid>
 
-    @if (_error != null) { <div class="alert alert-danger">@_error</div> }
-    @if (_message != null) { <div class="alert alert-success">@_message</div> }
+    @if (_error != null)
+    {
+        <MudAlert Severity="Severity.Error" Class="mb-3">@_error</MudAlert>
+    }
+    @if (_message != null)
+    {
+        <MudAlert Severity="Severity.Success" Class="mb-3">@_message</MudAlert>
+    }
 
-    <h5>Items</h5>
-    <table class="table table-striped mb-4">
-        <thead><tr><th>Product</th><th class="text-end">Qty sold</th><th class="text-end">Qty refunded</th><th class="text-end">Remaining</th><th class="text-end">Unit price</th><th>Actions</th></tr></thead>
-        <tbody>
-            @foreach (var item in _invoice.Items)
-            {
-                <tr>
-                    <td>@item.ProductName (@item.ProductCode)</td>
-                    <td class="text-end">@item.QuantitySold</td>
-                    <td class="text-end">@item.QuantityRefunded</td>
-                    <td class="text-end">@item.QuantityRemaining</td>
-                    <td class="text-end">@Money.Format(item.SalePrice)</td>
-                    <td>
-                        @if (item.QuantityRemaining > 0)
-                        {
-                            <button class="btn btn-sm btn-danger" @onclick="() => OpenRefund(item)">Refund</button>
-                        }
-                    </td>
-                </tr>
-            }
-        </tbody>
-    </table>
+    <MudText Typo="Typo.h6" Class="mb-2">Items</MudText>
+    <MudPaper Class="pa-2 mb-4" Elevation="2">
+        <MudTable Items="_invoice.Items" Hover="true" Dense="true">
+            <HeaderContent>
+                <MudTh>Product</MudTh>
+                <MudTh Style="text-align:right;">Qty sold</MudTh>
+                <MudTh Style="text-align:right;">Qty refunded</MudTh>
+                <MudTh Style="text-align:right;">Remaining</MudTh>
+                <MudTh Style="text-align:right;">Unit price</MudTh>
+                <MudTh>Actions</MudTh>
+            </HeaderContent>
+            <RowTemplate>
+                <MudTd DataLabel="Product">@context.ProductName (@context.ProductCode)</MudTd>
+                <MudTd DataLabel="Qty sold" Style="text-align:right;">@context.QuantitySold</MudTd>
+                <MudTd DataLabel="Qty refunded" Style="text-align:right;">@context.QuantityRefunded</MudTd>
+                <MudTd DataLabel="Remaining" Style="text-align:right;">@context.QuantityRemaining</MudTd>
+                <MudTd DataLabel="Unit price" Style="text-align:right;">@Money.Format(context.SalePrice)</MudTd>
+                <MudTd DataLabel="Actions">
+                    @if (context.QuantityRemaining > 0)
+                    {
+                        <MudButton Size="Size.Small" Color="Color.Error" Variant="Variant.Filled" OnClick="@(() => OpenRefund(context))">Refund</MudButton>
+                    }
+                </MudTd>
+            </RowTemplate>
+        </MudTable>
+    </MudPaper>
 
-    <h5>Refund History</h5>
+    <MudText Typo="Typo.h6" Class="mb-2">Refund History</MudText>
     @if (_invoice.RefundHistory.Count == 0)
     {
-        <p class="text-muted">No refunds yet.</p>
+        <MudText Color="Color.Secondary">No refunds yet.</MudText>
     }
     else
     {
-        <table class="table table-striped">
-            <thead><tr><th>Refund #</th><th>Date</th><th>Product</th><th class="text-end">Qty</th><th>Reason</th><th>Restocked</th><th>Remarks</th></tr></thead>
-            <tbody>
-                @foreach (var r in _invoice.RefundHistory)
-                {
-                    <tr>
-                        <td>@r.RefundNumber</td>
-                        <td>@r.DateRefunded.ToString("yyyy-MM-dd")</td>
-                        <td>@r.ProductName</td>
-                        <td class="text-end">@r.Quantity</td>
-                        <td>@r.ReasonName</td>
-                        <td>@(r.WasRestocked ? "Yes" : "No")</td>
-                        <td>@r.Remarks</td>
-                    </tr>
-                }
-            </tbody>
-        </table>
+        <MudPaper Class="pa-2" Elevation="2">
+            <MudTable Items="_invoice.RefundHistory" Hover="true" Dense="true">
+                <HeaderContent>
+                    <MudTh>Refund #</MudTh>
+                    <MudTh>Date</MudTh>
+                    <MudTh>Product</MudTh>
+                    <MudTh Style="text-align:right;">Qty</MudTh>
+                    <MudTh>Reason</MudTh>
+                    <MudTh>Restocked</MudTh>
+                    <MudTh>Remarks</MudTh>
+                </HeaderContent>
+                <RowTemplate>
+                    <MudTd DataLabel="Refund #">@context.RefundNumber</MudTd>
+                    <MudTd DataLabel="Date">@context.DateRefunded.ToString("yyyy-MM-dd")</MudTd>
+                    <MudTd DataLabel="Product">@context.ProductName</MudTd>
+                    <MudTd DataLabel="Qty" Style="text-align:right;">@context.Quantity</MudTd>
+                    <MudTd DataLabel="Reason">@context.ReasonName</MudTd>
+                    <MudTd DataLabel="Restocked">@(context.WasRestocked ? "Yes" : "No")</MudTd>
+                    <MudTd DataLabel="Remarks">@context.Remarks</MudTd>
+                </RowTemplate>
+            </MudTable>
+        </MudPaper>
     }
-}
-
-@if (_refundingItem != null)
-{
-    <div class="position-fixed top-0 start-0 w-100 h-100 d-flex align-items-center justify-content-center" style="background:rgba(0,0,0,0.5); z-index:1050;">
-        <div class="card" style="width:420px;">
-            <div class="card-header d-flex justify-content-between align-items-center">
-                <strong>Refund — @_refundingItem.ProductName</strong>
-                <button class="btn-close" @onclick="() => _refundingItem = null"></button>
-            </div>
-            <div class="card-body">
-                <div class="mb-3">
-                    <label class="form-label">Quantity (max @_refundingItem.QuantityRemaining)</label>
-                    <input type="number" min="0.01" max="@_refundingItem.QuantityRemaining" step="0.01" class="form-control" @bind="_refundQuantity" />
-                </div>
-                <div class="mb-3">
-                    <label class="form-label">Reason</label>
-                    <select class="form-select" @bind="_refundReasonId">
-                        <option value="0">-- Reason --</option>
-                        @foreach (var reason in _invoice!.ActiveRefundReasons)
-                        {
-                            <option value="@reason.Id">@reason.Name</option>
-                        }
-                    </select>
-                </div>
-                <div class="mb-3">
-                    <label class="form-label">Notes</label>
-                    <input class="form-control" @bind="_refundNotes" />
-                </div>
-                <div class="form-check mb-3">
-                    <input class="form-check-input" type="checkbox" id="restock" @bind="_refundRestock" />
-                    <label class="form-check-label" for="restock">Put stock back into inventory</label>
-                </div>
-                @if (_refundError != null) { <p class="text-danger">@_refundError</p> }
-                <button class="btn btn-danger w-100" @onclick="SubmitRefund">Refund</button>
-            </div>
-        </div>
-    </div>
 }
 
 @code {
@@ -116,47 +96,25 @@ else
     private string? _error;
     private string? _message;
 
-    private InvoiceItemRowDto? _refundingItem;
-    private decimal _refundQuantity;
-    private int _refundReasonId;
-    private string _refundNotes = string.Empty;
-    private bool _refundRestock = true;
-    private string? _refundError;
-
     protected override async Task OnInitializedAsync() => await LoadAsync();
     private async Task LoadAsync() => _invoice = await Api.GetDetailAsync(Id);
 
-    private void OpenRefund(InvoiceItemRowDto item)
+    private async Task OpenRefund(InvoiceItemRowDto item)
     {
-        _refundingItem = item;
-        _refundQuantity = item.QuantityRemaining;
-        _refundReasonId = 0;
-        _refundNotes = string.Empty;
-        _refundRestock = true;
-        _refundError = null;
-    }
-
-    private async Task SubmitRefund()
-    {
-        if (_refundingItem == null) return;
-        if (_refundQuantity <= 0 || _refundQuantity > _refundingItem.QuantityRemaining || _refundReasonId <= 0)
+        if (_invoice == null) return;
+        var parameters = new DialogParameters<RefundDialog>
         {
-            _refundError = "Enter a valid quantity and select a reason.";
-            return;
+            { d => d.Item, item },
+            { d => d.Reasons, _invoice.ActiveRefundReasons }
+        };
+        var dialog = await DialogService.ShowAsync<RefundDialog>($"Refund — {item.ProductName}", parameters);
+        var result = await dialog.Result;
+        if (result is { Canceled: false })
+        {
+            _message = "Refund processed.";
+            _error = null;
+            Snackbar.Add("Refund processed.", Severity.Success);
+            await LoadAsync();
         }
-        var (success, error) = await Api.CreateRefundAsync(new CreateRefundRequest
-        {
-            InvoiceItemId = _refundingItem.InvoiceItemId,
-            Quantity = _refundQuantity,
-            RefundReasonId = _refundReasonId,
-            Notes = _refundNotes,
-            Restock = _refundRestock
-        });
-        if (!success) { _refundError = error; return; }
-
-        _refundingItem = null;
-        _message = "Refund processed.";
-        _error = null;
-        await LoadAsync();
     }
 }

@@ -1,67 +1,62 @@
 @page "/users-admin"
 @attribute [Authorize]
 @inject UsersApiClient Api
+@inject ISnackbar Snackbar
 
 <PageTitle>Users</PageTitle>
 
-<h1>Users</h1>
+<MudText Typo="Typo.h4" Class="mb-4">Users</MudText>
 
-<div class="form-check mb-3">
-    <input class="form-check-input" type="checkbox" id="showDeactivated" @bind="_showDeactivated" @bind:after="LoadAsync" />
-    <label class="form-check-label" for="showDeactivated">Show deactivated users</label>
-</div>
+<MudSwitch T="bool" Value="_showDeactivated" ValueChanged="OnShowDeactivatedChanged" Color="Color.Primary" Label="Show deactivated users" Class="mb-3" />
 
-@if (_error != null) { <p class="text-danger">@_error</p> }
-
-@if (_result is null)
+@if (_error != null)
 {
-    <p><em>Loading...</em></p>
+    <MudAlert Severity="Severity.Error" Class="mb-3">@_error</MudAlert>
 }
-else
-{
-    <table class="table table-striped">
-        <thead><tr><th>Username</th><th>First name</th><th>Last name</th><th>Roles</th><th>Active</th><th>Actions</th></tr></thead>
-        <tbody>
-            @foreach (var u in _result.Items)
-            {
-                <tr>
-                    <td>@u.UserName</td>
-                    <td>@u.FirstName</td>
-                    <td>@u.LastName</td>
-                    <td>@u.Roles</td>
-                    <td>@(u.IsActive ? "Yes" : "No")</td>
-                    <td>
-                        <button class="btn btn-sm btn-light" @onclick="() => ShowAssignRoles(u.Id)">Roles</button>
-                        <button class="btn btn-sm @(u.IsActive ? "btn-warning" : "btn-success")" @onclick="() => ToggleActive(u.Id, !u.IsActive)">
-                            @(u.IsActive ? "Deactivate" : "Activate")
-                        </button>
-                    </td>
-                </tr>
-            }
-        </tbody>
-    </table>
-}
+
+<MudPaper Class="pa-2" Elevation="2">
+    <MudTable Items="@(_result?.Items ?? new())" Loading="@(_result is null)" Hover="true" Dense="true">
+        <HeaderContent>
+            <MudTh>Username</MudTh>
+            <MudTh>First name</MudTh>
+            <MudTh>Last name</MudTh>
+            <MudTh>Roles</MudTh>
+            <MudTh>Active</MudTh>
+            <MudTh>Actions</MudTh>
+        </HeaderContent>
+        <RowTemplate>
+            <MudTd DataLabel="Username">@context.UserName</MudTd>
+            <MudTd DataLabel="First name">@context.FirstName</MudTd>
+            <MudTd DataLabel="Last name">@context.LastName</MudTd>
+            <MudTd DataLabel="Roles">@context.Roles</MudTd>
+            <MudTd DataLabel="Active">@(context.IsActive ? "Yes" : "No")</MudTd>
+            <MudTd DataLabel="Actions">
+                <MudButton Size="Size.Small" Variant="Variant.Outlined" Class="me-1" OnClick="@(() => ShowAssignRoles(context.Id))">Roles</MudButton>
+                <MudButton Size="Size.Small" Variant="Variant.Filled" Color="@(context.IsActive ? Color.Warning : Color.Success)"
+                           OnClick="@(() => ToggleActive(context.Id, !context.IsActive))">
+                    @(context.IsActive ? "Deactivate" : "Activate")
+                </MudButton>
+            </MudTd>
+        </RowTemplate>
+        <NoRecordsContent>
+            <MudText>No users found.</MudText>
+        </NoRecordsContent>
+    </MudTable>
+</MudPaper>
 
 @if (_assignUserId != null)
 {
-    <div class="card mt-3">
-        <div class="card-body">
-            <h5>Assign roles</h5>
-            @foreach (var r in _allRoles)
-            {
-                <div class="form-check">
-                    <input class="form-check-input" type="checkbox" id="role-@r.Id"
-                           checked="@_selectedRoleIds.Contains(r.Id)"
-                           @onchange="e => ToggleRole(r.Id, (bool)(e.Value ?? false))" />
-                    <label class="form-check-label" for="role-@r.Id">@r.Name</label>
-                </div>
-            }
-            <div class="mt-2">
-                <button class="btn btn-primary" @onclick="SaveRoles">Save</button>
-                <button class="btn btn-light" @onclick="() => _assignUserId = null">Cancel</button>
-            </div>
+    <MudPaper Class="pa-4 mt-4" Elevation="2">
+        <MudText Typo="Typo.h6" Class="mb-2">Assign roles</MudText>
+        @foreach (var r in _allRoles)
+        {
+            <MudCheckBox T="bool" Value="@_selectedRoleIds.Contains(r.Id)" ValueChanged="@((bool v) => ToggleRole(r.Id, v))" Label="@r.Name" Color="Color.Primary" />
+        }
+        <div class="mt-2">
+            <MudButton Color="Color.Primary" Variant="Variant.Filled" OnClick="SaveRoles">Save</MudButton>
+            <MudButton OnClick="@(() => _assignUserId = null)">Cancel</MudButton>
         </div>
-    </div>
+    </MudPaper>
 }
 
 @code {
@@ -74,6 +69,12 @@ else
 
     protected override async Task OnInitializedAsync() => await LoadAsync();
     private async Task LoadAsync() => _result = await Api.GetAsync(_showDeactivated);
+
+    private async Task OnShowDeactivatedChanged(bool value)
+    {
+        _showDeactivated = value;
+        await LoadAsync();
+    }
 
     private async void ShowAssignRoles(string userId)
     {
@@ -92,6 +93,7 @@ else
         if (_assignUserId == null) return;
         await Api.AssignRolesAsync(_assignUserId, _selectedRoleIds.ToList());
         _assignUserId = null;
+        Snackbar.Add("Roles updated.", Severity.Success);
         await LoadAsync();
     }
 
@@ -100,6 +102,7 @@ else
         var (success, error) = await Api.SetActiveAsync(id, activate);
         if (!success) { _error = error; return; }
         _error = null;
+        Snackbar.Add(activate ? "User activated." : "User deactivated.", Severity.Success);
         await LoadAsync();
     }
 }

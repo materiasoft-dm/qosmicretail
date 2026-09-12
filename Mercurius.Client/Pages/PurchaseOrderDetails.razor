@@ -6,37 +6,39 @@
 
 @if (_order is null)
 {
-    <p><em>Loading...</em></p>
+    <MudText><em>Loading...</em></MudText>
 }
 else
 {
-    <h1>@_order.OrderNumber</h1>
-    <div class="row mb-4">
-        <div class="col-md-3"><div class="text-muted small">Supplier</div><div>@_order.SupplierName</div></div>
-        <div class="col-md-3"><div class="text-muted small">Status</div><div><span class="badge badge-light-info">@_order.Status</span></div></div>
-        <div class="col-md-3"><div class="text-muted small">Order date</div><div>@_order.OrderDate.ToString("yyyy-MM-dd")</div></div>
-        <div class="col-md-3"><div class="text-muted small">Expected delivery</div><div>@(_order.ExpectedDeliveryDate?.ToString("yyyy-MM-dd") ?? "-")</div></div>
-    </div>
+    <MudText Typo="Typo.h4" Class="mb-4">@_order.OrderNumber</MudText>
+    <MudGrid Class="mb-4">
+        <MudItem xs="6" md="3"><MudText Typo="Typo.caption" Color="Color.Secondary">Supplier</MudText><MudText>@_order.SupplierName</MudText></MudItem>
+        <MudItem xs="6" md="3"><MudText Typo="Typo.caption" Color="Color.Secondary">Status</MudText><MudChip T="string" Size="Size.Small" Color="Color.Info">@_order.Status</MudChip></MudItem>
+        <MudItem xs="6" md="3"><MudText Typo="Typo.caption" Color="Color.Secondary">Order date</MudText><MudText>@_order.OrderDate.ToString("yyyy-MM-dd")</MudText></MudItem>
+        <MudItem xs="6" md="3"><MudText Typo="Typo.caption" Color="Color.Secondary">Expected delivery</MudText><MudText>@(_order.ExpectedDeliveryDate?.ToString("yyyy-MM-dd") ?? "-")</MudText></MudItem>
+    </MudGrid>
     @if (!string.IsNullOrEmpty(_order.Notes))
     {
-        <p><strong>Notes:</strong> @_order.Notes</p>
+        <MudText Class="mb-3"><strong>Notes:</strong> @_order.Notes</MudText>
     }
 
-    <h5>Line items</h5>
-    <table class="table table-striped">
-        <thead><tr><th>Product</th><th class="text-end">Quantity</th><th class="text-end">Est. unit cost</th><th class="text-end">Received</th></tr></thead>
-        <tbody>
-            @foreach (var item in _order.Items)
-            {
-                <tr>
-                    <td>@item.ProductName</td>
-                    <td class="text-end">@item.Quantity</td>
-                    <td class="text-end">@Money.Format(item.EstimatedUnitCost)</td>
-                    <td class="text-end">@(item.ReceivedQuantity?.ToString() ?? "-")</td>
-                </tr>
-            }
-        </tbody>
-    </table>
+    <MudText Typo="Typo.h6" Class="mb-2">Line items</MudText>
+    <MudPaper Class="pa-2" Elevation="2">
+        <MudTable Items="_order.Items" Hover="true" Dense="true">
+            <HeaderContent>
+                <MudTh>Product</MudTh>
+                <MudTh Style="text-align:right;">Quantity</MudTh>
+                <MudTh Style="text-align:right;">Est. unit cost</MudTh>
+                <MudTh Style="text-align:right;">Received</MudTh>
+            </HeaderContent>
+            <RowTemplate>
+                <MudTd DataLabel="Product">@context.ProductName</MudTd>
+                <MudTd DataLabel="Quantity" Style="text-align:right;">@context.Quantity</MudTd>
+                <MudTd DataLabel="Est. unit cost" Style="text-align:right;">@Money.Format(context.EstimatedUnitCost)</MudTd>
+                <MudTd DataLabel="Received" Style="text-align:right;">@(context.ReceivedQuantity?.ToString() ?? "-")</MudTd>
+            </RowTemplate>
+        </MudTable>
+    </MudPaper>
 }
 
 @code {

@@ -1,0 +1,63 @@
+@inject RefundReasonsApiClient Api
+
+<MudDialog>
+    <DialogContent>
+        <MudTextField @bind-Value="_name" Label="Name" Variant="Variant.Outlined" Class="mb-3" AutoFocus="true" />
+        <MudTextField @bind-Value="_description" Label="Description" Variant="Variant.Outlined" Class="mb-3" />
+        @if (Existing != null)
+        {
+            <MudSwitch @bind-Value="_isActive" Color="Color.Primary" Label="Active" />
+        }
+        @if (_error != null)
+        {
+            <MudAlert Severity="Severity.Error" Class="mt-2">@_error</MudAlert>
+        }
+    </DialogContent>
+    <DialogActions>
+        <MudButton OnClick="Cancel">Cancel</MudButton>
+        <MudButton Color="Color.Primary" Variant="Variant.Filled" OnClick="Save">Save</MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    [CascadingParameter] private IMudDialogInstance MudDialog { get; set; } = default!;
+    [Parameter] public RefundReasonDto? Existing { get; set; }
+
+    private string _name = string.Empty;
+    private string _description = string.Empty;
+    private bool _isActive;
+    private string? _error;
+
+    protected override void OnInitialized()
+    {
+        if (Existing != null)
+        {
+            _name = Existing.Name;
+            _description = Existing.Description ?? string.Empty;
+            _isActive = Existing.IsActive;
+        }
+    }
+
+    private async Task Save()
+    {
+        if (string.IsNullOrWhiteSpace(_name))
+        {
+            _error = "Name is required.";
+            return;
+        }
+
+        var success = Existing == null
+            ? await Api.CreateAsync(new CreateRefundReasonRequest { Name = _name, Description = _description }) != null
+            : await Api.UpdateAsync(Existing.Id, new UpdateRefundReasonRequest { Name = _name, Description = _description, IsActive = _isActive });
+
+        if (!success)
+        {
+            _error = "Failed to save.";
+            return;
+        }
+
+        MudDialog.Close(DialogResult.Ok(true));
+    }
+
+    private void Cancel() => MudDialog.Cancel();
+}

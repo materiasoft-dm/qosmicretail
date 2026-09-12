@@ -47,8 +47,48 @@ namespace Mercurius.Controllers.Api
             return Ok(items);
         }
 
+        [HttpGet("offline-catalog")]
+        public ActionResult<List<OfflineProductDto>> GetOfflineCatalog(CancellationToken ct = default)
+        {
+            ct.ThrowIfCancellationRequested();
+            var items = _unitOfWork.Query<Product>()
+                .Where(p => p.IsActive)
+                .Select(p => new OfflineProductDto
+                {
+                    Id = p.Id,
+                    ProductCode = p.ProductCode ?? string.Empty,
+                    Name = p.Name ?? string.Empty,
+                    CategoryId = p.ProductCategoryId,
+                    Category = p.ProductCategory != null ? p.ProductCategory.Name : null,
+                    SalePrice = p.CurrentSalePrice,
+                    Stock = p.CurrentStock,
+                    LowStockCount = p.LowStockCount
+                })
+                .ToList();
+            return Ok(items);
+        }
+
+        // Cashier's device saved this sale locally while offline (see Mercurius.Client's
+        // OfflineSyncService) and is now replaying it. Idempotent by SyncId — matching
+        // Api/SyncController.PushInvoices' contract for the mobile app — so a retried sync
+        // (e.g. a flaky reconnect) never double-charges inventory for the same sale.
+        [HttpPost("offline-sync")]
+        public async Task<IActionResult> SyncOfflineSale(OfflineSaleRequest request, CancellationToken ct = default)
+        {
+            var existing = (await _unitOfWork.Repository<Invoice>().FindAsync(i => i.SyncId == request.SyncId, ct)).FirstOrDefault();
+            if (existing != null)
+            {
+                return Ok(new CheckoutResultDto { InvoiceNumber = existing.InvoiceNumber, InvoiceId = existing.Id, Total = 0, Change = 0 });
+            }
+
+            return await ProcessCheckoutAsync(request, request.SyncId, request.CreatedAtUtc, ct);
+        }
+
         [HttpPost("checkout")]
-        public async Task<IActionResult> Checkout(CheckoutRequest request, CancellationToken ct = default)
+        public async Task<IActionResult> Checkout(CheckoutRequest request, CancellationToken ct = default) =>
+            await ProcessCheckoutAsync(request, Guid.NewGuid(), DateTime.UtcNow, ct);
+
+        private async Task<IActionResult> ProcessCheckoutAsync(CheckoutRequest request, Guid syncId, DateTime invoiceDateUtc, CancellationToken ct)
         {
             ct.ThrowIfCancellationRequested();
             if (request.Items == null || request.Items.Count == 0)
@@ -71,10 +111,11 @@ namespace Mercurius.Controllers.Api
 
             var invoice = new Invoice
             {
+                SyncId = syncId,
                 CustomerId = request.CustomerId > 0 ? request.CustomerId : (int?)null,
                 LocationId = locationId,
                 StatusId = (int)StatusCollection.InvoiceStatus.Draft,
-                InvoiceDate = DateTime.UtcNow,
+                InvoiceDate = invoiceDateUtc,
                 InvoiceNumber = $"INV-{DateTime.UtcNow:yyyyMMddHHmmssfff}",
                 Notes = resolvedNotes,
                 PaidAmount = request.AmountReceived,

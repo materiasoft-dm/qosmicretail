@@ -1,71 +1,76 @@
 @page "/adjustments"
 @attribute [Authorize]
 @inject AdjustmentsApiClient Api
+@inject ISnackbar Snackbar
 
 <PageTitle>Adjustments</PageTitle>
 
-<div class="d-flex justify-content-between align-items-center mb-3">
-    <h1>Stock Adjustments</h1>
-    <button class="btn btn-primary" @onclick="ShowCreate">New Adjustment</button>
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <MudText Typo="Typo.h4">Stock Adjustments</MudText>
+    <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Filled.Add" OnClick="ShowCreate">
+        New Adjustment
+    </MudButton>
 </div>
 
 @if (_showCreate)
 {
-    <div class="card mb-3">
-        <div class="card-body">
-            <div class="row g-2">
-                <div class="col-md-4">
-                    <input class="form-control" placeholder="Search product..." value="@_productSearch" @oninput="OnProductSearch" />
-                    <select class="form-select mt-1" @bind="_productId" size="4">
-                        @foreach (var p in _products)
-                        {
-                            <option value="@p.Id">@p.Name (@p.ProductCode)</option>
-                        }
-                    </select>
-                </div>
-                <div class="col-md-3">
-                    <select class="form-select" @bind="_reasonId">
-                        <option value="0">-- Reason --</option>
-                        @foreach (var r in _reasons)
-                        {
-                            <option value="@r.Id">@r.Name (@(r.IsInbound ? "+" : "-"))</option>
-                        }
-                    </select>
-                </div>
-                <div class="col-md-2"><input type="number" min="0.01" step="0.01" class="form-control" placeholder="Quantity" @bind="_quantity" /></div>
-                <div class="col-md-3"><input class="form-control" placeholder="Note" @bind="_note" /></div>
-            </div>
-            @if (_error != null) { <p class="text-danger mt-2 mb-0">@_error</p> }
-            <div class="mt-3">
-                <button class="btn btn-primary" @onclick="Submit">Save</button>
-                <button class="btn btn-light" @onclick="() => _showCreate = false">Cancel</button>
-            </div>
+    <MudPaper Class="pa-4 mb-4" Elevation="2">
+        <MudGrid>
+            <MudItem xs="12" md="4">
+                <MudTextField T="string" Value="_productSearch" ValueChanged="OnProductSearch" Immediate="true" Label="Search product..." Variant="Variant.Outlined" />
+                <MudList T="int" @bind-SelectedValue="_productId" Class="mt-1" Style="max-height:180px; overflow-y:auto; border:1px solid var(--mud-palette-lines-default); border-radius:4px;">
+                    @foreach (var p in _products)
+                    {
+                        <MudListItem T="int" Value="@p.Id" Text="@($"{p.Name} ({p.ProductCode})")" />
+                    }
+                </MudList>
+            </MudItem>
+            <MudItem xs="12" md="3">
+                <MudSelect T="int" @bind-Value="_reasonId" Label="Reason" Variant="Variant.Outlined">
+                    <MudSelectItem T="int" Value="0">-- Reason --</MudSelectItem>
+                    @foreach (var r in _reasons)
+                    {
+                        <MudSelectItem T="int" Value="@r.Id">@r.Name (@(r.IsInbound ? "+" : "-"))</MudSelectItem>
+                    }
+                </MudSelect>
+            </MudItem>
+            <MudItem xs="12" md="2"><MudNumericField @bind-Value="_quantity" Min="0.01M" Format="N2" Label="Quantity" Variant="Variant.Outlined" /></MudItem>
+            <MudItem xs="12" md="3"><MudTextField @bind-Value="_note" Label="Note" Variant="Variant.Outlined" /></MudItem>
+        </MudGrid>
+        @if (_error != null)
+        {
+            <MudAlert Severity="Severity.Error" Class="mt-3">@_error</MudAlert>
+        }
+        <div class="mt-3">
+            <MudButton Color="Color.Primary" Variant="Variant.Filled" OnClick="Submit">Save</MudButton>
+            <MudButton OnClick="@(() => _showCreate = false)">Cancel</MudButton>
         </div>
-    </div>
+    </MudPaper>
 }
 
-@if (_result is null)
-{
-    <p><em>Loading...</em></p>
-}
-else
-{
-    <table class="table table-striped">
-        <thead><tr><th>Date</th><th>Reason</th><th class="text-end">Quantity</th><th>Refund invoice</th></tr></thead>
-        <tbody>
-            @foreach (var a in _result.Items)
-            {
-                <tr>
-                    <td>@a.Date.ToString("yyyy-MM-dd HH:mm")</td>
-                    <td>@a.ReasonName</td>
-                    <td class="text-end">@a.Quantity</td>
-                    <td>@(a.InvoiceId.HasValue ? $"Invoice #{a.InvoiceId}" : "")</td>
-                </tr>
-            }
-        </tbody>
-    </table>
-    <p class="text-muted">Showing @_result.Items.Count of @_result.Total</p>
-}
+<MudPaper Class="pa-2" Elevation="2">
+    <MudTable Items="@(_result?.Items ?? new())" Loading="@(_result is null)" Hover="true" Dense="true">
+        <HeaderContent>
+            <MudTh>Date</MudTh>
+            <MudTh>Reason</MudTh>
+            <MudTh Style="text-align:right;">Quantity</MudTh>
+            <MudTh>Refund invoice</MudTh>
+        </HeaderContent>
+        <RowTemplate>
+            <MudTd DataLabel="Date">@context.Date.ToString("yyyy-MM-dd HH:mm")</MudTd>
+            <MudTd DataLabel="Reason">@context.ReasonName</MudTd>
+            <MudTd DataLabel="Quantity" Style="text-align:right;">@context.Quantity</MudTd>
+            <MudTd DataLabel="Refund invoice">@(context.InvoiceId.HasValue ? $"Invoice #{context.InvoiceId}" : "")</MudTd>
+        </RowTemplate>
+        <NoRecordsContent>
+            <MudText>No adjustments yet.</MudText>
+        </NoRecordsContent>
+    </MudTable>
+    @if (_result is not null && _result.Items.Count > 0)
+    {
+        <MudText Typo="Typo.caption" Class="pa-2 d-block">Showing @_result.Items.Count of @_result.Total</MudText>
+    }
+</MudPaper>
 
 @code {
     private ListResultDto<AdjustmentListItemDto>? _result;
@@ -96,9 +101,9 @@ else
         _ = ShowCreateAsync();
     }
 
-    private async Task OnProductSearch(ChangeEventArgs e)
+    private async Task OnProductSearch(string value)
     {
-        _productSearch = e.Value?.ToString() ?? string.Empty;
+        _productSearch = value;
         _debounce?.Cancel();
         _debounce = new CancellationTokenSource();
         var token = _debounce.Token;
@@ -121,6 +126,7 @@ else
         var (success, error) = await Api.CreateAsync(new CreateAdjustmentRequest { ProductId = _productId, ReasonId = _reasonId, Quantity = _quantity, Note = _note });
         if (!success) { _error = error; return; }
         _showCreate = false;
+        Snackbar.Add("Adjustment recorded.", Severity.Success);
         await LoadAsync();
     }
 }

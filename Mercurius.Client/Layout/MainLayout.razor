@@ -1,16 +1,30 @@
 ﻿@inherits LayoutComponentBase
+@inject Mercurius.Client.Services.PwaService Pwa
+
+<MudThemeProvider Theme="MercuriusMudTheme.Theme" />
+<MudPopoverProvider />
+<MudDialogProvider />
+<MudSnackbarProvider />
+
 <div class="page">
     <div class="sidebar">
         <NavMenu />
     </div>
 
     <main>
-        <div class="top-row px-4">
-            <a href="https://learn.microsoft.com/aspnet/core/" target="_blank">About</a>
-        </div>
-
         <article class="content px-4">
             @Body
         </article>
     </main>
 </div>
+
+@code {
+    protected override async Task OnInitializedAsync()
+    {
+        // Best-effort: reduces (doesn't eliminate) the chance a browser evicts the offline
+        // product cache / pending-sales queue during a period of inactivity. See NavMenu's
+        // "Install app" button for the other half of this — installed PWAs get stronger
+        // persistence guarantees than a bookmarked tab.
+        await Pwa.RequestPersistentStorageAsync();
+    }
+}
