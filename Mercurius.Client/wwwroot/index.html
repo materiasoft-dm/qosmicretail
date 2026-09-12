@@ -39,7 +39,14 @@
     <script src="js/MudBlazor.min.js"></script>
     <script src="js/offlineStore.js"></script>
     <script src="js/pwaHelpers.js"></script>
-    <script>navigator.serviceWorker.register('service-worker.js');</script>
+    <script>
+        // Service workers only exist in a secure context (HTTPS, or localhost for dev) — guard
+        // this rather than assume it, since the object is simply undefined everywhere else
+        // (e.g. this app's current plain-HTTP live host) and would otherwise throw on load.
+        if ('serviceWorker' in navigator) {
+            navigator.serviceWorker.register('service-worker.js');
+        }
+    </script>
 </body>
 
 </html>
