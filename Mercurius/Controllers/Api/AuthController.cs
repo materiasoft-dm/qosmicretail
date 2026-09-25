@@ -36,11 +36,25 @@ namespace Mercurius.Controllers.Api
     {
         private readonly UserManager<MercuriusUser> _userManager;
         private readonly IConfiguration _configuration;
+        private readonly Mercurius.Services.Auditing.IAuditLogger _auditLogger;
 
-        public AuthController(UserManager<MercuriusUser> userManager, IConfiguration configuration)
+        public AuthController(UserManager<MercuriusUser> userManager, IConfiguration configuration, Mercurius.Services.Auditing.IAuditLogger auditLogger)
         {
             _userManager = userManager;
             _configuration = configuration;
+            _auditLogger = auditLogger;
+        }
+
+        // Mobile sign-out is local (the app just discards its token), so this exists purely to
+        // put the sign-out on the audit trail. The app calls it best-effort — an offline sign-out
+        // simply won't appear.
+        [HttpPost("logout")]
+        [Microsoft.AspNetCore.Authorization.Authorize(AuthenticationSchemes = Microsoft.AspNetCore.Authentication.JwtBearer.JwtBearerDefaults.AuthenticationScheme)]
+        public async Task<IActionResult> Logout(CancellationToken ct = default)
+        {
+            await _auditLogger.LogAsync(Mercurius.Services.Auditing.AuditActions.Logout,
+                $"Signed out of the mobile app: {User.FindFirstValue(ClaimTypes.Email)}", ct: ct);
+            return NoContent();
         }
 
         [HttpPost("login")]
@@ -59,8 +73,19 @@ namespace Mercurius.Controllers.Api
             var user = await _userManager.FindByEmailAsync(request.Email);
             if (user == null || !await _userManager.CheckPasswordAsync(user, request.Password))
             {
+                await _auditLogger.LogAsync(Mercurius.Services.Auditing.AuditActions.LoginFailed,
+                    $"Failed mobile sign-in attempt for {request.Email}",
+                    new { email = request.Email, channel = "MobileApp" },
+                    new Mercurius.Services.Auditing.AuditActor(user?.Id, user?.Email ?? request.Email, user?.TenantId),
+                    entityType: user != null ? "MercuriusUser" : null, entityId: user?.Id);
                 return Unauthorized(new { error = "Invalid credentials." });
             }
+
+            await _auditLogger.LogAsync(Mercurius.Services.Auditing.AuditActions.LoginSucceeded,
+                $"Signed in to the mobile app as {user.Email}",
+                new { email = user.Email, channel = "MobileApp" },
+                new Mercurius.Services.Auditing.AuditActor(user.Id, user.Email, user.TenantId),
+                entityType: "MercuriusUser", entityId: user.Id);
 
             var jwtSection = _configuration.GetSection("Jwt");
             var keyBytes = Encoding.UTF8.GetBytes(jwtSection.GetValue<string>("Key") ?? "");

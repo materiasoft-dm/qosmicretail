@@ -34,6 +34,18 @@ public DateTime? UpdatedDate { get; set; }
     public Guid? UpdateBy { get; set; }
 
     public bool HasRefund { get; set; }
+
+    // Where the sale was rung up — shown on every terminal's Receipts list so staff can tell a
+    // web sale from a mobile one, and which terminal. Web | MobileApp; null for invoices created
+    // before this was recorded. Device fields are only set for MobileApp.
+    [StringLength(20)]
+    public string? SourceChannel { get; set; }
+
+    [StringLength(100)]
+    public string? SourceDeviceId { get; set; }
+
+    [StringLength(200)]
+    public string? SourceDeviceName { get; set; }
 public decimal PaidAmount { get; set; }
 public virtual Customer Customer { get; set; }
 public virtual ICollection<InvoiceItem> InvoiceItems { get; set; } = new List<InvoiceItem>();

@@ -11,6 +11,7 @@ using Mercurius.Repo.Repositories;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.EntityFrameworkCore;
 
 namespace Mercurius.Controllers.Api
 {
@@ -47,6 +48,28 @@ namespace Mercurius.Controllers.Api
             Guid.TryParse(User.FindFirstValue(ClaimTypes.NameIdentifier), out var uid) ? uid : Guid.Empty;
 
         // ============================================
+        // LOCATIONS (which clinic/branch this device is assigned to)
+        // ============================================
+        // Backs Mercurius.Mobile's Settings page — a device-level assignment, deliberately
+        // separate from UserCurrentLocation (which is per-*user*, driving the web app's location
+        // switcher). A shared POS terminal has a fixed physical clinic regardless of who's signed
+        // in on it, so this can't just reuse that mechanism. No extra page-claim required beyond
+        // the JWT itself — mobile tokens don't carry access.pages claims at all yet (a pre-existing
+        // gap, see MULTITENANCY_ARCHITECTURE.md §2.3), so gating this on one wasn't an option.
+
+        [HttpGet("locations")]
+        public IActionResult GetLocations(CancellationToken ct = default)
+        {
+            ct.ThrowIfCancellationRequested();
+            var locations = _unitOfWork.Query<Location>()
+                .Where(l => l.IsActive)
+                .OrderBy(l => l.Name)
+                .Select(l => new LocationSyncDto { Id = l.Id, Name = l.Name })
+                .ToList();
+            return Ok(locations);
+        }
+
+        // ============================================
         // PRODUCTS
         // ============================================
 
@@ -65,6 +88,7 @@ namespace Mercurius.Controllers.Api
                 {
                     SyncId = p.SyncId,
                     ProductCode = p.ProductCode,
+                    Barcode = p.Barcode,
                     Name = p.Name,
                     Description = p.Description,
                     CategoryName = p.ProductCategory != null ? p.ProductCategory.Name : null,
@@ -112,12 +136,21 @@ namespace Mercurius.Controllers.Api
                     if (existing != null)
                     {
                         existing.ProductCode = item.ProductCode;
+                        // null = "this app build doesn't know about barcodes" (keep whatever's set,
+                        // e.g. from the web admin); "" = the user deliberately cleared it.
+                        existing.Barcode = item.Barcode == null
+                            ? existing.Barcode
+                            : string.IsNullOrWhiteSpace(item.Barcode) ? null : item.Barcode.Trim();
                         existing.Name = item.Name;
                         existing.Description = item.Description ?? existing.Description;
                         existing.ProductCategoryId = categoryId ?? existing.ProductCategoryId;
                         existing.CurrentCostPrice = item.CurrentCostPrice;
                         existing.CurrentSalePrice = item.CurrentSalePrice;
-                        existing.CurrentStock = item.CurrentStock;
+                        // CurrentStock deliberately NOT taken from the device on update: a device's
+                        // copy can be hours stale (offline, other terminals selling), and accepting it
+                        // would silently undo every sale/adjustment since. Stock only moves through
+                        // sales, adjustments, and shipments. (It IS accepted on create, below — a
+                        // brand-new product's opening stock has nothing to conflict with.)
                         existing.LowStockCount = item.LowStockCount;
                         existing.MarkUpPercentage = item.MarkUpPercentage;
                         existing.IsActive = item.IsActive;
@@ -135,6 +168,7 @@ namespace Mercurius.Controllers.Api
                         {
                             SyncId = item.SyncId,
                             ProductCode = item.ProductCode,
+                            Barcode = string.IsNullOrWhiteSpace(item.Barcode) ? null : item.Barcode.Trim(),
                             Name = item.Name,
                             Description = item.Description ?? "",
                             ProductCategoryId = categoryId,
@@ -202,15 +236,157 @@ namespace Mercurius.Controllers.Api
             return Ok(invoices);
         }
 
+        // ============================================
+        // RECEIPTS (every sale in the tenant, display-ready, for the mobile Receipts page)
+        // ============================================
+        //
+        // Incremental and resumable. Pages are ordered by (last-modified, Id) and the cursor is
+        // that pair — a plain "since timestamp" cursor either skips rows that share the boundary
+        // timestamp (with >) or can loop forever on a page full of them (with >=). A refund or
+        // any other change re-stamps the invoice (InvoiceChangeStampInterceptor), so it comes
+        // round again and the device updates its copy.
+        //
+        // `fromDate` bounds how far back a device keeps history (it asks for its own retention
+        // window, e.g. 30 days); it filters on the real-world InvoiceDate, not the cursor.
+        private const int MaxReceiptPageSize = 200;
+
+        [HttpGet("receipts/pull")]
+        public async Task<IActionResult> PullReceipts(
+            [FromQuery] string? cursor, [FromQuery] DateTime? fromDate, [FromQuery] int take = 100,
+            CancellationToken ct = default)
+        {
+            take = Math.Clamp(take, 1, MaxReceiptPageSize);
+
+            DateTime afterModified = DateTime.MinValue;
+            int afterId = 0;
+            if (!string.IsNullOrEmpty(cursor))
+            {
+                var parts = cursor.Split(':');
+                if (parts.Length != 2 || !long.TryParse(parts[0], out var ticks) || !int.TryParse(parts[1], out afterId))
+                {
+                    return BadRequest(new { error = "Invalid cursor." });
+                }
+                afterModified = new DateTime(ticks, DateTimeKind.Utc);
+            }
+
+            var query = _unitOfWork.Query<Invoice>().AsNoTracking();
+            if (fromDate.HasValue)
+            {
+                var from = fromDate.Value;
+                query = query.Where(i => i.InvoiceDate >= from);
+            }
+
+            var page = await query
+                .Where(i => (i.UpdatedDate ?? i.CreatedDate) > afterModified
+                            || ((i.UpdatedDate ?? i.CreatedDate) == afterModified && i.Id > afterId))
+                .OrderBy(i => i.UpdatedDate ?? i.CreatedDate).ThenBy(i => i.Id)
+                .Take(take + 1) // one extra to know whether there's more
+                .Select(i => new
+                {
+                    i.Id, i.SyncId, i.InvoiceNumber, i.InvoiceDate, i.LocationId, i.CreatedBy,
+                    i.SourceChannel, i.SourceDeviceId, i.SourceDeviceName, i.Notes, i.PaidAmount,
+                    i.HasRefund, i.StatusId,
+                    Modified = i.UpdatedDate ?? i.CreatedDate,
+                    Items = i.InvoiceItems.Select(ii => new
+                    {
+                        ii.Id, ii.SyncId, ProductSyncId = ii.Product.SyncId, ProductName = ii.Product.Name,
+                        ii.Quantity, ii.SalePrice, ii.CustomTotalPrice
+                    }).ToList()
+                })
+                .ToListAsync(ct);
+
+            var hasMore = page.Count > take;
+            if (hasMore) page.RemoveAt(page.Count - 1);
+
+            // Names resolved in bulk after the page is fixed (no per-row lookups).
+            var itemIds = page.SelectMany(p => p.Items.Select(i => i.Id)).ToList();
+            var refundedByItem = itemIds.Count == 0
+                ? new Dictionary<int, decimal>()
+                : (await _unitOfWork.Query<InvoiceItemRefund>().AsNoTracking()
+                    .Where(r => itemIds.Contains(r.InvoiceItemId))
+                    .Select(r => new { r.InvoiceItemId, r.Quantity })
+                    .ToListAsync(ct))
+                  .GroupBy(r => r.InvoiceItemId)
+                  .ToDictionary(g => g.Key, g => g.Sum(r => r.Quantity));
+
+            var locationIds = page.Select(p => p.LocationId).Distinct().ToList();
+            var locationNames = await _unitOfWork.Query<Location>().AsNoTracking()
+                .Where(l => locationIds.Contains(l.Id))
+                .ToDictionaryAsync(l => l.Id, l => l.Name, ct);
+
+            // Identity ids are Guid strings; CreatedBy is the same Guid.
+            var cashierIds = page.Where(p => p.CreatedBy != Guid.Empty).Select(p => p.CreatedBy.ToString()).Distinct().ToList();
+            var cashierNames = await _unitOfWork.Query<Mercurius.Repo.IdentityModel.MercuriusUser>().AsNoTracking()
+                .Where(u => cashierIds.Contains(u.Id))
+                .Select(u => new { u.Id, u.FirstName, u.LastName, u.Email })
+                .ToListAsync(ct);
+            var cashierLookup = cashierNames.ToDictionary(
+                u => u.Id,
+                u => string.IsNullOrWhiteSpace($"{u.FirstName} {u.LastName}".Trim()) ? u.Email : $"{u.FirstName} {u.LastName}".Trim());
+
+            var result = new ReceiptPullPage { HasMore = hasMore };
+            foreach (var inv in page)
+            {
+                var lines = inv.Items.Select(ii =>
+                {
+                    var lineTotal = ii.CustomTotalPrice ?? ii.Quantity * ii.SalePrice;
+                    var refundedQty = refundedByItem.TryGetValue(ii.Id, out var q) ? q : 0m;
+                    return new ReceiptLineSyncDto
+                    {
+                        SyncId = ii.SyncId,
+                        ProductSyncId = ii.ProductSyncId,
+                        ProductName = ii.ProductName ?? "",
+                        Quantity = ii.Quantity,
+                        SalePrice = ii.SalePrice,
+                        LineTotal = lineTotal,
+                        RefundedQuantity = refundedQty
+                    };
+                }).ToList();
+
+                result.Items.Add(new ReceiptSyncDto
+                {
+                    SyncId = inv.SyncId,
+                    InvoiceNumber = inv.InvoiceNumber ?? "",
+                    InvoiceDate = DateTime.SpecifyKind(inv.InvoiceDate, DateTimeKind.Utc),
+                    LocationId = inv.LocationId,
+                    LocationName = locationNames.TryGetValue(inv.LocationId, out var ln) ? ln : null,
+                    CashierName = inv.CreatedBy != Guid.Empty && cashierLookup.TryGetValue(inv.CreatedBy.ToString(), out var cn) ? cn : null,
+                    SourceChannel = inv.SourceChannel,
+                    SourceDeviceId = inv.SourceDeviceId,
+                    SourceDeviceName = inv.SourceDeviceName,
+                    Notes = inv.Notes,
+                    PaidAmount = inv.PaidAmount,
+                    GrandTotal = lines.Sum(l => l.LineTotal),
+                    RefundedAmount = lines.Sum(l => l.Quantity == 0 ? 0 : l.LineTotal / l.Quantity * l.RefundedQuantity),
+                    HasRefund = inv.HasRefund,
+                    Status = ((StatusCollection.InvoiceStatus)inv.StatusId).ToString(),
+                    LastModifiedUtc = DateTime.SpecifyKind(inv.Modified, DateTimeKind.Utc),
+                    Items = lines
+                });
+            }
+
+            var last = page.LastOrDefault();
+            result.NextCursor = last != null
+                ? $"{DateTime.SpecifyKind(last.Modified, DateTimeKind.Utc).Ticks}:{last.Id}"
+                : cursor; // nothing new — the caller keeps its existing position
+            return Ok(result);
+        }
+
         [HttpPost("invoices/push")]
         public async Task<IActionResult> PushInvoices([FromBody] List<InvoicePushDto> items, CancellationToken ct = default)
         {
             ct.ThrowIfCancellationRequested();
             var results = new List<SyncPushResultItem>();
-            var now = DateTime.UtcNow;
+            var deviceId = HeaderOrNull(Mercurius.Services.Auditing.HttpAuditContextProvider.DeviceIdHeader);
+            var deviceName = HeaderOrNull(Mercurius.Services.Auditing.HttpAuditContextProvider.DeviceNameHeader);
 
             foreach (var item in items ?? new List<InvoicePushDto>())
             {
+                // Per invoice, not per batch: a device that was offline pushes many sales at once,
+                // and one shared timestamp gave them all the SAME InvoiceNumber — violating its
+                // unique index and failing every sale after the first, on every retry, forever.
+                var now = DateTime.UtcNow;
+                var transactionStarted = false;
                 try
                 {
                     var existing = (await _unitOfWork.Repository<Invoice>()
@@ -223,24 +399,48 @@ namespace Mercurius.Controllers.Api
                         continue;
                     }
 
-                    // The device always sends LocationId 0 (Mercurius.Mobile has no location
-                    // picker yet) — resolve the cashier's actual branch server-side instead, same
-                    // as SalesController.NewSale, so dashboard widgets that scope sales by branch
-                    // don't silently exclude every synced mobile sale.
-                    var resolvedLocationId = await Mercurius.ViewComponents.Dashboard.DashboardLocationContext.GetCurrentLocationIdAsync(_unitOfWork, User);
+                    // Mercurius.Mobile's Settings page lets the device itself be assigned to a
+                    // clinic (see GetLocations above) — a shared POS terminal's branch doesn't
+                    // depend on who's signed in on it, unlike the web app's per-user
+                    // UserCurrentLocation. Trust that device-sent value once it's a real Location
+                    // within this tenant (Query<Location>() is already tenant-filtered, so a
+                    // cross-tenant id simply won't be found here). Devices that haven't been
+                    // assigned a clinic yet still send 0 — fall back to the old per-user
+                    // resolution for those, same as SalesController.NewSale, rather than leaving
+                    // the invoice's LocationId at 0 (which dashboard widgets that scope by branch
+                    // would silently exclude).
+                    var deviceLocationExists = item.LocationId > 0 &&
+                        await _unitOfWork.Query<Location>().AnyAsync(l => l.Id == item.LocationId, ct);
+                    var resolvedLocationId = deviceLocationExists
+                        ? item.LocationId
+                        : await Mercurius.ViewComponents.Dashboard.DashboardLocationContext.GetCurrentLocationIdAsync(_unitOfWork, User);
+
+                    var cashierId = await ResolveCashierAsync(item.CashierUserId, ct);
+
+                    // All-or-nothing per sale. Previously the invoice header was committed before its
+                    // lines; if a line then failed, the device retried, the server saw the SyncId
+                    // already existed ("create-once, no-op"), and the lines were lost for good.
+                    await _unitOfWork.BeginTransactionAsync(ct);
+                    transactionStarted = true;
 
                     var invoice = new Invoice
                     {
                         SyncId = item.SyncId,
                         InvoiceDate = item.InvoiceDate,
-                        InvoiceNumber = $"INV-{now:yyyyMMddHHmmssfff}",
+                        // SyncId suffix: two terminals syncing in the same millisecond must still
+                        // get distinct numbers (the web checkout's plain timestamp can't collide
+                        // with these, since it has no suffix).
+                        InvoiceNumber = $"INV-{now:yyyyMMddHHmmssfff}-{item.SyncId.ToString("N").Substring(0, 4).ToUpperInvariant()}",
                         CustomerId = item.CustomerId,
                         LocationId = resolvedLocationId,
                         StatusId = (int)StatusCollection.InvoiceStatus.Draft,
                         Notes = item.Notes,
                         PaidAmount = item.PaidAmount,
                         CreatedDate = now,
-                        CreatedBy = CurrentUserId
+                        CreatedBy = cashierId,
+                        SourceChannel = "MobileApp",
+                        SourceDeviceId = deviceId,
+                        SourceDeviceName = deviceName
                     };
                     await _unitOfWork.Repository<Invoice>().AddAsync(invoice, ct);
                     await _unitOfWork.SaveChangesAsync(ct);
@@ -258,9 +458,12 @@ namespace Mercurius.Controllers.Api
                             .FindAsync(p => p.SyncId == lineItem.ProductSyncId, ct)).FirstOrDefault();
                         if (product == null)
                         {
-                            // Product hasn't synced to this server yet — skip the line rather than
-                            // fail the whole invoice; the client should retry once products sync.
-                            continue;
+                            // Product hasn't reached this server yet (e.g. created offline on the
+                            // device). Fail the whole sale so the device retries it after its
+                            // product push — silently dropping the line (the old behavior) lost it
+                            // permanently, since a retry of an existing invoice is a no-op.
+                            throw new InvalidOperationException(
+                                $"Product {lineItem.ProductSyncId} is not on the server yet; the sale will be retried after products sync.");
                         }
 
                         var batch = await _batchPricingService.FindFulfillingBatchAsync(_unitOfWork, product.Id, lineItem.Quantity, ct);
@@ -314,15 +517,51 @@ namespace Mercurius.Controllers.Api
                         await _batchPricingService.RefreshActivePriceAsync(_unitOfWork, productId, ct);
                     }
 
+                    await _unitOfWork.CommitTransactionAsync(ct);
+                    transactionStarted = false;
+
                     results.Add(new SyncPushResultItem { SyncId = item.SyncId, Created = true, LastModifiedUtc = now });
                 }
                 catch (Exception ex)
                 {
+                    if (transactionStarted)
+                    {
+                        // Also clears the change tracker (see EfUnitOfWork.RollbackTransactionAsync),
+                        // so this sale's half-built rows aren't re-attempted by the next sale's save.
+                        try { await _unitOfWork.RollbackTransactionAsync(CancellationToken.None); } catch { /* best-effort */ }
+                    }
                     results.Add(new SyncPushResultItem { SyncId = item.SyncId, Error = ex.Message });
                 }
             }
 
             return Ok(results);
+        }
+
+        // The device-reported cashier is only accepted if it's a real user in the SAME tenant as the
+        // pushing user (users aren't tenant-filtered, so this is checked explicitly) — a device
+        // can't attribute a sale to someone in another pharmacy. Anything else: the pusher.
+        private async Task<Guid> ResolveCashierAsync(string? deviceCashierUserId, CancellationToken ct)
+        {
+            if (string.IsNullOrWhiteSpace(deviceCashierUserId)
+                || !Guid.TryParse(deviceCashierUserId, out var claimed)
+                || claimed == CurrentUserId)
+            {
+                return CurrentUserId;
+            }
+
+            var tenantClaim = User.FindFirstValue(MercuriusClaimTypes.TenantId);
+            if (!int.TryParse(tenantClaim, out var tenantId)) return CurrentUserId;
+
+            var claimedIdString = claimed.ToString();
+            var sameTenant = await _unitOfWork.Query<Mercurius.Repo.IdentityModel.MercuriusUser>()
+                .AnyAsync(u => u.Id == claimedIdString && u.TenantId == tenantId, ct);
+            return sameTenant ? claimed : CurrentUserId;
+        }
+
+        private string? HeaderOrNull(string name)
+        {
+            var value = Request.Headers[name].ToString();
+            return string.IsNullOrWhiteSpace(value) ? null : value.Trim();
         }
     }
 }

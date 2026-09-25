@@ -1,0 +1,290 @@
+@{
+    Layout = "~/Views/Shared/_Layout.cshtml";
+    ViewData["Title"] = "Audit Trail";
+    var actions = (List<string>)ViewBag.Actions;
+    var sources = (List<string>)ViewBag.Sources;
+    var entityTypes = (List<string>)ViewBag.EntityTypes;
+    var branches = (List<string>)ViewBag.Branches;
+}
+
+<!-- PAGE TITLE -->
+<div id="kt_app_toolbar" class="app-toolbar py-3 py-lg-6">
+    <div id="kt_app_toolbar_container" class="app-container container-xxl d-flex flex-stack">
+        <div class="page-title d-flex flex-column justify-content-center flex-wrap me-3">
+            <h1 class="page-heading d-flex text-dark fw-bold fs-3 flex-column justify-content-center my-0">Audit Trail</h1>
+            <ul class="breadcrumb breadcrumb-separatorless fw-semibold fs-7 my-0 pt-1">
+                <li class="breadcrumb-item text-muted"><a href="/" class="text-muted text-hover-primary">Home</a></li>
+                <li class="breadcrumb-item"><span class="bullet bg-gray-400 w-5px h-2px"></span></li>
+                <li class="breadcrumb-item text-muted">Settings</li>
+                <li class="breadcrumb-item"><span class="bullet bg-gray-400 w-5px h-2px"></span></li>
+                <li class="breadcrumb-item text-muted">Audit Trail</li>
+            </ul>
+        </div>
+    </div>
+</div>
+
+<div class="card">
+    <div class="card-header border-0 pt-6">
+        <div class="row g-3 w-100">
+            <div class="col-12 col-md-4">
+                <label class="form-label fs-7 text-muted mb-1" for="searchInput">Search</label>
+                <input type="text" id="searchInput" class="form-control form-control-sm form-control-solid"
+                       placeholder="User, summary, IP, device, record id..." />
+            </div>
+            <div class="col-6 col-md-2">
+                <label class="form-label fs-7 text-muted mb-1" for="fromDate">From</label>
+                <input type="date" id="fromDate" class="form-control form-control-sm form-control-solid" />
+            </div>
+            <div class="col-6 col-md-2">
+                <label class="form-label fs-7 text-muted mb-1" for="toDate">To</label>
+                <input type="date" id="toDate" class="form-control form-control-sm form-control-solid" />
+            </div>
+            <div class="col-6 col-md-2">
+                <label class="form-label fs-7 text-muted mb-1" for="actionFilter">Action</label>
+                <select id="actionFilter" class="form-select form-select-sm form-select-solid">
+                    <option value="">All actions</option>
+                    @foreach (var a in actions) { <option value="@a">@a</option> }
+                </select>
+            </div>
+            <div class="col-6 col-md-2">
+                <label class="form-label fs-7 text-muted mb-1" for="entityFilter">Record type</label>
+                <select id="entityFilter" class="form-select form-select-sm form-select-solid">
+                    <option value="">All types</option>
+                    @foreach (var e in entityTypes) { <option value="@e">@e</option> }
+                </select>
+            </div>
+            <div class="col-6 col-md-2">
+                <label class="form-label fs-7 text-muted mb-1" for="branchFilter">Branch</label>
+                <select id="branchFilter" class="form-select form-select-sm form-select-solid">
+                    <option value="">All branches</option>
+                    @foreach (var b in branches) { <option value="@b">@b</option> }
+                </select>
+            </div>
+            <div class="col-6 col-md-2">
+                <label class="form-label fs-7 text-muted mb-1" for="sourceFilter">Source</label>
+                <select id="sourceFilter" class="form-select form-select-sm form-select-solid">
+                    <option value="">All sources</option>
+                    @foreach (var s in sources) { <option value="@s">@s</option> }
+                </select>
+            </div>
+            <div class="col-12 col-md-2 d-flex align-items-end">
+                <button type="button" id="resetFilters" class="btn btn-sm btn-light w-100">Reset filters</button>
+            </div>
+        </div>
+    </div>
+    <div class="card-body pt-0">
+        <div class="table-responsive">
+            <table id="auditTable" class="table table-hover table-rounded table-striped border gy-5 gs-5" style="width:100%">
+                <thead>
+                    <tr class="fw-bold fs-7 text-gray-800 border-bottom border-gray-200">
+                        <th>When</th>
+                        <th>User</th>
+                        <th>Branch</th>
+                        <th>Source</th>
+                        <th>Action</th>
+                        <th>Summary</th>
+                        <th class="text-end"></th>
+                    </tr>
+                </thead>
+                <tbody></tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<!-- Details modal -->
+<div class="modal fade" id="auditDetailsModal" tabindex="-1" aria-labelledby="auditDetailsTitle" aria-hidden="true">
+    <div class="modal-dialog modal-xl modal-dialog-centered modal-dialog-scrollable">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3 class="modal-title" id="auditDetailsTitle">Audit entry</h3>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <div id="auditDetailsBody"></div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" id="sameRequestBtn" class="btn btn-sm btn-light-primary me-auto"
+                        title="Show every entry recorded by the same request (e.g. all rows one sale touched)">
+                    Show everything from this request
+                </button>
+                <button type="button" class="btn btn-sm btn-light" data-bs-dismiss="modal">Close</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+    <script>
+        $(function () {
+            function esc(s) {
+                if (s === null || typeof s === 'undefined') return '';
+                return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+                    .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+            }
+
+            var dateFmt = new Intl.DateTimeFormat(undefined, {
+                year: 'numeric', month: 'short', day: '2-digit',
+                hour: '2-digit', minute: '2-digit', second: '2-digit'
+            });
+            function fmtWhen(iso) {
+                if (!iso) return '';
+                var d = new Date(iso);
+                return isNaN(d) ? esc(iso) : dateFmt.format(d);
+            }
+
+            var actionBadge = {
+                Created: 'badge-light-success', Reactivated: 'badge-light-success', LoginSucceeded: 'badge-light-success',
+                Updated: 'badge-light-primary', Logout: 'badge-light-dark',
+                Deactivated: 'badge-light-warning', LoginFailed: 'badge-light-warning',
+                Deleted: 'badge-light-danger', LockedOut: 'badge-light-danger',
+                DataQueryExecuted: 'badge-light-danger', DataQueryFailed: 'badge-light-danger', DataQueryRejected: 'badge-light-danger'
+            };
+
+            // Local-date pickers → a UTC [from, to) window, so "today" means the viewer's today.
+            function localDateToUtcIso(value, addDays) {
+                if (!value) return '';
+                var parts = value.split('-');
+                var d = new Date(Number(parts[0]), Number(parts[1]) - 1, Number(parts[2]) + (addDays || 0));
+                return d.toISOString();
+            }
+
+            var table = $('#auditTable').DataTable({
+                serverSide: true,
+                processing: true,
+                searchDelay: 350,
+                pageLength: 25,
+                lengthMenu: [[25, 50, 100, 200], [25, 50, 100, 200]],
+                order: [[0, 'desc']],
+                ajax: {
+                    url: '@Url.Action("DataTable", "AuditTrail")',
+                    type: 'GET',
+                    data: function (d) {
+                        d.fromUtc = localDateToUtcIso($('#fromDate').val(), 0);
+                        d.toUtc = localDateToUtcIso($('#toDate').val(), 1); // inclusive of the whole "to" day
+                        d.action = $('#actionFilter').val();
+                        d.source = $('#sourceFilter').val();
+                        d.entityType = $('#entityFilter').val();
+                        d.branch = $('#branchFilter').val();
+                    },
+                    error: function (xhr) {
+                        if (window.showFlash) window.showFlash('Failed to load audit trail: ' + (xhr.statusText || 'request failed'), 'error');
+                    }
+                },
+                columns: [
+                    { data: 'timestampUtc', render: function (d, type) { return type === 'display' ? '<span class="text-nowrap">' + fmtWhen(d) + '</span>' : d; } },
+                    { data: 'userName', orderable: false, render: function (d) { return d ? esc(d) : '<span class="text-muted">—</span>'; } },
+                    { data: 'locationName', orderable: false, render: function (d) { return d ? esc(d) : '<span class="text-muted">—</span>'; } },
+                    { data: 'source', orderable: false, render: function (d, type, row) {
+                        var html = '<span class="badge badge-light">' + esc(d) + '</span>';
+                        if (row.deviceName) html += '<div class="text-muted fs-8 mt-1">' + esc(row.deviceName) + '</div>';
+                        return html;
+                    } },
+                    { data: 'action', orderable: false, render: function (d) {
+                        return '<span class="badge ' + (actionBadge[d] || 'badge-light-info') + '">' + esc(d) + '</span>';
+                    } },
+                    { data: 'summary', orderable: false, render: function (d) { return '<span class="fs-7">' + esc(d) + '</span>'; } },
+                    { data: null, orderable: false, className: 'text-end', render: function (_d, _t, row) {
+                        return '<button type="button" class="btn btn-sm btn-icon btn-light-primary js-audit-details" data-id="' + esc(row.id) + '" title="Details"><i class="bi bi-eye fs-4"></i></button>';
+                    } }
+                ],
+                dom: '<"row"<"col-sm-12"l>>' +
+                     '<"row"<"col-sm-12"tr>>' +
+                     '<"row"<"col-sm-12 col-md-5"i><"col-sm-12 col-md-7"p>>',
+                language: {
+                    lengthMenu: "Show _MENU_ entries",
+                    info: "Showing _START_ to _END_ of _TOTAL_ entries",
+                    infoEmpty: "No audit entries match",
+                    infoFiltered: "(filtered from _MAX_ total)",
+                    processing: '<div class="spinner-border text-primary" role="status"></div>'
+                }
+            });
+
+            $('#searchInput').on('keyup', function () { table.search(this.value).draw(); });
+            $('#fromDate, #toDate, #actionFilter, #sourceFilter, #entityFilter, #branchFilter').on('change', function () { table.draw(); });
+            $('#resetFilters').on('click', function () {
+                $('#searchInput, #fromDate, #toDate').val('');
+                $('#actionFilter, #sourceFilter, #entityFilter, #branchFilter').val('');
+                table.search('').draw();
+            });
+
+            function row(label, value) {
+                if (value === null || typeof value === 'undefined' || value === '') return '';
+                return '<tr><th class="text-muted fw-semibold w-200px">' + esc(label) + '</th><td class="text-break">' + esc(value) + '</td></tr>';
+            }
+
+            function renderDetails(json) {
+                if (!json) return '<span class="text-muted">None recorded.</span>';
+                var obj;
+                try { obj = JSON.parse(json); } catch (e) { return '<pre class="fs-8">' + esc(json) + '</pre>'; }
+                var keys = Object.keys(obj || {});
+                if (!keys.length) return '<span class="text-muted">None recorded.</span>';
+
+                // Updated rows are {field: {old, new}}; everything else is {field: value}.
+                var isDiff = keys.every(function (k) {
+                    var v = obj[k];
+                    return v && typeof v === 'object' && 'old' in v && 'new' in v;
+                });
+                var html = '<table class="table table-sm table-row-bordered fs-7"><thead><tr class="fw-bold text-muted">' +
+                    (isDiff ? '<th>Field</th><th>Before</th><th>After</th>' : '<th>Field</th><th>Value</th>') + '</tr></thead><tbody>';
+                keys.forEach(function (k) {
+                    var v = obj[k];
+                    if (isDiff) {
+                        html += '<tr><td class="fw-semibold">' + esc(k) + '</td><td class="text-danger text-break">' + esc(fmtVal(v.old)) +
+                                '</td><td class="text-success text-break">' + esc(fmtVal(v['new'])) + '</td></tr>';
+                    } else {
+                        html += '<tr><td class="fw-semibold">' + esc(k) + '</td><td class="text-break">' + esc(fmtVal(v)) + '</td></tr>';
+                    }
+                });
+                return html + '</tbody></table>';
+            }
+            function fmtVal(v) {
+                if (v === null || typeof v === 'undefined') return '∅';
+                return typeof v === 'object' ? JSON.stringify(v) : String(v);
+            }
+
+            var currentCorrelationId = null;
+
+            $('#auditTable').on('click', '.js-audit-details', function () {
+                var id = $(this).data('id');
+                $.getJSON('@Url.Action("Details", "AuditTrail")/' + encodeURIComponent(id))
+                    .done(function (a) {
+                        currentCorrelationId = a.correlationId;
+                        $('#auditDetailsTitle').text(a.action + (a.entityType ? ' · ' + a.entityType + (a.entityId ? ' #' + a.entityId : '') : ''));
+                        var info = '<table class="table table-sm fs-7 mb-6"><tbody>' +
+                            row('When', fmtWhen(a.timestampUtc)) +
+                            row('Summary', a.summary) +
+                            row('User', a.userName) +
+                            row('User id', a.userId) +
+                            row('Branch', a.locationName ? a.locationName + ' (#' + a.locationId + ')' : null) +
+                            row('Source', a.source) +
+                            row('Device', a.deviceName) +
+                            row('Device id', a.deviceId) +
+                            row('App version', a.appVersion) +
+                            row('IP address', a.ipAddress) +
+                            row('Request', a.httpMethod ? a.httpMethod + ' ' + (a.requestPath || '') : null) +
+                            row('Browser / client', a.userAgent) +
+                            row('Request id', a.correlationId) +
+                            '</tbody></table>';
+                        $('#auditDetailsBody').html(info + '<h5 class="mb-3">Details</h5>' + renderDetails(a.details));
+                        $('#sameRequestBtn').toggle(!!a.correlationId);
+                        bootstrap.Modal.getOrCreateInstance(document.getElementById('auditDetailsModal')).show();
+                    })
+                    .fail(function (xhr) {
+                        if (window.showFlash) window.showFlash('Failed to load entry: ' + (xhr.statusText || 'request failed'), 'error');
+                    });
+            });
+
+            // A request id is searched by exact match server-side — narrows the list to everything
+            // one action produced (e.g. a sale's invoice, its lines, and the stock changes).
+            $('#sameRequestBtn').on('click', function () {
+                if (!currentCorrelationId) return;
+                bootstrap.Modal.getOrCreateInstance(document.getElementById('auditDetailsModal')).hide();
+                $('#fromDate, #toDate').val('');
+                $('#actionFilter, #sourceFilter, #entityFilter, #branchFilter').val('');
+                $('#searchInput').val(currentCorrelationId);
+                table.search(currentCorrelationId).draw();
+            });
+        });
+    </script>
+}

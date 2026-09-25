@@ -19,6 +19,11 @@ public partial class Product : ITenantScoped
     [Required]
 [Display(Name = "SKU")]
 public string ProductCode { get; set; }
+
+    // The manufacturer's printed barcode (EAN/UPC etc.), distinct from ProductCode (our own SKU).
+    // Scanning it at the mobile POS adds the product to the ticket. Optional — many items have none.
+    [StringLength(64)]
+    public string? Barcode { get; set; }
 public string Description { get; set; }
 
     public int? ProductCategoryId { get; set; }

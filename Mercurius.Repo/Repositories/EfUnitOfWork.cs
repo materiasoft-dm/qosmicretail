@@ -81,6 +81,11 @@ namespace Mercurius.Repo.Repositories
             await _currentTransaction.RollbackAsync(cancellationToken);
             await _currentTransaction.DisposeAsync();
             _currentTransaction = null;
+
+            // The database is back to its pre-transaction state, so every change the tracker still
+            // holds from inside it is now a lie — and would be silently re-attempted by the next,
+            // unrelated SaveChanges on this unit of work (e.g. the next invoice in a sync batch).
+            _context.ChangeTracker.Clear();
         }
 
         public void Dispose()
