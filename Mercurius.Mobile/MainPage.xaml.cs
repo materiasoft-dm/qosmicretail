@@ -7,14 +7,14 @@ public partial class MainPage : ContentPage
 {
     private readonly SessionService _sessionService;
     private readonly LocalDatabase _localDatabase;
-    private readonly SyncService _syncService;
+    private readonly SyncCoordinator _syncCoordinator;
 
-    public MainPage(SessionService sessionService, LocalDatabase localDatabase, SyncService syncService)
+    public MainPage(SessionService sessionService, LocalDatabase localDatabase, SyncCoordinator syncCoordinator)
     {
         InitializeComponent();
         _sessionService = sessionService;
         _localDatabase = localDatabase;
-        _syncService = syncService;
+        _syncCoordinator = syncCoordinator;
     }
 
     protected override async void OnAppearing()
@@ -61,16 +61,15 @@ public partial class MainPage : ContentPage
 
         try
         {
-            var changedCount = await _syncService.SyncProductsAsync();
-            SyncStatusLabel.Text = changedCount > 0
-                ? $"Synced {changedCount} update(s) • {DateTime.Now:h:mm tt}"
-                : $"Up to date • {DateTime.Now:h:mm tt}";
+            // Through the coordinator — a full pass that can't race the background sync.
+            var report = await _syncCoordinator.SyncNowAsync();
+            var changedCount = report.ProductsPulled;
+            SyncStatusLabel.Text = report.Offline || report.Errors.Count > 0
+                ? "Sync incomplete — showing cached data"
+                : changedCount > 0
+                    ? $"Synced {changedCount} update(s) • {DateTime.Now:h:mm tt}"
+                    : $"Up to date • {DateTime.Now:h:mm tt}";
             await RefreshStatsAsync();
-        }
-        catch (Exception ex)
-        {
-            SyncStatusLabel.Text = "Sync failed — showing cached data";
-            System.Diagnostics.Debug.WriteLine($"Sync failed: {ex.Message}");
         }
         finally
         {

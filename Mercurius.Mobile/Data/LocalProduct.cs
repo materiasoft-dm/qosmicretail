@@ -14,6 +14,10 @@ public class LocalProduct
     [Indexed]
     public string ProductCode { get; set; } = "";
 
+    // Manufacturer barcode — scanning it on the Sell page adds this product to the ticket.
+    [Indexed]
+    public string? Barcode { get; set; }
+
     public string Name { get; set; } = "";
     public string? Description { get; set; }
     public string? CategoryName { get; set; }
@@ -21,8 +25,14 @@ public class LocalProduct
     public decimal? CurrentSalePrice { get; set; }
     public decimal CurrentStock { get; set; }
     public decimal LowStockCount { get; set; }
+    public decimal MarkUpPercentage { get; set; }
     public bool IsActive { get; set; }
     public DateTime LastModifiedUtc { get; set; }
+
+    // True for a product created on this device that the server hasn't confirmed yet. Sync pushes
+    // these first, and a pull never overwrites one, so an offline-created product can't be
+    // clobbered by (or lost to) an incoming refresh.
+    public bool IsPendingSync { get; set; }
 
     // View-only helpers for the Products page's item template.
     [Ignore]

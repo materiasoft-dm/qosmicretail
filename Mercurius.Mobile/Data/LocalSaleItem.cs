@@ -19,4 +19,12 @@ public class LocalSaleItem
     public decimal Quantity { get; set; }
     public decimal SalePrice { get; set; }
     public decimal CostPrice { get; set; }
+
+    // Server-computed for pulled sales (wholesale lines can carry a custom total); 0 for lines
+    // created here, where Quantity * SalePrice is the total — see EffectiveLineTotal.
+    public decimal LineTotal { get; set; }
+    public decimal RefundedQuantity { get; set; }
+
+    [Ignore]
+    public decimal EffectiveLineTotal => LineTotal != 0 ? LineTotal : Quantity * SalePrice;
 }

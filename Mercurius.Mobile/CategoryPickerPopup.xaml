@@ -1,0 +1,60 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<toolkit:Popup xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
+               xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+               xmlns:toolkit="http://schemas.microsoft.com/dotnet/2022/maui/toolkit"
+               x:Class="Mercurius.Mobile.CategoryPickerPopup"
+               Size="320,420"
+               Color="Transparent">
+
+    <Border StrokeShape="RoundRectangle 16"
+            Stroke="{StaticResource Gray100}"
+            BackgroundColor="{StaticResource White}"
+            Padding="20"
+            StrokeThickness="1">
+        <Border.Shadow>
+            <Shadow Brush="Black" Opacity="0.15" Radius="12" Offset="0,4" />
+        </Border.Shadow>
+        <Grid RowDefinitions="Auto,Auto,*,Auto" RowSpacing="14">
+
+            <Label Grid.Row="0" Text="Category" FontSize="16" FontAttributes="Bold" TextColor="{StaticResource MidnightBlue}" />
+
+            <Border Grid.Row="1"
+                    StrokeShape="RoundRectangle 10"
+                    Stroke="{StaticResource Gray100}"
+                    BackgroundColor="#F5F6F8"
+                    Padding="12,0"
+                    HeightRequest="40">
+                <Entry x:Name="CategorySearchEntry"
+                       AutomationId="CategorySearchEntry"
+                       Placeholder="Search categories..."
+                       VerticalOptions="Center"
+                       TextChanged="OnCategorySearchTextChanged" />
+            </Border>
+
+            <CollectionView Grid.Row="2"
+                             x:Name="CategoriesListView"
+                             AutomationId="CategoriesListView"
+                             SelectionMode="None">
+                <CollectionView.ItemTemplate>
+                    <DataTemplate x:DataType="x:String">
+                        <Grid Padding="10,12" AutomationId="{Binding ., StringFormat='CategoryOption_{0}'}">
+                            <Grid.GestureRecognizers>
+                                <TapGestureRecognizer Tapped="OnCategoryRowTapped" CommandParameter="{Binding .}" />
+                            </Grid.GestureRecognizers>
+                            <Label Text="{Binding .}" FontSize="14" TextColor="{StaticResource MidnightBlue}" />
+                        </Grid>
+                    </DataTemplate>
+                </CollectionView.ItemTemplate>
+            </CollectionView>
+
+            <Button Grid.Row="3"
+                    x:Name="CancelButton"
+                    AutomationId="CategoryPickerCancelButton"
+                    Text="Cancel"
+                    HeightRequest="44"
+                    BackgroundColor="{StaticResource Gray100}"
+                    TextColor="{StaticResource Gray500}"
+                    Clicked="OnCancelClicked" />
+        </Grid>
+    </Border>
+</toolkit:Popup>

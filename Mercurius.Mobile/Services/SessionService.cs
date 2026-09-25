@@ -45,6 +45,7 @@ public class SessionService
     }
 
     public async Task<string> GetFullNameAsync() => await SecureStorage.Default.GetAsync(FullNameKey) ?? "";
+    public async Task<string> GetUserIdAsync() => await SecureStorage.Default.GetAsync(UserIdKey) ?? "";
     public async Task<string> GetEmailAsync() => await SecureStorage.Default.GetAsync(EmailKey) ?? "";
 
     public void ClearSession()

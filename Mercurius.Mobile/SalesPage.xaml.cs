@@ -1,4 +1,5 @@
-using System.Collections.ObjectModel;
+﻿using System.Collections.ObjectModel;
+using CommunityToolkit.Maui.Views;
 using Mercurius.Mobile.Data;
 using Mercurius.Mobile.Models;
 using Mercurius.Mobile.Services;
@@ -11,8 +12,11 @@ public partial class SalesPage : ContentPage
 
     private readonly LocalDatabase _localDatabase;
     private readonly SyncService _syncService;
+    private readonly Services.DeviceSettingsService _deviceSettingsService;
 
     private List<LocalProduct> _allProducts = new();
+    // Backing list for the category picker popup (includes the synthetic "All" entry at index 0).
+    private List<string> _categoryOptions = new() { AllCategory };
     // ObservableCollection so CartCollectionView (bound once, see the constructor) picks up
     // add/remove/clear directly via INotifyCollectionChanged instead of needing ItemsSource torn
     // down and reassigned on every cart mutation. That teardown/rebuild pattern (still used for
@@ -30,25 +34,123 @@ public partial class SalesPage : ContentPage
     private bool _isGridView = Preferences.Default.Get(ViewModePreferenceKey, true);
     private System.Timers.Timer? _searchDebounceTimer;
 
-    public SalesPage(LocalDatabase localDatabase, SyncService syncService)
+    private readonly HardwareScannerService _hardwareScanner;
+    private bool _isPageActive;
+    private int _openPopups;
+
+    private readonly SyncCoordinator _syncCoordinator;
+    private readonly SessionService _sessionService;
+
+    public SalesPage(LocalDatabase localDatabase, SyncService syncService, Services.DeviceSettingsService deviceSettingsService,
+        HardwareScannerService hardwareScanner, SyncCoordinator syncCoordinator, SessionService sessionService)
     {
         InitializeComponent();
         _localDatabase = localDatabase;
         _syncService = syncService;
+        _deviceSettingsService = deviceSettingsService;
+        _hardwareScanner = hardwareScanner;
+        _syncCoordinator = syncCoordinator;
+        _sessionService = sessionService;
         CartCollectionView.ItemsSource = _cart;
+        CameraScanButton.IsVisible = BarcodeScanner.IsCameraScanAvailable;
+        SearchEntry.Unfocused += OnSearchEntryUnfocused;
         ApplyViewMode();
     }
+
+    // ---------------------------------------------------------------- always-ready scanning
+    //
+    // A hardware scanner must work the moment this screen is showing, without tapping anything:
+    //   Android — MainActivity routes unfocused keystrokes to HardwareScannerService, which raises
+    //             Scanned (so no on-screen keyboard pops up either).
+    //   Windows — no such global hook; instead the search box keeps focus whenever no popup is
+    //             open, and the scan arrives through its Completed event.
+
+    private void StartListeningForScans()
+    {
+        _isPageActive = true;
+        _hardwareScanner.Scanned -= OnHardwareScanned;
+        _hardwareScanner.Scanned += OnHardwareScanned;
+        _hardwareScanner.IsListening = true;
+        ScannerReadyChip.IsVisible = _hardwareScanner.IsScannerLikelyConnected();
+        KeepSearchFocusForScanner();
+    }
+
+    private void StopListeningForScans()
+    {
+        _isPageActive = false;
+        _hardwareScanner.IsListening = false;
+        _hardwareScanner.Scanned -= OnHardwareScanned;
+    }
+
+    private async void OnHardwareScanned(string code)
+    {
+        if (_openPopups > 0) return; // e.g. mid-payment — don't add to the ticket underneath it
+        ScannerReadyChip.IsVisible = true; // a scan just proved a scanner is attached
+        await HandleScannedOrTypedCodeAsync(code);
+    }
+
+    private void KeepSearchFocusForScanner()
+    {
+        if (DeviceInfo.Platform != DevicePlatform.WinUI) return;
+        if (!_isPageActive || _openPopups > 0) return;
+        SearchEntry.Focus();
+    }
+
+    private void OnSearchEntryUnfocused(object? sender, FocusEventArgs e)
+    {
+        if (DeviceInfo.Platform != DevicePlatform.WinUI) return;
+        // Deferred: a tap that moved focus away may be about to open a popup (category, quantity,
+        // payment) — let it register first, then only take focus back if nothing else claimed it.
+        Dispatcher.DispatchDelayed(TimeSpan.FromMilliseconds(250), KeepSearchFocusForScanner);
+    }
+
+    // Every popup on this page goes through here, so scans and focus-keeping pause while one is open.
+    private async Task<object?> ShowTrackedPopupAsync(CommunityToolkit.Maui.Views.Popup popup)
+    {
+        _openPopups++;
+        try
+        {
+            return await this.ShowPopupAsync(popup);
+        }
+        finally
+        {
+            _openPopups--;
+            KeepSearchFocusForScanner();
+        }
+    }
+
+    protected override void OnDisappearing()
+    {
+        base.OnDisappearing();
+        StopListeningForScans();
+        _syncCoordinator.SyncCompleted -= OnSyncCompleted;
+    }
+
+    // Mirrors Resources/Styles/Colors.xaml's MidnightBlue/Gray400 rather than looking them up via
+    // StaticResource at runtime — this is the segmented switch's "active"/"inactive" text color,
+    // and both segments' colors are only ever set from code (the active one depends on whichever
+    // mode Preferences last persisted, so there's no single correct default to bake into XAML).
+    private static readonly Color ActiveSegmentColor = Colors.White;
+    private static readonly Color ActiveSegmentTextColor = Color.FromArgb("#1A1D2E");
+    private static readonly Color InactiveSegmentTextColor = Color.FromArgb("#919191");
 
     private void ApplyViewMode()
     {
         ProductsGridView.IsVisible = _isGridView;
         ProductsListView.IsVisible = !_isGridView;
-        ViewToggleLabel.Text = _isGridView ? "▦" : "☰";
+
+        TileToggleBorder.BackgroundColor = _isGridView ? ActiveSegmentColor : Colors.Transparent;
+        TileToggleLabel.TextColor = _isGridView ? ActiveSegmentTextColor : InactiveSegmentTextColor;
+        ListToggleBorder.BackgroundColor = !_isGridView ? ActiveSegmentColor : Colors.Transparent;
+        ListToggleLabel.TextColor = !_isGridView ? ActiveSegmentTextColor : InactiveSegmentTextColor;
     }
 
     protected override async void OnAppearing()
     {
         base.OnAppearing();
+        StartListeningForScans();
+        _syncCoordinator.SyncCompleted -= OnSyncCompleted;
+        _syncCoordinator.SyncCompleted += OnSyncCompleted;
         await LoadProductsAsync();
         await RefreshPendingSyncLabelAsync();
     }
@@ -57,15 +159,21 @@ public partial class SalesPage : ContentPage
     {
         _allProducts = await _localDatabase.GetProductsAsync();
 
-        var categories = new List<string> { AllCategory };
-        categories.AddRange(_allProducts
+        _categoryOptions = new List<string> { AllCategory };
+        _categoryOptions.AddRange(_allProducts
             .Select(p => p.CategoryName)
             .Where(c => !string.IsNullOrWhiteSpace(c))
             .Distinct()
             .OrderBy(c => c)!);
 
-        CategoriesCollectionView.ItemsSource = categories;
-        CategoriesCollectionView.SelectedItem = AllCategory;
+        // A category that existed on the previous load but no longer does (e.g. its last product
+        // was removed by a sync) can't stay selected — fall back to "All" rather than filtering
+        // to a category the dropdown can no longer offer.
+        if (!_categoryOptions.Contains(_selectedCategory))
+        {
+            _selectedCategory = AllCategory;
+        }
+        CategoryDropdownLabel.Text = _selectedCategory;
 
         ApplyFilter();
     }
@@ -95,7 +203,8 @@ public partial class SalesPage : ContentPage
             var term = search.Trim();
             filtered = filtered.Where(p =>
                 p.Name.Contains(term, StringComparison.OrdinalIgnoreCase) ||
-                p.ProductCode.Contains(term, StringComparison.OrdinalIgnoreCase));
+                p.ProductCode.Contains(term, StringComparison.OrdinalIgnoreCase) ||
+                (p.Barcode?.Contains(term, StringComparison.OrdinalIgnoreCase) ?? false));
         }
 
         var results = filtered.OrderBy(p => p.Name).ToList();
@@ -104,10 +213,15 @@ public partial class SalesPage : ContentPage
         EmptyStateLayout.IsVisible = results.Count == 0;
     }
 
-    private void OnCategorySelected(object? sender, SelectionChangedEventArgs e)
+    private async void OnCategoryDropdownTapped(object? sender, TappedEventArgs e)
     {
-        _selectedCategory = e.CurrentSelection.FirstOrDefault() as string ?? AllCategory;
-        ApplyFilter();
+        var result = await ShowTrackedPopupAsync(new CategoryPickerPopup(_categoryOptions));
+        if (result is string category)
+        {
+            _selectedCategory = category;
+            CategoryDropdownLabel.Text = category;
+            ApplyFilter();
+        }
     }
 
     private void OnSearchTextChanged(object? sender, TextChangedEventArgs e)
@@ -121,17 +235,116 @@ public partial class SalesPage : ContentPage
         _searchDebounceTimer.Start();
     }
 
-    private void OnViewToggleClicked(object? sender, EventArgs e)
+    private void OnTileViewSelected(object? sender, TappedEventArgs e) => SetViewMode(isGridView: true);
+
+    private void OnListViewSelected(object? sender, TappedEventArgs e) => SetViewMode(isGridView: false);
+
+    private void SetViewMode(bool isGridView)
     {
-        _isGridView = !_isGridView;
+        if (_isGridView == isGridView) return; // already the active segment — nothing to do
+        _isGridView = isGridView;
         Preferences.Default.Set(ViewModePreferenceKey, _isGridView);
         ApplyViewMode();
+    }
+
+    // Enter in the search box — which is exactly what a hardware barcode scanner sends after the
+    // code. An exact barcode (or SKU) match goes straight onto the ticket and the box is cleared,
+    // ready for the next scan. Anything else is left as an ordinary search.
+    private async void OnSearchCompleted(object? sender, EventArgs e)
+    {
+        await HandleScannedOrTypedCodeAsync(SearchEntry.Text?.Trim());
+    }
+
+    // Camera scan feeds the exact same path as a hardware scanner / Enter key.
+    private async void OnCameraScanClicked(object? sender, EventArgs e)
+    {
+        string? scanned;
+        _openPopups++;
+        try { scanned = await BarcodeScanner.ScanAsync(); }
+        finally { _openPopups--; }
+        if (string.IsNullOrWhiteSpace(scanned)) return;
+        SearchEntry.Text = scanned;
+        await HandleScannedOrTypedCodeAsync(scanned);
+    }
+
+    private async Task HandleScannedOrTypedCodeAsync(string? term)
+    {
+        if (string.IsNullOrEmpty(term)) return;
+
+        var match =
+            _allProducts.FirstOrDefault(p => string.Equals(p.Barcode?.Trim(), term, StringComparison.OrdinalIgnoreCase)) ??
+            _allProducts.FirstOrDefault(p => string.Equals(p.ProductCode, term, StringComparison.OrdinalIgnoreCase));
+
+        if (match != null)
+        {
+            AddToCart(match);
+            ResetSearchForNextScan();
+            return;
+        }
+
+        // Only offer "create it" for something that looks like a scanned code (one token, no
+        // spaces) — a typed product name that simply didn't match shouldn't trigger a prompt.
+        if (term.Contains(' ')) return;
+
+        bool create;
+        _openPopups++;
+        try
+        {
+            create = await DisplayAlertAsync(
+                "Barcode not found",
+                $"No product has barcode {term}. Add it as a new product?",
+                "Add Product", "Cancel");
+        }
+        finally { _openPopups--; }
+        if (!create)
+        {
+            ResetSearchForNextScan();
+            return;
+        }
+
+        var all = await _localDatabase.GetProductsAsync();
+        var result = await ShowTrackedPopupAsync(new AddProductPopup(all, prefilledBarcode: term));
+        if (result is LocalProduct product)
+        {
+            await _localDatabase.SaveNewProductAsync(product);
+            await LoadProductsAsync();
+            AddToCart(product);
+            _ = PushNewProductQuietlyAsync();
+        }
+        ResetSearchForNextScan();
+    }
+
+    private void ResetSearchForNextScan()
+    {
+        SearchEntry.Text = string.Empty;
+        if (DeviceInfo.Platform == DevicePlatform.WinUI)
+        {
+            // Windows: the search box is where the next scan lands.
+            KeepSearchFocusForScanner();
+        }
+        else
+        {
+            // Android/iOS: drop focus (and the on-screen keyboard, if a code was typed by hand) —
+            // with no text field focused, MainActivity hands the next hardware scan straight to
+            // HardwareScannerService.
+            SearchEntry.Unfocus();
+        }
+    }
+
+    private async Task PushNewProductQuietlyAsync()
+    {
+        try { await _syncCoordinator.SyncNowAsync(); }
+        catch { /* offline — stays queued (IsPendingSync) and goes up with the next sync */ }
     }
 
     private void OnProductTileTapped(object? sender, TappedEventArgs e)
     {
         if (e.Parameter is not LocalProduct product) return;
+        AddToCart(product);
+    }
 
+    private void AddToCart(LocalProduct product)
+    {
         var existing = _cart.FirstOrDefault(c => c.ProductSyncId == product.SyncId);
         if (existing != null)
         {
@@ -157,25 +370,23 @@ public partial class SalesPage : ContentPage
         }
     }
 
-    private void OnIncrementClicked(object? sender, EventArgs e)
+    private async void OnCartLineTapped(object? sender, TappedEventArgs e)
     {
-        if (sender is not Button button || button.CommandParameter is not CartLine line) return;
-        line.Quantity++;
-        RefreshCartTotals();
-    }
+        if (e.Parameter is not CartLine line) return;
 
-    private void OnDecrementClicked(object? sender, EventArgs e)
-    {
-        if (sender is not Button button || button.CommandParameter is not CartLine line) return;
-        if (line.Quantity > 1)
+        var result = await ShowTrackedPopupAsync(new QuantityPopup(line));
+        if (result is QuantityPopupResult r)
         {
-            line.Quantity--;
+            if (r.Remove)
+            {
+                _cart.Remove(line);
+            }
+            else if (r.Quantity > 0)
+            {
+                line.Quantity = r.Quantity;
+            }
+            RefreshCartTotals();
         }
-        else
-        {
-            _cart.Remove(line);
-        }
-        RefreshCartTotals();
     }
 
     private void OnRemoveLineTapped(object? sender, TappedEventArgs e)
@@ -208,8 +419,8 @@ public partial class SalesPage : ContentPage
         if (_cart.Count == 0) return;
 
         var grandTotal = _cart.Sum(c => c.LineTotal);
-        var payment = await new PaymentPage(grandTotal).ShowAsync(Navigation);
-        if (payment == null) return; // cashier backed out of the payment screen
+        var result = await ShowTrackedPopupAsync(new PaymentPage(grandTotal));
+        if (result is not Models.PaymentResult payment) return; // cashier backed out of the payment screen
 
         ChargeButton.IsEnabled = false;
         try
@@ -219,15 +430,24 @@ public partial class SalesPage : ContentPage
                 SyncId = Guid.NewGuid(),
                 InvoiceDate = DateTime.UtcNow,
                 CustomerId = null,
-                // Mirrors the web checkout, which also never sets Invoice.LocationId today —
-                // it isn't FK-enforced at the database level, so 0 is a safe, consistent default
-                // until branch/location selection is actually wired up end to end.
-                LocationId = 0,
+                // The clinic this device is assigned to (Settings page) — 0 if never configured,
+                // which SyncController.PushInvoices treats the same as before this setting
+                // existed (falls back to resolving the signed-in user's own current branch).
+                LocationId = _deviceSettingsService.GetSelectedLocationId(),
                 Notes = payment.Method == Models.PaymentMethod.Card ? "Paid by card" : "Paid by cash",
                 PaidAmount = payment.AmountReceived,
                 GrandTotal = grandTotal,
                 IsSynced = false,
-                CreatedUtc = DateTime.UtcNow
+                CreatedUtc = DateTime.UtcNow,
+                // Provenance, so the Receipts list can show this sale properly while it's still
+                // waiting to upload (the server's copy replaces these once it comes back).
+                IsFromThisDevice = true,
+                LocationName = _deviceSettingsService.GetSelectedLocationName(),
+                CashierUserId = await _sessionService.GetUserIdAsync(),
+                CashierName = await _sessionService.GetFullNameAsync(),
+                SourceChannel = "MobileApp",
+                SourceDeviceId = _deviceSettingsService.GetDeviceId(),
+                SourceDeviceName = _deviceSettingsService.GetTerminalName()
             };
 
             var items = _cart.Select(c => new LocalSaleItem
@@ -254,7 +474,9 @@ public partial class SalesPage : ContentPage
             var message = payment.Method == Models.PaymentMethod.Cash && payment.Change > 0
                 ? $"Charged ₱{grandTotal:N2} cash. Change due: ₱{payment.Change:N2}."
                 : $"Charged ₱{grandTotal:N2} ({payment.Method}).";
-            await DisplayAlertAsync("Sale Complete", message, "OK");
+            _openPopups++;
+            try { await DisplayAlertAsync("Sale Complete", message, "OK"); }
+            finally { _openPopups--; KeepSearchFocusForScanner(); }
         }
         finally
         {
@@ -264,18 +486,16 @@ public partial class SalesPage : ContentPage
 
     private async Task SyncQuietlyAsync()
     {
-        try
-        {
-            await _syncService.SyncSalesAsync();
-        }
-        catch
-        {
-            // Offline or server unreachable — the sale stays queued locally and will sync on the
-            // next successful attempt (next Charge, or the periodic sync elsewhere in the app).
-        }
-        finally
-        {
-            await RefreshPendingSyncLabelAsync();
-        }
+        // Through the coordinator, so this can't race the periodic/background sync into pushing
+        // the same queued sale twice at once. Never throws — failures leave the sale queued.
+        await _syncCoordinator.SyncNowAsync();
+        await RefreshPendingSyncLabelAsync();
+    }
+
+    private async void OnSyncCompleted(SyncReport report)
+    {
+        // Background syncs (timer, reconnect) can upload sales while this page is open.
+        await RefreshPendingSyncLabelAsync();
+        if (report.ProductsPulled > 0) await LoadProductsAsync();
     }
 }

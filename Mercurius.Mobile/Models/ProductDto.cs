@@ -11,6 +11,9 @@ public class ProductDto
     [JsonPropertyName("productCode")]
     public string ProductCode { get; set; } = "";
 
+    [JsonPropertyName("barcode")]
+    public string? Barcode { get; set; }
+
     [JsonPropertyName("name")]
     public string Name { get; set; } = "";
 
@@ -31,6 +34,9 @@ public class ProductDto
 
     [JsonPropertyName("lowStockCount")]
     public decimal LowStockCount { get; set; }
+
+    [JsonPropertyName("markUpPercentage")]
+    public decimal MarkUpPercentage { get; set; }
 
     [JsonPropertyName("isActive")]
     public bool IsActive { get; set; }

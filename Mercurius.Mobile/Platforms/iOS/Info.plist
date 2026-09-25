@@ -41,5 +41,7 @@
 			</dict>
 		</dict>
 	</dict>
+	<key>NSCameraUsageDescription</key>
+	<string>The camera is used to scan product barcodes.</string>
 </dict>
 </plist>

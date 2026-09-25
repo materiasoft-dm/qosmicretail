@@ -45,10 +45,17 @@ public class SalePushDto
     [JsonPropertyName("paidAmount")]
     public decimal PaidAmount { get; set; }
 
+    // Who actually rang the sale up on this device. Usually the same person whose token pushes
+    // it — but not after a "log out anyway" with sales still queued, when the next person to
+    // sign in uploads them. The server verifies it (same tenant) before trusting it.
+    [JsonPropertyName("cashierUserId")]
+    public string? CashierUserId { get; set; }
+
     [JsonPropertyName("items")]
     public List<SaleItemPushDto> Items { get; set; } = new();
 }
 
+// Also the result shape of api/sync/products/push (the server's SyncPushResultItem).
 public class SalePushResult
 {
     [JsonPropertyName("syncId")]
