@@ -8,7 +8,9 @@
         #f3f7fb;
 }
 
-/* Brand panel: deep navy into light blue, with two soft light orbs. */
+/* Brand panel: the illustration (Mercurius.Client/wwwroot/images/login-bg.svg — molecules,
+   capsules, a heartbeat line, in the app's navy and light blue). The gradient underneath shows
+   while it loads and matches its colours. */
 .auth-brand {
     position: relative;
     overflow: hidden;
@@ -18,32 +20,10 @@
     justify-content: center;
     padding: 3rem;
     color: #fff;
-    background: linear-gradient(155deg, #0b1730 0%, #0f2847 42%, #0369a1 78%, #0ea5e9 100%);
+    background:
+        url('/images/login-bg.svg') center / cover no-repeat,
+        linear-gradient(155deg, #0b1730 0%, #0f2847 42%, #0369a1 78%, #0ea5e9 100%);
 }
-
-    .auth-brand::before,
-    .auth-brand::after {
-        content: "";
-        position: absolute;
-        border-radius: 50%;
-        pointer-events: none;
-    }
-
-    .auth-brand::before {
-        width: 520px;
-        height: 520px;
-        right: -180px;
-        bottom: -200px;
-        background: radial-gradient(circle, rgba(125, 211, 252, 0.45) 0%, rgba(125, 211, 252, 0) 65%);
-    }
-
-    .auth-brand::after {
-        width: 380px;
-        height: 380px;
-        left: -140px;
-        top: -120px;
-        background: radial-gradient(circle, rgba(56, 189, 248, 0.22) 0%, rgba(56, 189, 248, 0) 65%);
-    }
 
 .auth-brand-inner {
     position: relative;
@@ -105,6 +85,13 @@
     .auth-brand {
         flex: 0 0 auto;
         padding: 2rem 1.5rem;
+        background-position: 70% 22%, center;
+    }
+
+    /* Form right under the banner rather than centred in the leftover height. */
+    .auth-main {
+        align-items: flex-start;
+        padding-top: 1.5rem;
     }
 
     .auth-brand-sub {
