@@ -1,5 +1,5 @@
 @page "/roles-manager"
-@attribute [Authorize]
+@attribute [Authorize(Policy = ModuleRegistry.Pages.ADMIN_ROLES_MANAGEMENT)]
 @inject RolesApiClient Api
 @inject ISnackbar Snackbar
 
@@ -61,7 +61,11 @@
     private string _roleName = string.Empty;
     private string? _error;
 
-    protected override async Task OnInitializedAsync() => await LoadAsync();
+    protected override async Task OnInitializedAsync()
+    {
+        if (!RendererInfo.IsInteractive) return; // prerendering: show the loading state; the browser loads the data
+        await LoadAsync();
+    }
     private async Task LoadAsync() => _result = await Api.GetAsync();
 
     private async void ShowCreate()

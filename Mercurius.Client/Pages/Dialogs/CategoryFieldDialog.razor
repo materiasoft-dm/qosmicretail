@@ -1,0 +1,125 @@
+@inject CategoryFieldsApiClient Api
+
+<MudDialog>
+    <DialogContent>
+        <MudGrid Spacing="2">
+            <MudItem xs="12" sm="6">
+                <MudSelect T="int" Value="_categoryId" ValueChanged="OnCategoryChanged" Label="Category" Variant="Variant.Outlined">
+                    @if (Existing == null)
+                    {
+                        <MudSelectItem T="int" Value="0">-- Category --</MudSelectItem>
+                    }
+                    @foreach (var c in Categories)
+                    {
+                        <MudSelectItem T="int" Value="@c.Id">@c.Name</MudSelectItem>
+                    }
+                </MudSelect>
+            </MudItem>
+            <MudItem xs="12" sm="6">
+                <MudSelect T="string" @bind-Value="_fieldType" Label="Field type" Variant="Variant.Outlined">
+                    <MudSelectItem T="string" Value="@("text")">Text</MudSelectItem>
+                    <MudSelectItem T="string" Value="@("number")">Number</MudSelectItem>
+                    <MudSelectItem T="string" Value="@("select")">Select</MudSelectItem>
+                    <MudSelectItem T="string" Value="@("checkbox")">Checkbox</MudSelectItem>
+                    <MudSelectItem T="string" Value="@("date")">Date</MudSelectItem>
+                    <MudSelectItem T="string" Value="@("textarea")">Textarea</MudSelectItem>
+                </MudSelect>
+            </MudItem>
+            <MudItem xs="12" sm="6"><MudTextField @bind-Value="_fieldName" Label="Field name (code)" Variant="Variant.Outlined" AutoFocus="@(Existing == null)" /></MudItem>
+            <MudItem xs="12" sm="6"><MudTextField @bind-Value="_displayLabel" Label="Display label" Variant="Variant.Outlined" HelperText="Defaults to the field name" /></MudItem>
+            @if (_fieldType == "select")
+            {
+                <MudItem xs="12">
+                    <MudTextField @bind-Value="_options" Label="Choices (comma-separated)" Variant="Variant.Outlined"
+                                  HelperText="e.g. Tablet, Capsule, Syrup" />
+                </MudItem>
+            }
+            <MudItem xs="12" sm="4"><MudNumericField @bind-Value="_sortOrder" Label="Sort order" Variant="Variant.Outlined" Min="0" /></MudItem>
+            <MudItem xs="12" sm="4" Class="d-flex align-center"><MudSwitch @bind-Value="_isRequired" Color="Color.Primary" Label="Required" /></MudItem>
+            @if (Existing != null)
+            {
+                <MudItem xs="12" sm="4" Class="d-flex align-center"><MudSwitch @bind-Value="_isActive" Color="Color.Primary" Label="Active" /></MudItem>
+            }
+        </MudGrid>
+        @if (_error != null)
+        {
+            <MudAlert Severity="Severity.Error" Class="mt-2">@_error</MudAlert>
+        }
+    </DialogContent>
+    <DialogActions>
+        <MudButton OnClick="Cancel">Cancel</MudButton>
+        <MudButton Color="Color.Primary" Variant="Variant.Filled" Disabled="_busy" OnClick="Save">@(Existing == null ? "Add field" : "Save")</MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    [CascadingParameter] private IMudDialogInstance MudDialog { get; set; } = default!;
+
+    // Null to add a new field.
+    [Parameter] public CategoryFieldDto? Existing { get; set; }
+    [Parameter] public List<ProductCategoryDto> Categories { get; set; } = new();
+    // Every field on the page — a new field defaults to the end of its category's list.
+    [Parameter] public List<CategoryFieldDto> Fields { get; set; } = new();
+
+    private int _categoryId;
+    private string _fieldName = string.Empty, _displayLabel = string.Empty, _fieldType = "text", _options = string.Empty;
+    private int _sortOrder;
+    private bool _isRequired, _isActive = true;
+    private bool _busy;
+    private string? _error;
+
+    protected override void OnInitialized()
+    {
+        if (Existing == null) return;
+        _categoryId = Existing.CategoryId;
+        _fieldName = Existing.FieldName;
+        _displayLabel = Existing.DisplayLabel;
+        _fieldType = string.IsNullOrEmpty(Existing.FieldType) ? "text" : Existing.FieldType;
+        _options = Existing.Options ?? string.Empty;
+        _sortOrder = Existing.SortOrder;
+        _isRequired = Existing.IsRequired;
+        _isActive = Existing.IsActive;
+    }
+
+    private void OnCategoryChanged(int categoryId)
+    {
+        _categoryId = categoryId;
+        if (Existing == null)
+        {
+            _sortOrder = Fields.Where(f => f.CategoryId == categoryId).Select(f => f.SortOrder).DefaultIfEmpty(-1).Max() + 1;
+        }
+    }
+
+    private async Task Save()
+    {
+        _error = null;
+        if (_categoryId <= 0 || string.IsNullOrWhiteSpace(_fieldName)) { _error = "Category and field name are required."; return; }
+
+        _busy = true;
+        try
+        {
+            var request = new UpdateCategoryFieldRequest
+            {
+                CategoryId = _categoryId,
+                FieldName = _fieldName,
+                DisplayLabel = _displayLabel,
+                FieldType = _fieldType,
+                SortOrder = _sortOrder,
+                Options = _fieldType == "select" ? _options : null,
+                IsRequired = _isRequired,
+                IsActive = _isActive
+            };
+            var (ok, error) = Existing == null
+                ? await Api.CreateAsync(request)
+                : await Api.UpdateAsync(Existing.Id, request);
+            if (!ok) { _error = error; return; }
+            MudDialog.Close(DialogResult.Ok(true));
+        }
+        finally
+        {
+            _busy = false;
+        }
+    }
+
+    private void Cancel() => MudDialog.Cancel();
+}

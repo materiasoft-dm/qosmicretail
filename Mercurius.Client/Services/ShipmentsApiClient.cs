@@ -18,6 +18,9 @@ namespace Mercurius.Client.Services
         public async Task<List<PurchaseOrderOptionDto>> GetPurchaseOrdersAsync() =>
             await _http.GetFromJsonAsync<List<PurchaseOrderOptionDto>>("api/shipments/purchase-orders") ?? new();
 
+        public async Task<List<ShipmentStatusDto>> GetStatusesAsync() =>
+            await _http.GetFromJsonAsync<List<ShipmentStatusDto>>("api/shipments/statuses") ?? new();
+
         public async Task<bool> CreateAsync(CreateShipmentRequest request) =>
             (await _http.PostAsJsonAsync("api/shipments", request)).IsSuccessStatusCode;
     }

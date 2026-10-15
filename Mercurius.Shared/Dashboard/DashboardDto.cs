@@ -1,7 +1,25 @@
 namespace Mercurius.Shared.Dashboard
 {
+    // Dashboard widget ids — also the WidgetId stored in a user's saved layout.
+    public static class DashboardWidgets
+    {
+        public const string MonthlyTarget = "MonthlyTargetWidget";
+        public const string DailySales = "DailySalesWidget";
+        public const string PreviousMonthSales = "PreviousMonthSalesWidget";
+        public const string MonthlyNewCustomers = "MonthlyNewCustomers";
+        public const string ItemsSoldToday = "ItemsSoldTodayWidget";
+        public const string StockWarning = "StockWarningWidget";
+        public const string ExpiryAlerts = "ExpiryAlertsWidget";
+        public const string Shortcuts = "ShortcutWidget";
+    }
+
+    // Only the widgets the user may see are filled in (and listed in VisibleWidgets) — each is
+    // gated by its own "Dashboard Widget - …" permission, so e.g. revenue never reaches a role
+    // that isn't allowed to see it.
     public class DashboardDto
     {
+        public List<string> VisibleWidgets { get; set; } = new();
+
         public decimal TodaySales { get; set; }
         public decimal TodayProfit { get; set; }
         public decimal ThisMonthSales { get; set; }
@@ -48,5 +66,15 @@ namespace Mercurius.Shared.Dashboard
         public string BatchNumber { get; set; } = string.Empty;
         public DateTime ExpiryDate { get; set; }
         public decimal RemainingQuantity { get; set; }
+    }
+
+    // One widget's place in a user's dashboard: its order, whether it spans the full width, and
+    // whether they've hidden it.
+    public class DashboardWidgetLayoutDto
+    {
+        public string WidgetId { get; set; } = string.Empty;
+        public int Order { get; set; }
+        public bool FullWidth { get; set; }
+        public bool Hidden { get; set; }
     }
 }

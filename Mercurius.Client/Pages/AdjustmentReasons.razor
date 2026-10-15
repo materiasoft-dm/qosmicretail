@@ -1,6 +1,8 @@
 @page "/adjustment-reasons"
-@attribute [Authorize]
+@attribute [Authorize(Policy = ModuleRegistry.Pages.CONFIG_ADJUSTMENT_REASONS)]
+@using Mercurius.Client.Pages.Dialogs
 @inject AdjustmentReasonsApiClient Api
+@inject IDialogService DialogService
 @inject ISnackbar Snackbar
 
 <PageTitle>Adjustment Reasons</PageTitle>
@@ -34,12 +36,13 @@
 }
 
 <MudPaper Class="pa-2" Elevation="2">
-    <MudTable Items="@(_result?.Items ?? new())" Loading="@(_result is null)" Hover="true" Dense="true">
+    <MudTable RowsPerPage="25" Items="@(_result?.Items ?? new())" Loading="@(_result is null)" Hover="true" Dense="true">
         <HeaderContent>
             <MudTh>Name</MudTh>
             <MudTh>Description</MudTh>
             <MudTh>Direction</MudTh>
-            <MudTh>Active</MudTh>
+            <MudTh>Status</MudTh>
+            <MudTh></MudTh>
         </HeaderContent>
         <RowTemplate>
             <MudTd DataLabel="Name">@context.Name</MudTd>
@@ -49,11 +52,21 @@
                     @(context.IsInbound ? "Inbound (+)" : "Outbound (-)")
                 </MudChip>
             </MudTd>
-            <MudTd DataLabel="Active">@(context.IsActive ? "Yes" : "No")</MudTd>
+            <MudTd DataLabel="Status">
+                <MudChip T="string" Size="Size.Small" Color="@(context.IsActive ? Color.Success : Color.Default)">
+                    @(context.IsActive ? "Active" : "Inactive")
+                </MudChip>
+            </MudTd>
+            <MudTd>
+                <MudIconButton Icon="@Icons.Material.Filled.Edit" Size="Size.Small" aria-label="Edit" OnClick="() => OpenEdit(context)" />
+            </MudTd>
         </RowTemplate>
         <NoRecordsContent>
             <MudText>No adjustment reasons yet.</MudText>
         </NoRecordsContent>
+        <PagerContent>
+            <MudTablePager PageSizeOptions="@(new[] { 25, 50, 100 })" />
+        </PagerContent>
     </MudTable>
 </MudPaper>
 
@@ -64,7 +77,11 @@
     private bool _isInbound;
     private string? _error;
 
-    protected override async Task OnInitializedAsync() => await LoadAsync();
+    protected override async Task OnInitializedAsync()
+    {
+        if (!RendererInfo.IsInteractive) return; // prerendering: show the loading state; the browser loads the data
+        await LoadAsync();
+    }
     private async Task LoadAsync() => _result = await Api.GetAsync();
 
     private void ShowCreate()
@@ -81,5 +98,16 @@
         _showCreate = false;
         Snackbar.Add("Adjustment reason created.", Severity.Success);
         await LoadAsync();
+    }
+
+    private async Task OpenEdit(AdjustmentReasonDto reason)
+    {
+        var parameters = new DialogParameters<AdjustmentReasonDialog> { { d => d.Existing, reason } };
+        var dialog = await DialogService.ShowAsync<AdjustmentReasonDialog>("Edit Adjustment Reason", parameters);
+        if (await dialog.Result is { Canceled: false })
+        {
+            Snackbar.Add("Adjustment reason updated.", Severity.Success);
+            await LoadAsync();
+        }
     }
 }

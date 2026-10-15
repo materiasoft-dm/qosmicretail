@@ -48,5 +48,22 @@ namespace Mercurius.Controllers.Api
             await _unitOfWork.SaveChangesAsync(ct);
             return Ok(new AdjustmentReasonDto { Id = reason.Id, Name = reason.Name, Description = reason.Description, IsActive = reason.IsActive, IsInbound = reason.IsInbound });
         }
+
+        // IsActive=false is the delete (soft) — see ProductCategoriesApiController.Update.
+        [HttpPut("{id:int}")]
+        public async Task<IActionResult> Update(int id, UpdateAdjustmentReasonRequest request, CancellationToken ct = default)
+        {
+            if (string.IsNullOrWhiteSpace(request.Name)) return BadRequest(new { error = "Name is required." });
+            var reason = await _unitOfWork.Repository<AdjustmentReason>().GetByIdAsync(id, ct);
+            if (reason == null) return NotFound();
+
+            reason.Name = request.Name.Trim();
+            reason.Description = request.Description ?? string.Empty;
+            reason.IsInbound = request.IsInbound;
+            reason.IsActive = request.IsActive;
+            await _unitOfWork.Repository<AdjustmentReason>().UpdateAsync(reason, ct);
+            await _unitOfWork.SaveChangesAsync(ct);
+            return NoContent();
+        }
     }
 }

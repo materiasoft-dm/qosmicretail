@@ -9,24 +9,25 @@ namespace Mercurius.Client.Services
         private readonly HttpClient _http;
         public AdjustmentsApiClient(HttpClient http) => _http = http;
 
-        public async Task<ListResultDto<AdjustmentListItemDto>> GetAsync(string? search, int page, int pageSize)
+        // sortBy: date | quantity (see AdjustmentsApiController.Get).
+        public async Task<ListResultDto<AdjustmentListItemDto>> GetAsync(string? search, int page, int pageSize,
+            string? sortBy = null, bool desc = true, CancellationToken ct = default)
         {
-            var url = $"api/adjustments?search={Uri.EscapeDataString(search ?? string.Empty)}&page={page}&pageSize={pageSize}";
-            return await _http.GetFromJsonAsync<ListResultDto<AdjustmentListItemDto>>(url) ?? new();
+            var url = $"api/adjustments?search={Uri.EscapeDataString(search ?? string.Empty)}&page={page}&pageSize={pageSize}"
+                + $"&sortBy={Uri.EscapeDataString(sortBy ?? string.Empty)}&desc={(desc ? "true" : "false")}";
+            return await _http.GetFromJsonAsync<ListResultDto<AdjustmentListItemDto>>(url, ct) ?? new();
         }
 
         public async Task<List<AdjustmentReasonOptionDto>> GetReasonsAsync() =>
             await _http.GetFromJsonAsync<List<AdjustmentReasonOptionDto>>("api/adjustments/reasons") ?? new();
 
-        public async Task<List<ProductOptionDto>> GetProductsAsync(string? search) =>
-            await _http.GetFromJsonAsync<List<ProductOptionDto>>("api/adjustments/products?search=" + Uri.EscapeDataString(search ?? string.Empty)) ?? new();
+        public async Task<List<ProductOptionDto>> GetProductsAsync(string? search, CancellationToken ct = default) =>
+            await _http.GetFromJsonAsync<List<ProductOptionDto>>("api/adjustments/products?search=" + Uri.EscapeDataString(search ?? string.Empty), ct) ?? new();
 
         public async Task<(bool Success, string? Error)> CreateAsync(CreateAdjustmentRequest request)
         {
             var response = await _http.PostAsJsonAsync("api/adjustments", request);
-            if (response.IsSuccessStatusCode) return (true, null);
-            var body = await response.Content.ReadFromJsonAsync<Dictionary<string, string>>();
-            return (false, body != null && body.TryGetValue("error", out var e) ? e : "Failed to create adjustment.");
+            return response.IsSuccessStatusCode ? (true, null) : (false, await ApiErrors.ReadAsync(response, "Failed to create adjustment."));
         }
     }
 }

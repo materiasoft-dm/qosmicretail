@@ -14,7 +14,7 @@ namespace Mercurius.E2ETests.Tests;
 /// good reason — if the page's markup changes again, update the selectors here rather than
 /// deleting the coverage.
 /// </summary>
-public class SalesTests : MercuriusTestBase
+public class SalesTests : BlazorTestBase
 {
     public SalesTests(MercuriusCollectionFixture fixture) : base(fixture) { }
 
@@ -22,35 +22,30 @@ public class SalesTests : MercuriusTestBase
     public async Task CompleteSale_ViaCardPayment_ClearsCartAndShowsConfirmation()
     {
         await LoginAsAdminAsync();
-        var productName = await Page.CreateTestProductAsync("E2E Sale Product");
+        var productName = await CreateTestProductAsync("E2E Sale Product");
 
-        await Page.GotoAsync("/Sales/NewSale");
-        await Page.Locator("#productSearch").PressSequentiallyAsync(productName, new LocatorPressSequentiallyOptions { Delay = 20 });
+        await GotoAppAsync("sell");
+        // The sell page is the tile-grid/ticket UI that mirrors Mercurius.Mobile's SalesPage.
+        await Page.Locator("#sellSearch").FillAsync(productName);
+        await Page.WaitForTimeoutAsync(600);
 
-        var tile = Page.Locator($".product-tile:has-text('{productName}')").First;
-        await tile.WaitForAsync(new LocatorWaitForOptions { Timeout = 10000 });
+        var tile = Page.Locator(".mud-card").Filter(new LocatorFilterOptions { HasTextString = productName }).First;
+        await Assertions.Expect(tile).ToBeVisibleAsync(new LocatorAssertionsToBeVisibleOptions { Timeout = UiTimeoutMs });
         await tile.ClickAsync();
 
-        var chargeBtn = Page.Locator("#chargeBtn");
-        await Assertions.Expect(chargeBtn).ToBeEnabledAsync(new LocatorAssertionsToBeEnabledOptions { Timeout = 5000 });
-        await chargeBtn.ClickAsync();
+        var charge = Page.Locator("article.content button").Filter(new LocatorFilterOptions { HasTextString = "Charge" }).First;
+        await Assertions.Expect(charge).ToBeEnabledAsync(new LocatorAssertionsToBeEnabledOptions { Timeout = UiTimeoutMs });
+        await charge.ClickAsync();
 
-        await Page.Locator("#paymentModal.show").WaitForAsync(new LocatorWaitForOptions { Timeout = 5000 });
+        var dialog = Page.Locator(".mud-dialog");
+        await Assertions.Expect(dialog).ToBeVisibleAsync(new LocatorAssertionsToBeVisibleOptions { Timeout = UiTimeoutMs });
+        await dialog.GetByRole(AriaRole.Button, new LocatorGetByRoleOptions { Name = "Charge Card" }).ClickAsync();
 
-        // Checkout is an ajax POST that stays on the page (no redirect) — before the InvoiceId
-        // fix, this request threw an unhandled DbUpdateException (FOREIGN KEY constraint failed)
-        // instead of returning the success JSON below. Wait for the response itself rather than a
-        // navigation, since there isn't one.
-        var response = await Page.RunAndWaitForResponseAsync(
-            async () => await Page.ClickAsync("#chargeCardBtn"),
-            resp => resp.Url.Contains("/Sales/NewSale") && resp.Request.Method == "POST");
-        Assert.True(response.Ok, $"Checkout POST failed: {await response.TextAsync()}");
-
-        // A successful charge hides the payment modal, clears the cart back to its empty state,
-        // and shows a confirmation toast — assert all three rather than just the response status,
-        // so a JS-side regression (e.g. clearCart() never firing) still fails the test.
-        await Page.Locator("#paymentModal.show").WaitForAsync(new LocatorWaitForOptions { State = WaitForSelectorState.Hidden, Timeout = 5000 });
-        await Assertions.Expect(Page.Locator("#cartEmpty")).ToBeVisibleAsync(new LocatorAssertionsToBeVisibleOptions { Timeout = 5000 });
-        await Assertions.Expect(Page.Locator(".toast-body")).ToContainTextAsync("Sale complete", new LocatorAssertionsToContainTextOptions { Timeout = 5000 });
+        // A successful charge closes the dialog, empties the ticket and confirms.
+        await Assertions.Expect(dialog).ToHaveCountAsync(0, new LocatorAssertionsToHaveCountOptions { Timeout = UiTimeoutMs });
+        await Assertions.Expect(Page.GetByText("Ticket is empty")).ToBeVisibleAsync(new LocatorAssertionsToBeVisibleOptions { Timeout = UiTimeoutMs });
+        var toast = await WaitForToastAsync();
+        Assert.Contains("Sale complete.", toast);
+        await AssertNoBlazorErrorAsync();
     }
 }

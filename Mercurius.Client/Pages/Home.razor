@@ -1,150 +1,384 @@
 @page "/"
 @attribute [Authorize]
+@using System.Security.Claims
 @inject DashboardApiClient Api
+@inject CurrentUserState CurrentUser
+@inject ISnackbar Snackbar
 
 <PageTitle>Dashboard</PageTitle>
 
-<MudText Typo="Typo.h4" Class="mb-4">Dashboard</MudText>
+<div class="dashboard-header">
+    <div>
+        <MudText Typo="Typo.h4" Class="dashboard-greeting">Welcome back@(FirstName is { Length: > 0 } ? $", {FirstName}" : "")</MudText>
+        <MudText Class="mud-text-secondary">
+            @if (RendererInfo.IsInteractive)
+            {
+                @DateTime.Now.ToString("dddd, MMMM d")<text> · </text>
+            }
+            @(CurrentUser.User.CurrentLocationName ?? "No branch selected")
+        </MudText>
+    </div>
+    @if (_d != null && _layout.Count > 0)
+    {
+        <div class="d-flex flex-wrap gap-2">
+            @if (_editing)
+            {
+                <MudButton Variant="Variant.Text" OnClick="ResetLayout">Reset to default</MudButton>
+                <MudButton Variant="Variant.Outlined" OnClick="CancelEditing">Cancel</MudButton>
+                <MudButton Variant="Variant.Filled" Color="Color.Primary" Disabled="_saving" OnClick="SaveLayoutAsync"
+                           StartIcon="@Icons.Material.Filled.Check">Save layout</MudButton>
+            }
+            else
+            {
+                <MudButton Variant="Variant.Outlined" StartIcon="@Icons.Material.Filled.Tune" OnClick="StartEditing"
+                           UserAttributes="@(new Dictionary<string, object> { ["id"] = "customizeDashboard" })">Customize</MudButton>
+            }
+        </div>
+    }
+</div>
+
+@if (_editing)
+{
+    <MudAlert Severity="Severity.Info" Dense="true" Class="mb-4">
+        Move widgets with the arrows, switch between half and full width, or hide the ones you don't need.
+        @if (HiddenWidgets.Any())
+        {
+            <div class="d-flex flex-wrap align-items-center gap-2 mt-2">
+                <span>Hidden:</span>
+                @foreach (var hidden in HiddenWidgets)
+                {
+                    <MudChip T="string" Size="Size.Small" Icon="@Icons.Material.Filled.Add" OnClick="@(() => Show(hidden))">@TitleOf(hidden.WidgetId)</MudChip>
+                }
+            </div>
+        }
+    </MudAlert>
+}
 
 @if (_d is null)
 {
-    <MudText><em>Loading...</em></MudText>
+    <MudGrid Spacing="3">
+        @for (var i = 0; i < 4; i++)
+        {
+            <MudItem xs="12" md="6">
+                <MudPaper Elevation="0" Class="pa-4 dashboard-skeleton">
+                    <MudSkeleton Width="40%" Height="28px" />
+                    <MudSkeleton Width="70%" Height="44px" Class="mt-3" />
+                    <MudSkeleton Width="90%" />
+                    <MudSkeleton Width="60%" />
+                </MudPaper>
+            </MudItem>
+        }
+    </MudGrid>
+}
+else if (!ShownWidgets.Any())
+{
+    <MudPaper Elevation="0" Class="pa-8 text-center dashboard-empty">
+        <i class="bi bi-grid-1x2 dashboard-empty-icon"></i>
+        <MudText Typo="Typo.h6" Class="mt-3">Nothing on your dashboard</MudText>
+        <MudText Class="mud-text-secondary">
+            @(_layout.Count == 0
+                ? "Your role doesn't include any dashboard widgets. An administrator can add them under Roles."
+                : "Every widget is hidden. Choose Customize to bring some back.")
+        </MudText>
+    </MudPaper>
 }
 else
 {
-    <MudGrid Class="mb-4">
-        <MudItem xs="12" md="3">
-            <MudPaper Class="pa-4" Elevation="2">
-                <MudText Color="Color.Secondary">Today's Sales</MudText>
-                <MudText Typo="Typo.h5" Class="fw-bold">@Money.Format(_d.TodaySales)</MudText>
-            </MudPaper>
-        </MudItem>
-        <MudItem xs="12" md="3">
-            <MudPaper Class="pa-4" Elevation="2">
-                <MudText Color="Color.Secondary">Today's Profit</MudText>
-                <MudText Typo="Typo.h5" Class="fw-bold">@Money.Format(_d.TodayProfit)</MudText>
-            </MudPaper>
-        </MudItem>
-        <MudItem xs="12" md="3">
-            <MudPaper Class="pa-4" Elevation="2">
-                <MudText Color="Color.Secondary">This Month</MudText>
-                <MudText Typo="Typo.h5" Class="fw-bold">@Money.Format(_d.ThisMonthSales)</MudText>
-            </MudPaper>
-        </MudItem>
-        <MudItem xs="12" md="3">
-            <MudPaper Class="pa-4" Elevation="2">
-                <MudText Color="Color.Secondary">Last Month</MudText>
-                <MudText Typo="Typo.h5" Class="fw-bold">@Money.Format(_d.PreviousMonthSales)</MudText>
-            </MudPaper>
-        </MudItem>
-    </MudGrid>
+    <MudGrid Spacing="3">
+        @foreach (var widget in ShownWidgets)
+        {
+            var position = ShownWidgets.IndexOf(widget);
+            <MudItem xs="12" md="@(widget.FullWidth ? 12 : 6)">
+                <WidgetCard WidgetId="@widget.WidgetId" Title="@TitleOf(widget.WidgetId)" Subtitle="@SubtitleOf(widget.WidgetId)"
+                            Icon="@IconOf(widget.WidgetId)" Tone="@ToneOf(widget.WidgetId)" Class="@(_editing ? "widget-editing" : null)">
+                    <Actions>
+                        @if (_editing)
+                        {
+                            <MudIconButton Icon="@Icons.Material.Filled.ArrowUpward" Size="Size.Small" aria-label="Move up" Disabled="@(position == 0)"
+                                           OnClick="@(() => Move(widget, -1))" />
+                            <MudIconButton Icon="@Icons.Material.Filled.ArrowDownward" Size="Size.Small" aria-label="Move down" Disabled="@(position == ShownWidgets.Count - 1)"
+                                           OnClick="@(() => Move(widget, 1))" />
+                            <MudIconButton Icon="@(widget.FullWidth ? Icons.Material.Filled.CloseFullscreen : Icons.Material.Filled.OpenInFull)" Size="Size.Small"
+                                           aria-label="@(widget.FullWidth ? "Half width" : "Full width")" OnClick="@(() => widget.FullWidth = !widget.FullWidth)" />
+                            <MudIconButton Icon="@Icons.Material.Filled.VisibilityOff" Size="Size.Small" aria-label="Hide" OnClick="@(() => widget.Hidden = true)" />
+                        }
+                    </Actions>
+                    <ChildContent>
+                        @switch (widget.WidgetId)
+                        {
+                            case DashboardWidgets.MonthlyTarget:
+                                <div class="kpi-grid">
+                                    <div class="kpi">
+                                        <div class="kpi-label">Today's sales</div>
+                                        <div class="kpi-value">@Money.Format(_d.TodaySales)</div>
+                                    </div>
+                                    <div class="kpi">
+                                        <div class="kpi-label">Today's profit</div>
+                                        <div class="kpi-value">@Money.Format(_d.TodayProfit)</div>
+                                        @if (_d.TodaySales > 0)
+                                        {
+                                            <div class="kpi-foot">@((_d.TodayProfit / _d.TodaySales * 100).ToString("0.#"))% margin</div>
+                                        }
+                                    </div>
+                                    <div class="kpi">
+                                        <div class="kpi-label">This month</div>
+                                        <div class="kpi-value">@Money.Format(_d.ThisMonthSales)</div>
+                                        @if (_d.PreviousMonthSales > 0)
+                                        {
+                                            var change = (_d.ThisMonthSales - _d.PreviousMonthSales) / _d.PreviousMonthSales * 100;
+                                            <div class="kpi-foot @(change >= 0 ? "kpi-up" : "kpi-down")">
+                                                <i class="bi @(change >= 0 ? "bi-arrow-up-right" : "bi-arrow-down-right")"></i>
+                                                @Math.Abs(change).ToString("0.#")% vs last month
+                                            </div>
+                                        }
+                                    </div>
+                                    <div class="kpi">
+                                        <div class="kpi-label">Last month</div>
+                                        <div class="kpi-value">@Money.Format(_d.PreviousMonthSales)</div>
+                                    </div>
+                                </div>
+                                break;
 
-    <MudGrid Class="mb-4">
-        <MudItem xs="12" md="3">
-            <MudPaper Class="pa-4" Elevation="2">
-                <MudText Typo="Typo.h4" Class="fw-bold">@_d.DailySalesCount</MudText>
-                <MudText Color="Color.Secondary">Daily Sales</MudText>
-                <MudText Typo="Typo.caption">@DailySalesPct% of @_d.DailySalesTarget</MudText>
-            </MudPaper>
-        </MudItem>
-        <MudItem xs="12" md="3">
-            <MudPaper Class="pa-4" Elevation="2">
-                <MudText Typo="Typo.h4" Class="fw-bold">@_d.PreviousMonthSalesCount</MudText>
-                <MudText Color="Color.Secondary">Previous Month Sales</MudText>
-                <MudText Typo="Typo.caption">@PrevMonthPct% of @_d.PreviousMonthSalesTarget</MudText>
-            </MudPaper>
-        </MudItem>
-        <MudItem xs="12" md="3">
-            <MudPaper Class="pa-4" Elevation="2">
-                <MudText Typo="Typo.h4" Class="fw-bold">@_d.NewCustomersThisMonth</MudText>
-                <MudText Color="Color.Secondary">New Customers This Month</MudText>
-            </MudPaper>
-        </MudItem>
-        <MudItem xs="12" md="3">
-            <MudPaper Class="pa-4" Elevation="2">
-                <MudText Typo="Typo.h4" Class="fw-bold">@_d.ItemsSoldTodayTotal</MudText>
-                <MudText Color="Color.Secondary">Total Items Sold Today</MudText>
-            </MudPaper>
-        </MudItem>
-    </MudGrid>
+                            case DashboardWidgets.DailySales:
+                                <TargetProgress Count="_d.DailySalesCount" Target="_d.DailySalesTarget" Unit="sales today" />
+                                break;
 
-    <MudGrid>
-        <MudItem xs="12" md="6">
-            <MudPaper Elevation="2">
-                <MudText Typo="Typo.subtitle1" Class="pa-3 mb-0"><strong>Stock Report</strong> — Total @_d.TotalStockItems items</MudText>
-                <MudTable Items="_d.LowestStockItems" Dense="true" Hover="true">
-                    <HeaderContent>
-                        <MudTh>SKU</MudTh>
-                        <MudTh>Item</MudTh>
-                        <MudTh Style="text-align:right;">Qty</MudTh>
-                    </HeaderContent>
-                    <RowTemplate>
-                        <MudTd DataLabel="SKU">@context.ProductCode</MudTd>
-                        <MudTd DataLabel="Item">@context.Name</MudTd>
-                        <MudTd DataLabel="Qty" Style="text-align:right;">
-                            <MudText Color="@(context.CurrentStock <= context.LowStockCount ? Color.Error : Color.Default)">@context.CurrentStock</MudText>
-                        </MudTd>
-                    </RowTemplate>
-                </MudTable>
-            </MudPaper>
-        </MudItem>
-        <MudItem xs="12" md="6">
-            <MudPaper Elevation="2">
-                <MudText Typo="Typo.subtitle1" Class="pa-3 mb-0"><strong>Expiry Alerts</strong> — @_d.ExpiredCount expired, @_d.ExpiringWithin30Days within 30 days, @_d.ExpiringWithin90Days within 90 days</MudText>
-                @if (_d.ExpiringItems.Count == 0)
-                {
-                    <MudText Class="pa-3" Color="Color.Secondary">No items expiring within 90 days.</MudText>
-                }
-                else
-                {
-                    <MudTable Items="_d.ExpiringItems" Dense="true" Hover="true">
-                        <HeaderContent>
-                            <MudTh>Product</MudTh>
-                            <MudTh>Batch</MudTh>
-                            <MudTh>Expiry</MudTh>
-                            <MudTh Style="text-align:right;">Qty</MudTh>
-                        </HeaderContent>
-                        <RowTemplate>
-                            <MudTd DataLabel="Product">@context.ProductName</MudTd>
-                            <MudTd DataLabel="Batch">@context.BatchNumber</MudTd>
-                            <MudTd DataLabel="Expiry">@context.ExpiryDate.ToString("yyyy-MM-dd")</MudTd>
-                            <MudTd DataLabel="Qty" Style="text-align:right;">@context.RemainingQuantity</MudTd>
-                        </RowTemplate>
-                    </MudTable>
-                }
-            </MudPaper>
-        </MudItem>
-        <MudItem xs="12" md="6">
-            <MudPaper Elevation="2">
-                <MudText Typo="Typo.subtitle1" Class="pa-3 mb-0"><strong>Items Sold Today</strong></MudText>
-                @if (_d.ItemsSoldToday.Count == 0)
-                {
-                    <MudText Class="pa-3" Color="Color.Secondary">No items sold yet today.</MudText>
-                }
-                else
-                {
-                    <MudTable Items="_d.ItemsSoldToday" Dense="true" Hover="true">
-                        <HeaderContent>
-                            <MudTh>SKU</MudTh>
-                            <MudTh>Item</MudTh>
-                            <MudTh Style="text-align:right;">Qty</MudTh>
-                        </HeaderContent>
-                        <RowTemplate>
-                            <MudTd DataLabel="SKU">@context.ProductCode</MudTd>
-                            <MudTd DataLabel="Item">@context.ProductName</MudTd>
-                            <MudTd DataLabel="Qty" Style="text-align:right;">@context.Quantity</MudTd>
-                        </RowTemplate>
-                    </MudTable>
-                }
-            </MudPaper>
-        </MudItem>
+                            case DashboardWidgets.PreviousMonthSales:
+                                <TargetProgress Count="_d.PreviousMonthSalesCount" Target="_d.PreviousMonthSalesTarget" Unit="sales last month" />
+                                break;
+
+                            case DashboardWidgets.MonthlyNewCustomers:
+                                <div class="big-number">@_d.NewCustomersThisMonth</div>
+                                <div class="mud-text-secondary">new @(_d.NewCustomersThisMonth == 1 ? "customer" : "customers") this month</div>
+                                @if (_user.Can(ModuleRegistry.Pages.CUSTOMER_LIST))
+                                {
+                                    <MudButton Href="customers" Variant="Variant.Text" Color="Color.Primary" Size="Size.Small" Class="mt-2 px-0"
+                                               EndIcon="@Icons.Material.Filled.ArrowForward">View customers</MudButton>
+                                }
+                                break;
+
+                            case DashboardWidgets.ItemsSoldToday:
+                                @if (_d.ItemsSoldToday.Count == 0)
+                                {
+                                    <div class="widget-empty"><i class="bi bi-bag"></i> Nothing sold yet today.</div>
+                                }
+                                else
+                                {
+                                    <div class="mud-text-secondary mb-2"><strong class="text-body">@_d.ItemsSoldTodayTotal</strong> units across @_d.ItemsSoldToday.Count products</div>
+                                    <ul class="widget-list">
+                                        @foreach (var item in _d.ItemsSoldToday.Take(8))
+                                        {
+                                            <li>
+                                                <span class="widget-list-main">@item.ProductName<span class="widget-list-sub">@item.ProductCode</span></span>
+                                                <span class="widget-list-value">@item.Quantity.ToString("0.##")</span>
+                                            </li>
+                                        }
+                                    </ul>
+                                }
+                                break;
+
+                            case DashboardWidgets.StockWarning:
+                                <div class="mud-text-secondary mb-2">Lowest stock of @_d.TotalStockItems active products</div>
+                                <ul class="widget-list">
+                                    @foreach (var item in _d.LowestStockItems)
+                                    {
+                                        var low = item.CurrentStock <= item.LowStockCount;
+                                        <li>
+                                            <span class="widget-list-main">@item.Name<span class="widget-list-sub">@item.ProductCode</span></span>
+                                            @if (low)
+                                            {
+                                                <MudChip T="string" Size="Size.Small" Color="@(item.CurrentStock <= 0 ? Color.Error : Color.Warning)" Variant="Variant.Text">
+                                                    @(item.CurrentStock <= 0 ? "Out" : "Low")
+                                                </MudChip>
+                                            }
+                                            <span class="widget-list-value @(low ? "text-danger" : "")">@item.CurrentStock.ToString("0.##")</span>
+                                        </li>
+                                    }
+                                </ul>
+                                @if (_user.Can(ModuleRegistry.Pages.PRODUCTS_INDEX))
+                                {
+                                    <MudButton Href="products" Variant="Variant.Text" Color="Color.Primary" Size="Size.Small" Class="mt-2 px-0"
+                                               EndIcon="@Icons.Material.Filled.ArrowForward">View products</MudButton>
+                                }
+                                break;
+
+                            case DashboardWidgets.ExpiryAlerts:
+                                <div class="expiry-stats">
+                                    <div class="expiry-stat expiry-expired"><strong>@_d.ExpiredCount</strong><span>expired</span></div>
+                                    <div class="expiry-stat expiry-soon"><strong>@_d.ExpiringWithin30Days</strong><span>within 30 days</span></div>
+                                    <div class="expiry-stat expiry-later"><strong>@_d.ExpiringWithin90Days</strong><span>within 90 days</span></div>
+                                </div>
+                                @if (_d.ExpiringItems.Count == 0)
+                                {
+                                    <div class="widget-empty"><i class="bi bi-check2-circle"></i> No batches expire in the next 90 days.</div>
+                                }
+                                else
+                                {
+                                    <ul class="widget-list">
+                                        @foreach (var batch in _d.ExpiringItems)
+                                        {
+                                            var daysLeft = (int)Math.Floor((LocalTime.FromUtc(batch.ExpiryDate).Date - DateTime.Today).TotalDays);
+                                            <li>
+                                                <span class="widget-list-main">@batch.ProductName<span class="widget-list-sub">Batch @batch.BatchNumber · @batch.RemainingQuantity.ToString("0.##") left</span></span>
+                                                <MudChip T="string" Size="Size.Small" Variant="Variant.Text"
+                                                         Color="@(daysLeft < 0 ? Color.Error : daysLeft <= 30 ? Color.Warning : Color.Info)">
+                                                    @(daysLeft < 0 ? $"Expired {LocalTime.FormatDate(batch.ExpiryDate)}" : daysLeft == 0 ? "Expires today" : $"{daysLeft} days")
+                                                </MudChip>
+                                            </li>
+                                        }
+                                    </ul>
+                                }
+                                break;
+
+                            case DashboardWidgets.Shortcuts:
+                                <div class="shortcut-grid">
+                                    @foreach (var shortcut in Shortcuts.Where(s => s.Visible(_user)))
+                                    {
+                                        <a class="shortcut" href="@shortcut.Href">
+                                            <i class="bi @shortcut.Icon"></i>
+                                            <span>@shortcut.Text</span>
+                                        </a>
+                                    }
+                                </div>
+                                break;
+                        }
+                    </ChildContent>
+                </WidgetCard>
+            </MudItem>
+        }
     </MudGrid>
 }
 
 @code {
-    private DashboardDto? _d;
-    private string DailySalesPct => _d == null || _d.DailySalesTarget == 0 ? "0" : Math.Round(100m * _d.DailySalesCount / _d.DailySalesTarget, 2).ToString();
-    private string PrevMonthPct => _d == null || _d.PreviousMonthSalesTarget == 0 ? "0" : Math.Round(100m * _d.PreviousMonthSalesCount / _d.PreviousMonthSalesTarget, 2).ToString();
+    [CascadingParameter] private Task<AuthenticationState> AuthState { get; set; } = default!;
 
-    protected override async Task OnInitializedAsync() => _d = await Api.GetAsync();
+    private record WidgetInfo(string Id, string Title, string Subtitle, string Icon, string Tone, bool FullWidth);
+    private record Shortcut(string Text, string Href, string Icon, Func<ClaimsPrincipal, bool> Visible);
+
+    // Default order and size, for widgets the user hasn't placed themselves.
+    private static readonly List<WidgetInfo> Widgets = new()
+    {
+        new(DashboardWidgets.MonthlyTarget, "Sales overview", "Revenue at this branch", "bi-graph-up-arrow", "primary", true),
+        new(DashboardWidgets.DailySales, "Today's sales", "Against the daily target", "bi-bullseye", "success", false),
+        new(DashboardWidgets.PreviousMonthSales, "Last month", "Against the monthly target", "bi-calendar-check", "info", false),
+        new(DashboardWidgets.Shortcuts, "Quick actions", "Jump straight to common tasks", "bi-lightning-charge", "warning", false),
+        new(DashboardWidgets.MonthlyNewCustomers, "New customers", "Signed up this month", "bi-person-plus", "info", false),
+        new(DashboardWidgets.ItemsSoldToday, "Items sold today", "Best sellers first", "bi-bag-check", "success", false),
+        new(DashboardWidgets.StockWarning, "Stock watch", "Products running lowest", "bi-box-seam", "warning", false),
+        new(DashboardWidgets.ExpiryAlerts, "Expiry alerts", "Batches expiring soon", "bi-hourglass-split", "danger", true),
+    };
+
+    private static readonly List<Shortcut> Shortcuts = new()
+    {
+        new("New sale", "sell", "bi-cart-plus", u => u.Can(ModuleRegistry.Pages.NEWSALE_CREATE)),
+        new("Add product", "products/new", "bi-capsule", u => u.Can(ModuleRegistry.Pages.PRODUCTS_CREATE)),
+        new("Purchase order", "purchase-orders/new", "bi-clipboard-plus", u => u.Can(ModuleRegistry.Pages.PURCHASE_ORDERS_CREATE)),
+        new("Receive shipment", "shipments", "bi-box-arrow-in-down", u => u.Can(ModuleRegistry.Pages.SHIPMENT_CREATE)),
+        new("Adjust stock", "adjustments", "bi-sliders", u => u.Can(ModuleRegistry.Pages.ADJUSTMENTS_CREATE)),
+        new("Customers", "customers", "bi-people", u => u.Can(ModuleRegistry.Pages.CUSTOMER_LIST)),
+        new("Invoices", "invoices", "bi-receipt", u => u.Can(ModuleRegistry.Pages.INVOICE_INDEX)),
+        new("Reports", "reports", "bi-bar-chart-line", u => u.CanAny(ModuleRegistry.Pages.REPORT_SALES, ModuleRegistry.Pages.REPORT_INVENTORY,
+            ModuleRegistry.Pages.REPORT_SHIPMENT, ModuleRegistry.Pages.REPORT_REFUND, ModuleRegistry.Pages.REPORT_ADJUSTMENTS)),
+    };
+
+    private ClaimsPrincipal _user = new();
+    private DashboardDto? _d;
+    private List<DashboardWidgetLayoutDto> _layout = new();
+    private List<DashboardWidgetLayoutDto>? _beforeEditing;
+    private bool _editing;
+    private bool _saving;
+
+    private string? FirstName => CurrentUser.User.FullName?.Split(' ', StringSplitOptions.RemoveEmptyEntries).FirstOrDefault();
+    private List<DashboardWidgetLayoutDto> ShownWidgets => _layout.Where(w => !w.Hidden).ToList();
+    private IEnumerable<DashboardWidgetLayoutDto> HiddenWidgets => _layout.Where(w => w.Hidden);
+
+    private static WidgetInfo? Info(string id) => Widgets.FirstOrDefault(w => w.Id == id);
+    private static string TitleOf(string id) => Info(id)?.Title ?? id;
+    private static string? SubtitleOf(string id) => Info(id)?.Subtitle;
+    private static string IconOf(string id) => Info(id)?.Icon ?? "bi-grid";
+    private static string ToneOf(string id) => Info(id)?.Tone ?? "primary";
+
+    protected override async Task OnInitializedAsync()
+    {
+        _user = (await AuthState).User;
+        if (!RendererInfo.IsInteractive) return; // prerendering: show the skeleton; the browser loads the data
+
+        var dataTask = Api.GetAsync();
+        var layoutTask = Api.GetLayoutAsync();
+        _d = await dataTask ?? new DashboardDto();
+        _layout = Arrange(await layoutTask, _d.VisibleWidgets);
+    }
+
+    // The user's saved order first (only widgets they may still see), then any others in the
+    // default order — so a newly granted widget shows up without anyone re-saving a layout.
+    private static List<DashboardWidgetLayoutDto> Arrange(IEnumerable<DashboardWidgetLayoutDto> saved, List<string> visible)
+    {
+        var result = new List<DashboardWidgetLayoutDto>();
+        foreach (var item in saved.OrderBy(s => s.Order))
+        {
+            if (visible.Contains(item.WidgetId) && result.All(r => r.WidgetId != item.WidgetId))
+            {
+                result.Add(new DashboardWidgetLayoutDto { WidgetId = item.WidgetId, FullWidth = item.FullWidth, Hidden = item.Hidden });
+            }
+        }
+        foreach (var widget in Widgets)
+        {
+            if (visible.Contains(widget.Id) && result.All(r => r.WidgetId != widget.Id))
+            {
+                result.Add(new DashboardWidgetLayoutDto { WidgetId = widget.Id, FullWidth = widget.FullWidth });
+            }
+        }
+        for (var i = 0; i < result.Count; i++) result[i].Order = i;
+        return result;
+    }
+
+    private static List<DashboardWidgetLayoutDto> Copy(IEnumerable<DashboardWidgetLayoutDto> layout) =>
+        layout.Select(w => new DashboardWidgetLayoutDto { WidgetId = w.WidgetId, Order = w.Order, FullWidth = w.FullWidth, Hidden = w.Hidden }).ToList();
+
+    private void StartEditing()
+    {
+        _beforeEditing = Copy(_layout);
+        _editing = true;
+    }
+
+    private void CancelEditing()
+    {
+        if (_beforeEditing != null) _layout = _beforeEditing;
+        _editing = false;
+    }
+
+    private void ResetLayout() => _layout = Arrange(Enumerable.Empty<DashboardWidgetLayoutDto>(), _d?.VisibleWidgets ?? new());
+
+    // Swaps the widget with its visible neighbour; hidden widgets keep their place.
+    private void Move(DashboardWidgetLayoutDto widget, int direction)
+    {
+        var shown = ShownWidgets;
+        var target = shown.IndexOf(widget) + direction;
+        if (target < 0 || target >= shown.Count) return;
+        var a = _layout.IndexOf(widget);
+        var b = _layout.IndexOf(shown[target]);
+        (_layout[a], _layout[b]) = (_layout[b], _layout[a]);
+    }
+
+    private void Show(DashboardWidgetLayoutDto widget) => widget.Hidden = false;
+
+    private async Task SaveLayoutAsync()
+    {
+        _saving = true;
+        try
+        {
+            for (var i = 0; i < _layout.Count; i++) _layout[i].Order = i;
+            if (!await Api.SaveLayoutAsync(_layout))
+            {
+                Snackbar.Add("The layout couldn't be saved.", Severity.Error);
+                return;
+            }
+            _editing = false;
+            Snackbar.Add("Dashboard layout saved.", Severity.Success);
+        }
+        finally
+        {
+            _saving = false;
+        }
+    }
 }

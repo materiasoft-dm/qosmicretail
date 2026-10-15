@@ -36,22 +36,33 @@ public abstract class MercuriusTestBase : IAsyncLifetime
         await Context.CloseAsync();
     }
 
-    /// <summary>Logs in through the real UI (not a cookie shortcut) so every test also exercises
-    /// the actual login flow.</summary>
-    protected async Task LoginAsAdminAsync()
+    /// <summary>
+    /// Logs in through the real UI (not a cookie shortcut) so every test also exercises the
+    /// actual login flow.
+    /// </summary>
+    protected Task LoginAsAdminAsync() => LoginAsync(TestServerFixture.AdminEmail, TestServerFixture.AdminPassword);
+
+    /// <summary>The current path of the app's sign-in page (a server-rendered Blazor form, not MVC).</summary>
+    protected const string LoginPath = "/account/login";
+
+    protected async Task LoginAsync(string email, string password)
     {
-        await Page.GotoAsync("/Identity/Account/Login");
-        await Page.FillAsync("#Input_Email", TestServerFixture.AdminEmail);
-        await Page.FillAsync("#Input_Password", TestServerFixture.AdminPassword);
-        await Page.ClickAsync("#kt_sign_in_submit");
-        await Page.WaitForURLAsync(url => !url.Contains("/Identity/Account/Login"), new PageWaitForURLOptions { Timeout = 15000 });
+        await Page.GotoAsync(LoginPath);
+        await Page.FillAsync("#email", email);
+        await Page.FillAsync("#password", password);
+        await Page.ClickAsync("#loginSubmit");
+        // A successful sign-in navigates away from the login form; a bad one re-renders it with
+        // the error banner, so this is also the signal that a *successful* login happened.
+        await Page.WaitForURLAsync(url => !url.Contains(LoginPath), new PageWaitForURLOptions { Timeout = 30000 });
     }
 
-    /// <summary>Waits for a toastr flash message (success/error/info) to appear and returns its text.</summary>
+    /// <summary>
+    /// Waits for a MudBlazor snackbar (the app's flash messages) to appear and returns its text.
+    /// </summary>
     protected async Task<string> WaitForToastAsync(int timeoutMs = 10000)
     {
-        var toast = Page.Locator(".toast-message").First;
+        var toast = Page.Locator(".mud-snackbar").First;
         await toast.WaitForAsync(new LocatorWaitForOptions { Timeout = timeoutMs });
-        return await toast.InnerTextAsync();
+        return (await toast.InnerTextAsync()).Trim();
     }
 }

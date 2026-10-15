@@ -13,12 +13,9 @@ using Microsoft.AspNetCore.Mvc;
 
 namespace Mercurius.Controllers.Api
 {
-    // JSON equivalent of SalesController.NewSale's POST action — logic copied line-for-line
-    // (batch pricing, unconditional stock deduction, zero-stock audit log, transaction handling)
-    // rather than having the Blazor page call the MVC action directly, since that action expects
-    // form-encoded data plus an antiforgery token embedded in server-rendered HTML, neither of
-    // which a Blazor WASM SPA naturally has. Once the old MVC Sales/NewSale page is retired, that
-    // action can be deleted and this becomes the single checkout implementation.
+    // Web checkout (the Sell page), including sales the page queued while offline. Batch pricing,
+    // unconditional stock deduction, the zero-stock audit log and the per-sale transaction match
+    // SyncController.PushInvoices, the mobile app's equivalent.
     [ApiController]
     [Route("api/sales")]
     [Authorize(Policy = Mercurius.Common.ModuleRegistry.Pages.NEWSALE_CREATE)]
@@ -36,11 +33,14 @@ namespace Mercurius.Controllers.Api
         [HttpGet("customers")]
         public ActionResult<List<CustomerOptionDto>> GetCustomers(string? search = null)
         {
-            var query = _unitOfWork.Query<Customer>();
+            // Inactive customers are kept on record but not offered at checkout.
+            var query = _unitOfWork.Query<Customer>().Where(c => c.IsActive);
             if (!string.IsNullOrWhiteSpace(search))
             {
                 var s = search.Trim().ToLowerInvariant();
-                query = query.Where(c => (c.FirstName != null && c.FirstName.ToLower().Contains(s)) || (c.LastName != null && c.LastName.ToLower().Contains(s)));
+                query = query.Where(c => (c.FirstName != null && c.FirstName.ToLower().Contains(s))
+                    || (c.LastName != null && c.LastName.ToLower().Contains(s))
+                    || (c.ContactNumber != null && c.ContactNumber.Contains(s)));
             }
             var items = query.OrderBy(c => c.FirstName).Take(50)
                 .Select(c => new CustomerOptionDto { Id = c.Id, Name = ((c.FirstName ?? "") + " " + (c.LastName ?? "")).Trim() }).ToList();
@@ -57,6 +57,7 @@ namespace Mercurius.Controllers.Api
                 {
                     Id = p.Id,
                     ProductCode = p.ProductCode ?? string.Empty,
+                    Barcode = p.Barcode,
                     Name = p.Name ?? string.Empty,
                     CategoryId = p.ProductCategoryId,
                     Category = p.ProductCategory != null ? p.ProductCategory.Name : null,
@@ -75,18 +76,46 @@ namespace Mercurius.Controllers.Api
         [HttpPost("offline-sync")]
         public async Task<IActionResult> SyncOfflineSale(OfflineSaleRequest request, CancellationToken ct = default)
         {
-            var existing = (await _unitOfWork.Repository<Invoice>().FindAsync(i => i.SyncId == request.SyncId, ct)).FirstOrDefault();
-            if (existing != null)
+            if (request.SyncId is not Guid syncId || syncId == Guid.Empty)
             {
-                return Ok(new CheckoutResultDto { InvoiceNumber = existing.InvoiceNumber, InvoiceId = existing.Id, Total = 0, Change = 0 });
+                return BadRequest(new { error = "An offline sale needs its SyncId." });
             }
+            var existing = await FindExistingSaleAsync(syncId, ct);
+            if (existing != null) return Ok(existing);
 
-            return await ProcessCheckoutAsync(request, request.SyncId, request.CreatedAtUtc, ct);
+            return await ProcessCheckoutAsync(request, syncId, request.CreatedAtUtc, ct);
         }
 
+        // Idempotent by SyncId too: the Sell page picks one per sale, so a retry after a lost
+        // response (or the same sale later replayed from the offline queue) returns the sale
+        // already made instead of charging it twice.
         [HttpPost("checkout")]
-        public async Task<IActionResult> Checkout(CheckoutRequest request, CancellationToken ct = default) =>
-            await ProcessCheckoutAsync(request, Guid.NewGuid(), DateTime.UtcNow, ct);
+        public async Task<IActionResult> Checkout(CheckoutRequest request, CancellationToken ct = default)
+        {
+            if (request.SyncId is Guid syncId && syncId != Guid.Empty)
+            {
+                var existing = await FindExistingSaleAsync(syncId, ct);
+                if (existing != null) return Ok(existing);
+                return await ProcessCheckoutAsync(request, syncId, DateTime.UtcNow, ct);
+            }
+            return await ProcessCheckoutAsync(request, Guid.NewGuid(), DateTime.UtcNow, ct);
+        }
+
+        private async Task<CheckoutResultDto?> FindExistingSaleAsync(Guid syncId, CancellationToken ct)
+        {
+            var invoice = (await _unitOfWork.Repository<Invoice>().FindAsync(i => i.SyncId == syncId, ct)).FirstOrDefault();
+            if (invoice == null) return null;
+            var items = await _unitOfWork.Repository<InvoiceItem>().FindAsync(ii => ii.InvoiceId == invoice.Id, ct);
+            var total = items.Sum(ii => ii.SalePrice * ii.Quantity);
+            var paidByCard = invoice.Notes != null && invoice.Notes.Contains("Paid by card", StringComparison.OrdinalIgnoreCase);
+            return new CheckoutResultDto
+            {
+                InvoiceNumber = invoice.InvoiceNumber,
+                InvoiceId = invoice.Id,
+                Total = total,
+                Change = paidByCard ? 0m : invoice.PaidAmount - total
+            };
+        }
 
         private async Task<IActionResult> ProcessCheckoutAsync(CheckoutRequest request, Guid syncId, DateTime invoiceDateUtc, CancellationToken ct)
         {
@@ -107,7 +136,7 @@ namespace Mercurius.Controllers.Api
             var paymentNote = isCard ? "Paid by card" : "Paid by cash";
             var resolvedNotes = string.IsNullOrWhiteSpace(request.Notes) ? paymentNote : $"{request.Notes} ({paymentNote})";
 
-            var locationId = await Mercurius.ViewComponents.Dashboard.DashboardLocationContext.GetCurrentLocationIdAsync(_unitOfWork, User);
+            var locationId = await Mercurius.Services.CurrentLocation.GetIdAsync(_unitOfWork, User);
 
             var invoice = new Invoice
             {

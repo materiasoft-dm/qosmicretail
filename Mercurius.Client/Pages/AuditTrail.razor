@@ -1,0 +1,177 @@
+@page "/audit-trail"
+@attribute [Authorize(Policy = ModuleRegistry.Pages.ADMIN_AUDIT_TRAIL)]
+@using Mercurius.Client.Pages.Dialogs
+@inject AuditTrailApiClient Api
+@inject IDialogService DialogService
+
+<PageTitle>Audit Trail</PageTitle>
+
+<MudText Typo="Typo.h4" Class="mb-4">Audit Trail</MudText>
+
+<MudPaper Class="pa-4 mb-4" Elevation="2">
+    <MudGrid Spacing="2">
+        <MudItem xs="12" md="4">
+            <MudTextField T="string" Value="_criteria.Search" ValueChanged="OnSearchChanged" Label="Search" Placeholder="User, summary, IP, device, record id..."
+                          Immediate="true" Clearable="true" Variant="Variant.Outlined" Margin="Margin.Dense"
+                          Adornment="Adornment.Start" AdornmentIcon="@Icons.Material.Filled.Search" />
+        </MudItem>
+        <MudItem xs="6" md="2">
+            <MudDatePicker Date="_criteria.FromDate" DateChanged="@((DateTime? d) => ApplyAsync(() => _criteria.FromDate = d))"
+                           Label="From" DateFormat="yyyy-MM-dd" Variant="Variant.Outlined" Margin="Margin.Dense" Clearable="true" />
+        </MudItem>
+        <MudItem xs="6" md="2">
+            <MudDatePicker Date="_criteria.ToDate" DateChanged="@((DateTime? d) => ApplyAsync(() => _criteria.ToDate = d))"
+                           Label="To" DateFormat="yyyy-MM-dd" Variant="Variant.Outlined" Margin="Margin.Dense" Clearable="true" />
+        </MudItem>
+        <MudItem xs="6" md="2">
+            <MudSelect T="string" Value="_criteria.Action" ValueChanged="@((string? v) => ApplyAsync(() => _criteria.Action = v))"
+                       Label="Action" Variant="Variant.Outlined" Margin="Margin.Dense" Clearable="true">
+                @foreach (var a in _filters.Actions)
+                {
+                    <MudSelectItem T="string" Value="@a">@a</MudSelectItem>
+                }
+            </MudSelect>
+        </MudItem>
+        <MudItem xs="6" md="2">
+            <MudSelect T="string" Value="_criteria.EntityType" ValueChanged="@((string? v) => ApplyAsync(() => _criteria.EntityType = v))"
+                       Label="Record type" Variant="Variant.Outlined" Margin="Margin.Dense" Clearable="true">
+                @foreach (var e in _filters.EntityTypes)
+                {
+                    <MudSelectItem T="string" Value="@e">@e</MudSelectItem>
+                }
+            </MudSelect>
+        </MudItem>
+        <MudItem xs="6" md="2">
+            <MudSelect T="string" Value="_criteria.Branch" ValueChanged="@((string? v) => ApplyAsync(() => _criteria.Branch = v))"
+                       Label="Branch" Variant="Variant.Outlined" Margin="Margin.Dense" Clearable="true">
+                @foreach (var b in _filters.Branches)
+                {
+                    <MudSelectItem T="string" Value="@b">@b</MudSelectItem>
+                }
+            </MudSelect>
+        </MudItem>
+        <MudItem xs="6" md="2">
+            <MudSelect T="string" Value="_criteria.Source" ValueChanged="@((string? v) => ApplyAsync(() => _criteria.Source = v))"
+                       Label="Source" Variant="Variant.Outlined" Margin="Margin.Dense" Clearable="true">
+                @foreach (var s in _filters.Sources)
+                {
+                    <MudSelectItem T="string" Value="@s">@s</MudSelectItem>
+                }
+            </MudSelect>
+        </MudItem>
+        <MudItem xs="12" md="2" Class="d-flex align-center">
+            <MudButton Variant="Variant.Outlined" FullWidth="true" OnClick="ResetAsync">Reset filters</MudButton>
+        </MudItem>
+    </MudGrid>
+</MudPaper>
+
+<MudPaper Class="pa-2" Elevation="2">
+    <MudTable T="AuditLogListItemDto" @ref="_table" ServerData="LoadPageAsync" Hover="true" Dense="true" RowsPerPage="25"
+              OnRowClick="@((TableRowClickEventArgs<AuditLogListItemDto> e) => OpenDetailsAsync(e.Item!))" RowStyle="cursor:pointer;">
+        <HeaderContent>
+            <MudTh><MudTableSortLabel T="AuditLogListItemDto" SortLabel="when" InitialDirection="SortDirection.Descending">When</MudTableSortLabel></MudTh>
+            <MudTh>User</MudTh>
+            <MudTh>Branch</MudTh>
+            <MudTh>Source</MudTh>
+            <MudTh>Action</MudTh>
+            <MudTh>Summary</MudTh>
+        </HeaderContent>
+        <RowTemplate>
+            <MudTd DataLabel="When" Style="white-space:nowrap;">@LocalTime.FromUtc(context.TimestampUtc).ToString("yyyy-MM-dd HH:mm:ss")</MudTd>
+            <MudTd DataLabel="User">@(context.UserName ?? "—")</MudTd>
+            <MudTd DataLabel="Branch">@(context.LocationName ?? "—")</MudTd>
+            <MudTd DataLabel="Source">
+                <MudChip T="string" Size="Size.Small" Variant="Variant.Outlined">@context.Source</MudChip>
+                @if (!string.IsNullOrEmpty(context.DeviceName))
+                {
+                    <MudText Typo="Typo.caption" Class="mud-text-secondary d-block">@context.DeviceName</MudText>
+                }
+            </MudTd>
+            <MudTd DataLabel="Action"><MudChip T="string" Size="Size.Small" Color="@ActionColor(context.Action)">@context.Action</MudChip></MudTd>
+            <MudTd DataLabel="Summary">@context.Summary</MudTd>
+        </RowTemplate>
+        <NoRecordsContent>
+            <MudText>No audit entries match.</MudText>
+        </NoRecordsContent>
+        <PagerContent>
+            <MudTablePager PageSizeOptions="@(new[] { 25, 50, 100, 200 })" />
+        </PagerContent>
+    </MudTable>
+</MudPaper>
+
+@code {
+    private MudTable<AuditLogListItemDto>? _table;
+    private AuditTrailFiltersDto _filters = new();
+    private AuditTrailCriteria _criteria = new();
+    private CancellationTokenSource? _debounce;
+
+    protected override async Task OnInitializedAsync()
+    {
+        if (!RendererInfo.IsInteractive) return; // prerendering: show the loading state; the browser loads the data
+        // Built from what actually exists for this tenant, so no option can only return nothing.
+        _filters = await Api.GetFiltersAsync();
+    }
+
+    private async Task<TableData<AuditLogListItemDto>> LoadPageAsync(TableState state, CancellationToken token)
+    {
+        var oldestFirst = state.SortLabel == "when" && state.SortDirection == SortDirection.Ascending;
+        var page = await Api.GetAsync(_criteria, state.Page + 1, state.PageSize, oldestFirst, token);
+        return new TableData<AuditLogListItemDto> { Items = page.Items, TotalItems = page.Total };
+    }
+
+    private async Task ApplyAsync(Action change)
+    {
+        change();
+        if (_table != null) await _table.ReloadServerData();
+    }
+
+    private async Task OnSearchChanged(string? value)
+    {
+        _criteria.Search = value;
+        _debounce?.Cancel();
+        _debounce = new CancellationTokenSource();
+        var token = _debounce.Token;
+        try
+        {
+            await Task.Delay(350, token);
+            if (_table != null) await _table.ReloadServerData();
+        }
+        catch (TaskCanceledException)
+        {
+            // Superseded by a newer keystroke.
+        }
+    }
+
+    private Task ResetAsync() => ApplyAsync(() => _criteria = new AuditTrailCriteria());
+
+    // e.g. "Updated · Product #12".
+    private static string Title(AuditLogListItemDto entry) =>
+        entry.Action
+        + (string.IsNullOrEmpty(entry.EntityType) ? "" : $" · {entry.EntityType}")
+        + (string.IsNullOrEmpty(entry.EntityId) ? "" : $" #{entry.EntityId}");
+
+    private async Task OpenDetailsAsync(AuditLogListItemDto entry)
+    {
+        var parameters = new DialogParameters<AuditEntryDialog> { { d => d.EntryId, entry.Id } };
+        var options = new DialogOptions { MaxWidth = MaxWidth.Medium, FullWidth = true, CloseButton = true };
+        var dialog = await DialogService.ShowAsync<AuditEntryDialog>(Title(entry), parameters, options);
+        var result = await dialog.Result;
+
+        // "Show everything from this request": a request id is matched exactly, narrowing the list
+        // to every row one action produced (e.g. a sale's invoice, its lines and stock changes).
+        if (result is { Canceled: false, Data: string correlationId } && !string.IsNullOrEmpty(correlationId))
+        {
+            await ApplyAsync(() => _criteria = new AuditTrailCriteria { Search = correlationId });
+        }
+    }
+
+    private static Color ActionColor(string action) => action switch
+    {
+        "Created" or "Reactivated" or "LoginSucceeded" => Color.Success,
+        "Updated" => Color.Primary,
+        "Logout" => Color.Dark,
+        "Deactivated" or "LoginFailed" => Color.Warning,
+        "Deleted" or "LockedOut" or "DataQueryExecuted" or "DataQueryFailed" or "DataQueryRejected" => Color.Error,
+        _ => Color.Info
+    };
+}

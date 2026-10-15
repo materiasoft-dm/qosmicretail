@@ -116,7 +116,7 @@
                 <Ellipse Grid.Column="0" Fill="#4CAF50" WidthRequest="8" HeightRequest="8" VerticalOptions="Center" />
                 <Label Grid.Column="1" Text="Local data cached on this device" TextColor="{StaticResource SecondaryDarkText}" FontSize="10" />
             </Grid>
-            <Label Text="Mercurius Mobile · v1.0" TextColor="#4A4E64" FontSize="10" />
+            <Label x:Name="AppVersionLabel" AutomationId="AppVersionLabel" Text="Mercurius Mobile" TextColor="#4A4E64" FontSize="10" />
         </VerticalStackLayout>
     </Shell.FlyoutFooter>
 

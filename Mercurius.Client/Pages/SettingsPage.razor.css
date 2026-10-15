@@ -1,0 +1,26 @@
+.settings-icon {
+    flex: 0 0 44px;
+    width: 44px;
+    height: 44px;
+    border-radius: 12px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.25rem;
+    color: var(--mud-palette-primary);
+    background: var(--mud-palette-primary-hover);
+}
+
+::deep .settings-section-title {
+    color: var(--mud-palette-text-secondary);
+    letter-spacing: .08em;
+}
+
+::deep .settings-card {
+    transition: box-shadow .15s ease, transform .15s ease;
+}
+
+::deep .settings-card:hover {
+    box-shadow: var(--mud-elevation-4);
+    transform: translateY(-1px);
+}

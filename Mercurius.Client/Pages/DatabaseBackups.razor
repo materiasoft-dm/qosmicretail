@@ -1,0 +1,60 @@
+@page "/database-backups"
+@attribute [Authorize(Policy = ModuleRegistry.Pages.CONFIG_DATABASE_BACKUPS)]
+@inject AdminToolsApiClient Api
+
+<PageTitle>Database Backups</PageTitle>
+
+<MudText Typo="Typo.h4" Class="mb-4">Database Backups</MudText>
+
+@if (_info == null)
+{
+    <MudProgressLinear Indeterminate="true" Color="Color.Primary" />
+}
+else if (!_info.Enabled)
+{
+    <MudAlert Severity="Severity.Info">
+        This site's database is hosted on SQL Server, where the hosting provider takes the backups — there are no snapshots to list here.
+    </MudAlert>
+}
+else
+{
+    <MudText Typo="Typo.body2" Class="mud-text-secondary mb-3">
+        A snapshot of the database is taken automatically every day and kept for a limited number of days.
+    </MudText>
+    <MudPaper Class="pa-2" Elevation="2">
+        <MudTable Items="_info.Backups" Dense="true" Hover="true">
+            <HeaderContent>
+                <MudTh>File</MudTh>
+                <MudTh>Created</MudTh>
+                <MudTh Style="text-align:right;">Size</MudTh>
+                <MudTh></MudTh>
+            </HeaderContent>
+            <RowTemplate>
+                <MudTd DataLabel="File"><code>@context.FileName</code></MudTd>
+                <MudTd DataLabel="Created">@LocalTime.FormatDateTime(context.CreatedUtc)</MudTd>
+                <MudTd DataLabel="Size" Style="text-align:right;">@FormatSize(context.SizeBytes)</MudTd>
+                <MudTd Style="text-align:right;">
+                    @* A server endpoint outside the app, so the browser downloads it rather than routing. *@
+                    <MudButton Size="Size.Small" Variant="Variant.Outlined" StartIcon="@Icons.Material.Filled.Download"
+                               Href="@($"/api/admin/backups/{Uri.EscapeDataString(context.FileName)}")" Target="_self">Download</MudButton>
+                </MudTd>
+            </RowTemplate>
+            <NoRecordsContent>
+                <MudText>No backups yet — the first one is taken shortly after the site starts.</MudText>
+            </NoRecordsContent>
+        </MudTable>
+    </MudPaper>
+}
+
+@code {
+    private DatabaseBackupsDto? _info;
+
+    protected override async Task OnInitializedAsync()
+    {
+        if (!RendererInfo.IsInteractive) return; // prerendering: show the loading state; the browser loads the data
+        _info = await Api.GetBackupsAsync();
+    }
+
+    private static string FormatSize(long bytes) =>
+        bytes >= 1024 * 1024 ? $"{bytes / 1024d / 1024d:0.#} MB" : $"{Math.Max(1, bytes / 1024)} KB";
+}

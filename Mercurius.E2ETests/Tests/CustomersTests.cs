@@ -4,7 +4,7 @@ using Xunit;
 
 namespace Mercurius.E2ETests.Tests;
 
-public class CustomersTests : MercuriusTestBase
+public class CustomersTests : BlazorTestBase
 {
     public CustomersTests(MercuriusCollectionFixture fixture) : base(fixture) { }
 
@@ -12,29 +12,41 @@ public class CustomersTests : MercuriusTestBase
     public async Task CustomersList_Loads()
     {
         await LoginAsAdminAsync();
-        await Page.GotoAsync("/Customers");
-        await Page.Locator("#customersTable").WaitForAsync(new LocatorWaitForOptions { Timeout = 10000 });
+        await GotoAppAsync("customers");
+        // The grid is server-paged; on a fresh test database it renders its empty state rather than
+        // rows, so assert that the grid itself resolved and that nothing failed server-side.
+        await Page.Locator("article.content .mud-table").WaitForAsync(new LocatorWaitForOptions { Timeout = BootTimeoutMs });
+        await Assertions.Expect(Page.Locator("article.content")).Not.ToContainTextAsync(
+            "error occurred while processing your request",
+            new LocatorAssertionsToContainTextOptions { Timeout = UiTimeoutMs });
+        await AssertNoBlazorErrorAsync();
     }
 
     [Fact]
     public async Task CreateCustomer_ThenAppearsInList()
     {
         await LoginAsAdminAsync();
-        await Page.GotoAsync("/Customers/Create");
+        await GotoAppAsync("customers");
 
-        var firstName = $"E2E{Guid.NewGuid():N}".Substring(0, 10);
-        var lastName = "TestPatient";
+        var firstName = $"E2E{Guid.NewGuid():N}"[..10];
+        const string lastName = "TestPatient";
 
-        await Page.FillAsync("#FirstName", firstName);
-        await Page.FillAsync("#LastName", lastName);
-        await Page.ClickAsync("button:has-text('Save')");
+        await Page.GetByRole(AriaRole.Button, new PageGetByRoleOptions { Name = "Add Customer", Exact = true }).ClickAsync();
+        await FillFieldAsync("First name", firstName);
+        await FillFieldAsync("Last name", lastName);
+        // The dialog's own submit button is "Add customer" — only case differs from the page's, so
+        // scope it to the dialog and match exactly.
+        await Page.Locator(".mud-dialog").GetByRole(AriaRole.Button, new LocatorGetByRoleOptions { Name = "Add customer", Exact = true })
+            .ClickAsync();
 
-        await Page.WaitForURLAsync(url => url.Contains("/Customers") && !url.Contains("Create"), new PageWaitForURLOptions { Timeout = 10000 });
+        var toast = await WaitForToastAsync();
+        Assert.Contains("Customer added.", toast);
 
-        // Index renders via DataTables AJAX, not server-side, so the redirect response itself
-        // won't contain the new row yet — search for it once the table has loaded. The search
-        // box only reacts to a real 'keyup' event, which Fill() doesn't dispatch.
-        await Page.Locator("#searchInput").PressSequentiallyAsync(firstName, new LocatorPressSequentiallyOptions { Delay = 20 });
-        await Page.Locator($"#customersTable tbody tr:has-text('{firstName}')").WaitForAsync(new LocatorWaitForOptions { Timeout = 10000 });
+        // The grid is server-paged and server-filtered, so find the new row through its own search.
+        await SearchAsync("Search by name, phone, email or ID...", firstName);
+        var row = Page.Locator(".mud-table-body tr.mud-table-row").Filter(new LocatorFilterOptions { HasTextString = firstName });
+        await Assertions.Expect(row).ToHaveCountAsync(1, new LocatorAssertionsToHaveCountOptions { Timeout = UiTimeoutMs });
+        await Assertions.Expect(row).ToContainTextAsync(lastName);
+        await AssertNoBlazorErrorAsync();
     }
 }

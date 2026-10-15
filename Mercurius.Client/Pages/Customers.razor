@@ -1,129 +1,112 @@
 @page "/customers"
-@attribute [Authorize]
+@attribute [Authorize(Policy = ModuleRegistry.Pages.CUSTOMER_LIST)]
+@using Mercurius.Client.Pages.Dialogs
 @inject CustomersApiClient Api
+@inject IDialogService DialogService
 @inject ISnackbar Snackbar
 
 <PageTitle>Customers</PageTitle>
 
 <div class="d-flex justify-content-between align-items-center mb-4">
     <MudText Typo="Typo.h4">Customers</MudText>
-    <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Filled.Add" OnClick="ShowCreateForm">
-        Add Customer
-    </MudButton>
+    @if (_user.Can(ModuleRegistry.Pages.CUSTOMER_ADD))
+    {
+        <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Filled.PersonAdd" OnClick="@(() => OpenAsync(null))">
+            Add Customer
+        </MudButton>
+    }
 </div>
 
-<MudTextField T="string" Value="_search" ValueChanged="OnSearchChanged" Label="Search customers..." Variant="Variant.Outlined"
-              Immediate="true" Adornment="Adornment.Start" AdornmentIcon="@Icons.Material.Filled.Search" Class="mb-4" Style="max-width:320px;" />
-
-@if (_showCreate)
-{
-    <MudPaper Class="pa-4 mb-4" Elevation="2">
-        <MudGrid>
-            <MudItem xs="12" md="3"><MudTextField @bind-Value="_newFirstName" Label="First name" Variant="Variant.Outlined" /></MudItem>
-            <MudItem xs="12" md="3"><MudTextField @bind-Value="_newLastName" Label="Last name" Variant="Variant.Outlined" /></MudItem>
-            <MudItem xs="12" md="3"><MudTextField @bind-Value="_newContactNumber" Label="Contact number" Variant="Variant.Outlined" /></MudItem>
-            <MudItem xs="12" md="3"><MudTextField @bind-Value="_newEmail" Label="Email" Variant="Variant.Outlined" /></MudItem>
-        </MudGrid>
-        @if (!string.IsNullOrEmpty(_createError))
-        {
-            <MudAlert Severity="Severity.Error" Class="mt-3">@_createError</MudAlert>
-        }
-        <div class="mt-3">
-            <MudButton Color="Color.Primary" Variant="Variant.Filled" OnClick="SubmitCreate">Save</MudButton>
-            <MudButton OnClick="@(() => _showCreate = false)">Cancel</MudButton>
-        </div>
-    </MudPaper>
-}
+<MudTextField T="string" Value="_search" ValueChanged="OnSearchChanged" Label="Search by name, phone, email or ID..." Variant="Variant.Outlined"
+              Immediate="true" Clearable="true" Adornment="Adornment.Start" AdornmentIcon="@Icons.Material.Filled.Search" Class="mb-4" Style="max-width:360px;" />
 
 <MudPaper Class="pa-2" Elevation="2">
-    <MudTable Items="@(_result?.Items ?? new())" Loading="_loading" Hover="true" Dense="true">
+    <MudTable T="CustomerListItemDto" @ref="_table" ServerData="LoadPageAsync" Hover="true" Dense="true" RowsPerPage="25"
+              OnRowClick="@((TableRowClickEventArgs<CustomerListItemDto> e) => OpenAsync(e.Item?.Id))" RowStyle="@(_canEdit ? "cursor:pointer;" : null)">
         <HeaderContent>
-            <MudTh>First name</MudTh>
-            <MudTh>Last name</MudTh>
+            <MudTh>Name</MudTh>
+            <MudTh>Age / gender</MudTh>
             <MudTh>Contact number</MudTh>
             <MudTh>Email</MudTh>
+            <MudTh>Status</MudTh>
         </HeaderContent>
         <RowTemplate>
-            <MudTd DataLabel="First name">@context.FirstName</MudTd>
-            <MudTd DataLabel="Last name">@context.LastName</MudTd>
+            <MudTd DataLabel="Name">@FullName(context)</MudTd>
+            <MudTd DataLabel="Age / gender">@AgeGender(context)</MudTd>
             <MudTd DataLabel="Contact number">@context.ContactNumber</MudTd>
             <MudTd DataLabel="Email">@context.EmailAddress</MudTd>
+            <MudTd DataLabel="Status">
+                <MudChip T="string" Size="Size.Small" Color="@(context.IsActive ? Color.Success : Color.Default)">@(context.IsActive ? "Active" : "Inactive")</MudChip>
+            </MudTd>
         </RowTemplate>
         <NoRecordsContent>
             <MudText>No customers found.</MudText>
         </NoRecordsContent>
+        <PagerContent>
+            <MudTablePager PageSizeOptions="@(new[] { 25, 50, 100 })" />
+        </PagerContent>
     </MudTable>
-    @if (_result is not null && _result.Items.Count > 0)
-    {
-        <MudText Typo="Typo.caption" Class="pa-2 d-block">Showing @_result.Items.Count of @_result.Total</MudText>
-    }
 </MudPaper>
 
 @code {
-    private CustomerListResultDto? _result;
-    private bool _loading = true;
+    [CascadingParameter] private Task<AuthenticationState> AuthState { get; set; } = default!;
+
+    private System.Security.Claims.ClaimsPrincipal _user = new();
+    private bool _canEdit;
+    private MudTable<CustomerListItemDto>? _table;
     private string _search = string.Empty;
     private CancellationTokenSource? _debounce;
 
-    private bool _showCreate;
-    private string _newFirstName = string.Empty;
-    private string _newLastName = string.Empty;
-    private string _newContactNumber = string.Empty;
-    private string _newEmail = string.Empty;
-    private string? _createError;
-
-    protected override async Task OnInitializedAsync() => await LoadAsync();
-
-    private async Task LoadAsync()
+    protected override async Task OnInitializedAsync()
     {
-        _loading = true;
-        _result = await Api.GetAsync(_search, page: 1, pageSize: 50);
-        _loading = false;
+        _user = (await AuthState).User;
+        _canEdit = _user.Can(ModuleRegistry.Pages.CUSTOMER_EDIT);
     }
 
-    private async Task OnSearchChanged(string value)
+    private async Task<TableData<CustomerListItemDto>> LoadPageAsync(TableState state, CancellationToken token)
     {
-        _search = value;
+        var result = await Api.GetAsync(_search, state.Page + 1, state.PageSize, token);
+        return new TableData<CustomerListItemDto> { Items = result.Items, TotalItems = result.Total };
+    }
+
+    private static string FullName(CustomerListItemDto c) =>
+        string.Join(" ", new[] { c.FirstName, c.MiddleName, c.LastName }.Where(p => !string.IsNullOrWhiteSpace(p)));
+
+    private static string AgeGender(CustomerListItemDto c) =>
+        string.Join(" · ", new[] { c.Age?.ToString(), c.Gender }.Where(p => !string.IsNullOrWhiteSpace(p)));
+
+    private async Task OnSearchChanged(string? value)
+    {
+        _search = value ?? string.Empty;
         _debounce?.Cancel();
         _debounce = new CancellationTokenSource();
         var token = _debounce.Token;
         try
         {
             await Task.Delay(300, token);
-            await LoadAsync();
-            StateHasChanged();
+            if (_table != null) await _table.ReloadServerData();
         }
-        catch (TaskCanceledException) { }
+        catch (TaskCanceledException)
+        {
+            // Superseded by a newer keystroke.
+        }
     }
 
-    private void ShowCreateForm()
+    // Null id adds a customer; otherwise edits one (if the role may).
+    private async Task OpenAsync(int? id)
     {
-        _showCreate = true;
-        _createError = null;
-        _newFirstName = _newLastName = _newContactNumber = _newEmail = string.Empty;
-    }
-
-    private async Task SubmitCreate()
-    {
-        if (string.IsNullOrWhiteSpace(_newFirstName))
+        if (id.HasValue && !_canEdit) return;
+        var parameters = new DialogParameters<CustomerDialog>
         {
-            _createError = "First name is required.";
-            return;
+            { d => d.CustomerId, id },
+            { d => d.CanDeactivate, _user.Can(ModuleRegistry.Pages.CUSTOMER_DELETE) }
+        };
+        var options = new DialogOptions { MaxWidth = MaxWidth.Medium, FullWidth = true, CloseButton = true };
+        var dialog = await DialogService.ShowAsync<CustomerDialog>(id.HasValue ? "Edit customer" : "Add customer", parameters, options);
+        if (await dialog.Result is { Canceled: false })
+        {
+            Snackbar.Add(id.HasValue ? "Customer saved." : "Customer added.", Severity.Success);
+            if (_table != null) await _table.ReloadServerData();
         }
-        var created = await Api.CreateAsync(new CreateCustomerRequest
-        {
-            FirstName = _newFirstName,
-            LastName = _newLastName,
-            ContactNumber = _newContactNumber,
-            EmailAddress = _newEmail
-        });
-        if (created == null)
-        {
-            _createError = "Failed to create customer.";
-            return;
-        }
-        _showCreate = false;
-        Snackbar.Add("Customer created.", Severity.Success);
-        await LoadAsync();
     }
 }

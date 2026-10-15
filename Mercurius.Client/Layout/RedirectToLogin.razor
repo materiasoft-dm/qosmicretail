@@ -1,0 +1,11 @@
+@* Sends a signed-out visitor to the sign-in page, returning here afterwards. Full page loads are
+   already redirected by the server; this covers navigation inside the running app. *@
+@inject NavigationManager Nav
+
+@code {
+    protected override void OnInitialized()
+    {
+        var returnUrl = "/" + Nav.ToBaseRelativePath(Nav.Uri);
+        Nav.NavigateTo($"account/login?ReturnUrl={Uri.EscapeDataString(returnUrl)}", forceLoad: true);
+    }
+}

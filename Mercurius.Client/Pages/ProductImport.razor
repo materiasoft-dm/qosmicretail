@@ -1,0 +1,233 @@
+@page "/products/import"
+@attribute [Authorize(Policy = ModuleRegistry.Pages.PRODUCTS_CREATE)]
+@implements IDisposable
+@inject ProductsApiClient Api
+@inject IJSRuntime JS
+
+<PageTitle>Import Products</PageTitle>
+
+<div class="d-flex justify-space-between align-center flex-wrap gap-2 mb-4">
+    <MudText Typo="Typo.h4">Import Products</MudText>
+    <MudButton Variant="Variant.Text" Href="products" StartIcon="@Icons.Material.Filled.ArrowBack">Products</MudButton>
+</div>
+
+<MudPaper Class="pa-4 mb-4" Elevation="2" Style="max-width:1000px;">
+    <MudAlert Severity="Severity.Info" Class="mb-4">
+        <MudText Typo="Typo.subtitle2">Upload a CSV with one product per row. Recognised columns:</MudText>
+        <ul class="mb-1 mt-1">
+            <li><b>SKU</b> (or Handle, ProductCode, Code): identifies the product, and matches existing ones</li>
+            <li><b>Name</b> (or Product, Title)</li>
+            <li><b>Category</b> (or Product Type): created if it doesn't exist yet</li>
+            <li><b>Description</b></li>
+            <li><b>Cost</b> (or CostPrice), <b>Price</b> (or SalePrice, SellingPrice)</li>
+            <li><b>In stock</b> (or Stock, Quantity)</li>
+        </ul>
+        <MudText Typo="Typo.body2">
+            Loyverse exports work as-is: per-store columns such as "Price [Main Store]" are read as "Price".
+            <MudLink Href="@SampleCsvHref" download="sample-products.csv">Download a sample CSV</MudLink>.
+        </MudText>
+    </MudAlert>
+
+    <div class="d-flex align-center flex-wrap gap-4">
+        <MudFileUpload T="IBrowserFile" FilesChanged="OnFileSelected" Accept=".csv" Disabled="IsRunning || _starting">
+            <CustomContent>
+                <MudButton Variant="Variant.Outlined" StartIcon="@Icons.Material.Filled.AttachFile" OnClick="@context.OpenFilePickerAsync" Disabled="IsRunning || _starting">
+                    Choose CSV file
+                </MudButton>
+            </CustomContent>
+            <SelectedTemplate></SelectedTemplate>
+        </MudFileUpload>
+        <MudText Typo="Typo.body2">@(_file?.Name ?? "No file chosen (20 MB max)")</MudText>
+    </div>
+
+    <MudCheckBox T="bool" @bind-Value="_updateExisting" Color="Color.Primary" Class="mt-2" Disabled="IsRunning || _starting"
+                 Label="Update existing products (otherwise rows whose SKU already exists are skipped)" />
+
+    @if (_error != null)
+    {
+        <MudAlert Severity="Severity.Error" Class="mt-3">@_error</MudAlert>
+    }
+
+    <div class="d-flex justify-end mt-4">
+        <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Filled.UploadFile"
+                   Disabled="_file == null || IsRunning || _starting" OnClick="StartAsync">
+            Import products
+        </MudButton>
+    </div>
+</MudPaper>
+
+@if (_lostJob)
+{
+    <MudAlert Severity="Severity.Warning" Class="mb-4" Style="max-width:1000px;">
+        The previous import's progress is no longer available (the server restarted). Check the product list for what was imported.
+    </MudAlert>
+}
+
+@if (_status != null)
+{
+    <MudPaper Class="pa-4" Elevation="2" Style="max-width:1000px;">
+        <div class="d-flex justify-space-between align-center mb-2">
+            <MudText Typo="Typo.h6" Color="@(_status.Status == "Failed" ? Color.Error : Color.Default)">@_status.Status</MudText>
+            @if (_status.Total > 0)
+            {
+                <MudText Typo="Typo.body2">@_status.Processed / @_status.Total</MudText>
+            }
+        </div>
+        <MudProgressLinear Value="@Percent" Color="@(_status.Status == "Failed" ? Color.Error : Color.Primary)" Size="Size.Large"
+                           Indeterminate="@(_status.Total == 0 && IsRunning)" Class="mb-4" />
+
+        @if (_status.Status == "Completed")
+        {
+            <MudAlert Severity="@(_status.Errors > 0 ? Severity.Warning : Severity.Success)" Class="mb-4">
+                Created @_status.Created, updated @_status.Updated, skipped @_status.Skipped, errors @_status.Errors.
+            </MudAlert>
+        }
+        else if (_status.Status == "Failed")
+        {
+            <MudAlert Severity="Severity.Error" Class="mb-4">Import failed: @(_status.ErrorMessage ?? "unknown error.")</MudAlert>
+        }
+
+        <MudText Typo="Typo.subtitle2" Class="mb-1">Activity log (newest first)</MudText>
+        <div style="height:260px; overflow-y:auto; font-family:monospace; font-size:0.85rem; white-space:pre-wrap; background:var(--mud-palette-background-gray); border-radius:4px; padding:12px;">
+            @foreach (var line in Enumerable.Reverse(_status.Log))
+            {
+                <div>@line</div>
+            }
+        </div>
+    </MudPaper>
+}
+
+@code {
+    // Same key the classic Import page used, so an import started there is picked up here too.
+    private const string JobStorageKey = "mercurius_import_job_id";
+
+    private const string SampleCsv =
+        "SKU,Name,Category,Description,Cost,Price,In stock\n" +
+        "AMOX-250,Amoxicillin 250mg Capsule,Medicines,Antibiotic,5.00,8.50,100\n" +
+        "PARA-500,Paracetamol 500mg Tablet,Medicines,Pain reliever,1.20,2.00,250\n";
+
+    private static readonly string SampleCsvHref = "data:text/csv;charset=utf-8," + Uri.EscapeDataString(SampleCsv);
+
+    private IBrowserFile? _file;
+    private bool _updateExisting;
+    private bool _starting;
+    private string? _error;
+    private ProductImportStatusDto? _status;
+    private bool _lostJob;
+    private CancellationTokenSource? _pollCts;
+
+    private bool IsRunning => _status != null && _status.Status is not ("Completed" or "Failed");
+    private double Percent => _status is { Total: > 0 } s ? Math.Round(100.0 * s.Processed / s.Total, 1) : 0;
+
+    protected override async Task OnInitializedAsync()
+    {
+        if (!RendererInfo.IsInteractive) return; // prerendering: show the loading state; the browser loads the data
+        // Resume showing an import that was still running when the page was left or reloaded.
+        var existingJobId = await TryGetStoredJobAsync();
+        if (!string.IsNullOrEmpty(existingJobId))
+        {
+            _ = TrackAsync(existingJobId);
+        }
+    }
+
+    private void OnFileSelected(IBrowserFile? file)
+    {
+        _error = null;
+        _file = file;
+        if (file != null && !file.Name.EndsWith(".csv", StringComparison.OrdinalIgnoreCase))
+        {
+            _error = "Please choose a .csv file.";
+            _file = null;
+        }
+    }
+
+    private async Task StartAsync()
+    {
+        if (_file == null) return;
+        _error = null;
+        _lostJob = false;
+        _starting = true;
+        try
+        {
+            var (jobId, error) = await Api.StartImportAsync(_file, _updateExisting);
+            if (jobId == null)
+            {
+                _error = error;
+                return;
+            }
+            await TrySetStoredJobAsync(jobId);
+            _status = new ProductImportStatusDto { Status = "Queued" };
+            _file = null;
+            _ = TrackAsync(jobId);
+        }
+        finally
+        {
+            _starting = false;
+        }
+    }
+
+    private async Task TrackAsync(string jobId)
+    {
+        _pollCts?.Cancel();
+        _pollCts = new CancellationTokenSource();
+        var token = _pollCts.Token;
+        try
+        {
+            while (!token.IsCancellationRequested)
+            {
+                var status = await Api.GetImportStatusAsync(jobId);
+                if (status == null)
+                {
+                    // The tracker is in-memory: a server restart forgets the job.
+                    _status = null;
+                    _lostJob = true;
+                    await TrySetStoredJobAsync(null);
+                    await InvokeAsync(StateHasChanged);
+                    return;
+                }
+
+                _status = status;
+                await InvokeAsync(StateHasChanged);
+                if (status.Status is "Completed" or "Failed")
+                {
+                    await TrySetStoredJobAsync(null);
+                    return;
+                }
+                await Task.Delay(1000, token);
+            }
+        }
+        catch (OperationCanceledException)
+        {
+            // Page left — the import itself keeps running on the server.
+        }
+        catch (HttpRequestException)
+        {
+            // Transient network error: keep the stored job id so returning to the page resumes it.
+        }
+    }
+
+    private async Task<string?> TryGetStoredJobAsync()
+    {
+        try { return await JS.InvokeAsync<string?>("localStorage.getItem", JobStorageKey); }
+        catch (JSException) { return null; }
+    }
+
+    private async Task TrySetStoredJobAsync(string? jobId)
+    {
+        try
+        {
+            if (jobId == null) await JS.InvokeVoidAsync("localStorage.removeItem", JobStorageKey);
+            else await JS.InvokeVoidAsync("localStorage.setItem", JobStorageKey, jobId);
+        }
+        catch (JSException)
+        {
+            // Storage unavailable (private mode) — progress just won't resume after a reload.
+        }
+    }
+
+    public void Dispose()
+    {
+        _pollCts?.Cancel();
+        _pollCts?.Dispose();
+    }
+}

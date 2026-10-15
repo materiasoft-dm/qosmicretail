@@ -1,34 +1,45 @@
 @page "/invoices"
-@attribute [Authorize]
+@attribute [Authorize(Policy = ModuleRegistry.Pages.INVOICE_INDEX)]
 @inject InvoicesApiClient Api
 @inject NavigationManager Nav
 
 <PageTitle>Invoices</PageTitle>
 
-<MudText Typo="Typo.h4" Class="mb-4">Invoices</MudText>
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <MudText Typo="Typo.h4">Invoices</MudText>
+    @if (_canSell)
+    {
+        <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Filled.PointOfSale" Href="sell">New sale</MudButton>
+    }
+</div>
 
 <MudTextField T="string" Value="_search" ValueChanged="OnSearchChanged" Label="Search by invoice # or customer..." Variant="Variant.Outlined"
-              Immediate="true" Adornment="Adornment.Start" AdornmentIcon="@Icons.Material.Filled.Search" Class="mb-4" Style="max-width:320px;" />
+              Immediate="true" Clearable="true" Adornment="Adornment.Start" AdornmentIcon="@Icons.Material.Filled.Search" Class="mb-4" Style="max-width:320px;" />
 
 <MudPaper Class="pa-2" Elevation="2">
-    <MudTable Items="@(_result?.Items ?? new())" Loading="_loading" Hover="true" Dense="true" OnRowClick="@((TableRowClickEventArgs<InvoiceListItemDto> e) => GoToInvoice(e.Item?.Id ?? 0))" T="InvoiceListItemDto">
+    <MudTable T="InvoiceListItemDto" @ref="_table" ServerData="LoadPageAsync" Hover="true" Dense="true" RowsPerPage="25"
+              OnRowClick="@((TableRowClickEventArgs<InvoiceListItemDto> e) => GoToInvoice(e.Item?.Id ?? 0))" RowStyle="cursor:pointer;">
         <HeaderContent>
-            <MudTh>Invoice #</MudTh>
-            <MudTh>Date</MudTh>
+            <MudTh><MudTableSortLabel T="InvoiceListItemDto" SortLabel="number">Invoice #</MudTableSortLabel></MudTh>
+            <MudTh><MudTableSortLabel T="InvoiceListItemDto" SortLabel="date" InitialDirection="SortDirection.Descending">Date</MudTableSortLabel></MudTh>
+            <MudTh><MudTableSortLabel T="InvoiceListItemDto" SortLabel="due">Due date</MudTableSortLabel></MudTh>
             <MudTh>Customer</MudTh>
-            <MudTh>Status</MudTh>
-            <MudTh Style="text-align:right;">Paid amount</MudTh>
+            <MudTh><MudTableSortLabel T="InvoiceListItemDto" SortLabel="status">Status</MudTableSortLabel></MudTh>
+            <MudTh Style="text-align:right;"><MudTableSortLabel T="InvoiceListItemDto" SortLabel="paid">Paid amount</MudTableSortLabel></MudTh>
             <MudTh></MudTh>
         </HeaderContent>
         <RowTemplate>
             <MudTd DataLabel="Invoice #">@context.InvoiceNumber</MudTd>
-            <MudTd DataLabel="Date">@context.InvoiceDate.ToString("yyyy-MM-dd")</MudTd>
+            <MudTd DataLabel="Date">@LocalTime.FormatDateTime(context.InvoiceDate)</MudTd>
+            <MudTd DataLabel="Due date">@(context.InvoiceDueDate.HasValue ? LocalTime.FormatDate(context.InvoiceDueDate.Value) : "")</MudTd>
             <MudTd DataLabel="Customer">@(string.IsNullOrEmpty(context.CustomerName) ? "(no customer)" : context.CustomerName)</MudTd>
             <MudTd DataLabel="Status">
                 <MudChip T="string" Size="Size.Small" Color="@StatusColor(context.StatusId)">@context.StatusName</MudChip>
                 @if (context.HasRefund)
                 {
-                    <MudIcon Icon="@Icons.Material.Filled.Replay" Size="Size.Small" Title="Has refund" Class="ms-1" />
+                    <MudTooltip Text="Has refund">
+                        <MudIcon Icon="@Icons.Material.Filled.Replay" Size="Size.Small" Color="Color.Error" Class="ms-1" />
+                    </MudTooltip>
                 }
             </MudTd>
             <MudTd DataLabel="Paid amount" Style="text-align:right;">@(context.PaidAmount.HasValue ? Money.Format(context.PaidAmount.Value) : "-")</MudTd>
@@ -39,53 +50,56 @@
         <NoRecordsContent>
             <MudText>No invoices found.</MudText>
         </NoRecordsContent>
+        <PagerContent>
+            <MudTablePager PageSizeOptions="@(new[] { 10, 25, 50, 100 })" />
+        </PagerContent>
     </MudTable>
-    @if (_result is not null && _result.Items.Count > 0)
-    {
-        <MudText Typo="Typo.caption" Class="pa-2 d-block">Showing @_result.Items.Count of @_result.Total</MudText>
-    }
 </MudPaper>
 
 @code {
-    private InvoiceListResultDto? _result;
-    private bool _loading = true;
+    [CascadingParameter] private Task<AuthenticationState> AuthState { get; set; } = default!;
+
+    private bool _canSell;
+    private MudTable<InvoiceListItemDto>? _table;
     private string _search = string.Empty;
     private CancellationTokenSource? _debounce;
 
-    protected override async Task OnInitializedAsync() => await LoadAsync();
-
-    // Deliberately no leading "/" — this app is hosted under /app (see
-    // Mercurius.Client.csproj's StaticWebAssetBasePath), and a leading-slash path resolves
-    // against the site root per normal browser URL rules, ignoring <base href>. That sent
-    // real browser navigations to /invoices/{id} on the server (which the MVC app doesn't
-    // recognize — a 404) instead of staying inside the Blazor router. A relative path resolves
-    // against the current <base href> correctly.
-    private void GoToInvoice(int id) => Nav.NavigateTo("invoices/" + id);
-
-    private async Task LoadAsync()
+    protected override async Task OnInitializedAsync()
     {
-        _loading = true;
-        _result = await Api.GetAsync(_search, page: 1, pageSize: 50);
-        _loading = false;
+        _canSell = (await AuthState).User.Can(ModuleRegistry.Pages.NEWSALE_CREATE);
     }
 
-    private async Task OnSearchChanged(string value)
+    private async Task<TableData<InvoiceListItemDto>> LoadPageAsync(TableState state, CancellationToken token)
     {
-        _search = value;
+        var desc = state.SortDirection != SortDirection.Ascending;
+        var result = await Api.GetAsync(_search, state.Page + 1, state.PageSize, state.SortLabel, desc, token);
+        return new TableData<InvoiceListItemDto> { Items = result.Items, TotalItems = result.Total };
+    }
+
+    private void GoToInvoice(int id)
+    {
+        if (id > 0) Nav.NavigateTo($"invoices/{id}");
+    }
+
+    private async Task OnSearchChanged(string? value)
+    {
+        _search = value ?? string.Empty;
         _debounce?.Cancel();
         _debounce = new CancellationTokenSource();
         var token = _debounce.Token;
         try
         {
             await Task.Delay(300, token);
-            await LoadAsync();
-            StateHasChanged();
+            if (_table != null) await _table.ReloadServerData();
         }
-        catch (TaskCanceledException) { }
+        catch (TaskCanceledException)
+        {
+            // Superseded by a newer keystroke.
+        }
     }
 
-    // Mirrors Views/Invoices/Index.cshtml's statusBadgeClass(): 1 Draft, 2 Completed,
-    // 3 Finalized, 4 Refunded, 5 Deleted, 6 DeferredPayment, 7 PartiallyPaid.
+    // StatusCollection.InvoiceStatus: 1 Draft, 2 Completed, 3 Finalized, 4 Refunded, 5 Deleted,
+    // 6 DeferredPayment, 7 PartiallyPaid.
     private static Color StatusColor(int statusId) => statusId switch
     {
         1 => Color.Secondary,

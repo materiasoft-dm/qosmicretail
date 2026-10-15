@@ -1,7 +1,8 @@
 @page "/logs"
-@attribute [Authorize]
+@attribute [Authorize(Policy = ModuleRegistry.Pages.ADMIN_USERS_MANAGEMENT)]
 @inject LogsApiClient Api
 @inject ISnackbar Snackbar
+@inject IDialogService DialogService
 
 <PageTitle>Logs</PageTitle>
 
@@ -14,9 +15,14 @@
 
 @if (_selectedFile != null)
 {
-    <MudButton Variant="Variant.Outlined" Class="mb-3" StartIcon="@Icons.Material.Filled.ArrowBack" OnClick="@(() => _selectedFile = null)">
-        Back to file list
-    </MudButton>
+    <div class="d-flex gap-2 mb-3">
+        <MudButton Variant="Variant.Outlined" StartIcon="@Icons.Material.Filled.ArrowBack" OnClick="@(() => _selectedFile = null)">
+            Back to file list
+        </MudButton>
+        <MudButton Variant="Variant.Outlined" StartIcon="@Icons.Material.Filled.Download" Href="@DownloadUrl(_selectedFile)" Target="_self">
+            Download
+        </MudButton>
+    </div>
     <MudText Typo="Typo.h6" Class="mb-2">@_selectedFile</MudText>
     <MudPaper Class="pa-3" Style="max-height: 70vh; overflow-y: auto; font-family: monospace; font-size: 0.85rem;" Elevation="2">
         @foreach (var line in _lines)
@@ -28,20 +34,30 @@
 else
 {
     <MudPaper Class="pa-2" Elevation="2">
-        <MudTable Items="@(_files ?? new())" Loading="@(_files is null)" Hover="true" Dense="true" OnRowClick="@((TableRowClickEventArgs<LogFileDto> e) => OpenFile(e.Item?.FileName ?? string.Empty))" T="LogFileDto">
+        <MudTable RowsPerPage="25" Items="@(_files ?? new())" Loading="@(_files is null)" Hover="true" Dense="true" OnRowClick="@((TableRowClickEventArgs<LogFileDto> e) => OpenFile(e.Item?.FileName ?? string.Empty))" T="LogFileDto">
             <HeaderContent>
                 <MudTh>File</MudTh>
                 <MudTh>Last modified</MudTh>
                 <MudTh Style="text-align:right;">Size</MudTh>
+                <MudTh></MudTh>
             </HeaderContent>
             <RowTemplate>
                 <MudTd DataLabel="File">@context.FileName</MudTd>
-                <MudTd DataLabel="Last modified">@context.LastModified.ToString("yyyy-MM-dd HH:mm:ss")</MudTd>
+                <MudTd DataLabel="Last modified">@LocalTime.FromUtc(context.LastModified).ToString("yyyy-MM-dd HH:mm:ss")</MudTd>
                 <MudTd DataLabel="Size" Style="text-align:right;">@(context.Size / 1024) KB</MudTd>
+                <MudTd Style="text-align:right;">
+                    @* Stops the row's own click (open the file) from also firing. *@
+                    <div class="d-inline-flex" @onclick:stopPropagation="true">
+                        <MudIconButton Icon="@Icons.Material.Filled.Download" Size="Size.Small" Href="@DownloadUrl(context.FileName)" Target="_self" aria-label="Download" />
+                    </div>
+                </MudTd>
             </RowTemplate>
             <NoRecordsContent>
                 <MudText>No log files found.</MudText>
             </NoRecordsContent>
+            <PagerContent>
+                <MudTablePager PageSizeOptions="@(new[] { 25, 50, 100 })" />
+            </PagerContent>
         </MudTable>
     </MudPaper>
 }
@@ -51,7 +67,11 @@ else
     private string? _selectedFile;
     private List<LogLineDto> _lines = new();
 
-    protected override async Task OnInitializedAsync() => await LoadAsync();
+    protected override async Task OnInitializedAsync()
+    {
+        if (!RendererInfo.IsInteractive) return; // prerendering: show the loading state; the browser loads the data
+        await LoadAsync();
+    }
     private async Task LoadAsync() => _files = await Api.GetAsync();
 
     private async Task OpenFile(string fileName)
@@ -60,8 +80,15 @@ else
         _lines = await Api.GetLinesAsync(fileName);
     }
 
+    // A server endpoint outside the app, so the browser downloads it rather than routing.
+    private static string DownloadUrl(string fileName) => $"/api/logs/{Uri.EscapeDataString(fileName)}/download";
+
     private async Task ClearAll()
     {
+        var confirmed = await DialogService.ShowMessageBoxAsync("Clear all logs?",
+            "Every log file on the server will be deleted. This can't be undone.", yesText: "Delete logs", cancelText: "Cancel");
+        if (confirmed != true) return;
+
         await Api.ClearAsync();
         _selectedFile = null;
         Snackbar.Add("Logs cleared.", Severity.Success);

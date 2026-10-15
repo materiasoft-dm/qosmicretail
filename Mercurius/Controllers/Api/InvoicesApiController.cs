@@ -13,14 +13,10 @@ using Microsoft.AspNetCore.Mvc;
 
 namespace Mercurius.Controllers.Api
 {
-    // JSON equivalent of InvoiceListController.DataTable — mirrors its customer-name batch
-    // lookup and enum-derived statusName exactly, and applies no IsActive/status exclusion
-    // (matching that controller: even "Deleted"-status invoices still list, status is purely
-    // a display concern there).
-    // Route is "api/invoice-list", not "api/invoices" — Controllers/InvoicesController.cs
-    // already owns that route (a pre-existing, differently-shaped API for other consumers);
-    // this is a separate endpoint purpose-built for the Blazor Invoices page, mirroring
-    // InvoiceListController.DataTable instead.
+    // Invoices page, invoice details and refunds. Applies no IsActive/status exclusion — even
+    // "Deleted"-status invoices still list; status is purely a display concern.
+    // Route is "api/invoice-list", not "api/invoices": that route belonged to an older,
+    // differently-shaped API, and an old client calling it should get a 404, not this shape.
     [ApiController]
     [Route("api/invoice-list")]
     [Authorize(Policy = Mercurius.Common.ModuleRegistry.Pages.INVOICE_INDEX)]
@@ -35,8 +31,10 @@ namespace Mercurius.Controllers.Api
             _adjustmentService = adjustmentService;
         }
 
+        // sortBy: number | date (default) | due | status | paid.
         [HttpGet]
-        public ActionResult<InvoiceListResultDto> Get(string? search = null, int page = 1, int pageSize = 25, CancellationToken ct = default)
+        public ActionResult<InvoiceListResultDto> Get(string? search = null, int page = 1, int pageSize = 25,
+            string? sortBy = null, bool desc = true, CancellationToken ct = default)
         {
             ct.ThrowIfCancellationRequested();
             if (page < 1) page = 1;
@@ -59,7 +57,16 @@ namespace Mercurius.Controllers.Api
             }
 
             var total = query.Count();
-            var pageItems = query.OrderByDescending(i => i.InvoiceDate)
+            // SQLite can't ORDER BY a decimal column, so paid amount sorts as a double.
+            IOrderedQueryable<Invoice> ordered = (sortBy ?? "date").ToLowerInvariant() switch
+            {
+                "number" => desc ? query.OrderByDescending(i => i.InvoiceNumber) : query.OrderBy(i => i.InvoiceNumber),
+                "due" => desc ? query.OrderByDescending(i => i.InvoiceDueDate) : query.OrderBy(i => i.InvoiceDueDate),
+                "status" => desc ? query.OrderByDescending(i => i.StatusId) : query.OrderBy(i => i.StatusId),
+                "paid" => desc ? query.OrderByDescending(i => (double?)i.PaidAmount) : query.OrderBy(i => (double?)i.PaidAmount),
+                _ => desc ? query.OrderByDescending(i => i.InvoiceDate) : query.OrderBy(i => i.InvoiceDate)
+            };
+            var pageItems = ordered.ThenByDescending(i => i.Id)
                 .Skip((page - 1) * pageSize).Take(pageSize).ToList();
 
             var customerIds = pageItems.Where(i => i.CustomerId.HasValue).Select(i => i.CustomerId!.Value).Distinct().ToList();
@@ -92,8 +99,7 @@ namespace Mercurius.Controllers.Api
             return Ok(new InvoiceListResultDto { Items = items, Total = total });
         }
 
-        // Mirrors InvoiceListController.Details exactly — see that action's own comments for
-        // the batch-resolve reasoning (no N+1 for refund reasons/headers).
+        // Refund reasons and refund headers are resolved in one batch each (no N+1 per line).
         [HttpGet("{id}")]
         [Authorize(Policy = Mercurius.Common.ModuleRegistry.Pages.INVOICE_VIEW)]
         public async Task<ActionResult<InvoiceDetailDto>> GetDetail(int id, CancellationToken ct = default)
@@ -174,9 +180,9 @@ namespace Mercurius.Controllers.Api
             });
         }
 
-        // Mirrors RefundsController.Create exactly — see that action's own comments (never trust
-        // a client-computed max refundable quantity; the "Refund" AdjustmentReason is looked up
-        // or created on demand; invoice flips to Refunded only once every line is fully refunded).
+        // Never trusts a client-computed max refundable quantity; the "Refund" AdjustmentReason is
+        // looked up or created on demand; the invoice flips to Refunded only once every line is
+        // fully refunded.
         [HttpPost("refund")]
         [Authorize(Policy = Mercurius.Common.ModuleRegistry.Pages.REFUND_CREATE)]
         public async Task<IActionResult> CreateRefund(CreateRefundRequest request, CancellationToken ct = default)

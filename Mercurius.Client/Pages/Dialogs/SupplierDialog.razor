@@ -1,0 +1,63 @@
+@inject SuppliersApiClient Api
+
+<MudDialog>
+    <DialogContent>
+        <MudTextField @bind-Value="_name" Label="Supplier name" Variant="Variant.Outlined" Class="mb-3" AutoFocus="true" />
+        @if (Existing != null)
+        {
+            <MudSwitch @bind-Value="_isActive" Color="Color.Primary" Label="Active" />
+            <MudText Typo="Typo.caption" Class="d-block mt-1">
+                Turning this off removes the supplier from purchase-order pickers; its history is kept.
+            </MudText>
+        }
+        @if (_error != null)
+        {
+            <MudAlert Severity="Severity.Error" Class="mt-2">@_error</MudAlert>
+        }
+    </DialogContent>
+    <DialogActions>
+        <MudButton OnClick="Cancel">Cancel</MudButton>
+        <MudButton Color="Color.Primary" Variant="Variant.Filled" Disabled="_busy" OnClick="Save">Save</MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    [CascadingParameter] private IMudDialogInstance MudDialog { get; set; } = default!;
+
+    // Null to add a new supplier.
+    [Parameter] public SupplierListItemDto? Existing { get; set; }
+
+    private string _name = string.Empty;
+    private bool _isActive = true;
+    private bool _busy;
+    private string? _error;
+
+    protected override void OnInitialized()
+    {
+        if (Existing == null) return;
+        _name = Existing.Name;
+        _isActive = Existing.IsActive;
+    }
+
+    private async Task Save()
+    {
+        _error = null;
+        if (string.IsNullOrWhiteSpace(_name)) { _error = "Name is required."; return; }
+
+        _busy = true;
+        try
+        {
+            var ok = Existing == null
+                ? await Api.CreateAsync(new CreateSupplierRequest { Name = _name }) != null
+                : await Api.UpdateAsync(Existing.Id, new UpdateSupplierRequest { Name = _name, IsActive = _isActive });
+            if (!ok) { _error = "The supplier couldn't be saved."; return; }
+            MudDialog.Close(DialogResult.Ok(true));
+        }
+        finally
+        {
+            _busy = false;
+        }
+    }
+
+    private void Cancel() => MudDialog.Cancel();
+}

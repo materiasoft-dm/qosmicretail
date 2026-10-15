@@ -4,9 +4,11 @@ namespace Mercurius.Shared.Products
     {
         public int Id { get; set; }
         public string ProductCode { get; set; } = string.Empty;
+        public string? Barcode { get; set; }
         public string Name { get; set; } = string.Empty;
         public string? Category { get; set; }
         public decimal Stock { get; set; }
+        public decimal? CostPrice { get; set; }
         public decimal? SalePrice { get; set; }
         public decimal LowStockCount { get; set; }
         public bool IsActive { get; set; }

@@ -16,9 +16,12 @@ namespace Mercurius.Services.Auditing
         public const string LoginFailed = "LoginFailed";
         public const string LockedOut = "LockedOut";
         public const string Logout = "Logout";
+        public const string PasswordChanged = "PasswordChanged";
+        public const string PasswordReset = "PasswordReset";
         public const string DataQueryExecuted = "DataQueryExecuted";
         public const string DataQueryFailed = "DataQueryFailed";
         public const string DataQueryRejected = "DataQueryRejected";
+        public const string MobileAppDownloaded = "MobileAppDownloaded";
     }
 
     // Identifies the actor explicitly, for events where HttpContext.User isn't (yet, or any

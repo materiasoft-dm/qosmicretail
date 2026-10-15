@@ -21,9 +21,9 @@ namespace Mercurius.Tests.Repositories
             var options = new DbContextOptionsBuilder<MercuriusDbContext>()
                 .UseSqlite(_connection)
                 .Options;
-            _context = new MercuriusDbContext(options);
+            _context = new MercuriusDbContext(options, TestTenantContext.Instance);
             _context.Database.EnsureCreated();
-            _unitOfWork = new EfUnitOfWork(_context);
+            _unitOfWork = new EfUnitOfWork(_context, TestTenantContext.Instance);
         }
 
         public void Dispose()
@@ -127,7 +127,7 @@ namespace Mercurius.Tests.Repositories
         public void Dispose_ShouldNotThrowException()
         {
             // Act & Assert
-            var uow = new EfUnitOfWork(_context);
+            var uow = new EfUnitOfWork(_context, TestTenantContext.Instance);
             uow.Dispose();
         }
     }

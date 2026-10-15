@@ -1,0 +1,171 @@
+@using System.Text.Json
+@inject AuditTrailApiClient Api
+
+@* The title comes from the caller (AuditTrail.Title): MudBlazor renders a dialog's title outside
+   this component, so a title that changed after loading here wouldn't be redrawn. *@
+<MudDialog>
+    <DialogContent>
+        @if (_notFound)
+        {
+            <MudAlert Severity="Severity.Warning">That entry no longer exists.</MudAlert>
+        }
+        else if (_entry == null)
+        {
+            <MudProgressLinear Indeterminate="true" Color="Color.Primary" />
+        }
+        else
+        {
+            <MudSimpleTable Dense="true" Class="mb-4">
+                <tbody>
+                    @InfoRow("When", LocalTime.FromUtc(_entry.TimestampUtc).ToString("yyyy-MM-dd HH:mm:ss"))
+                    @InfoRow("Summary", _entry.Summary)
+                    @InfoRow("User", _entry.UserName)
+                    @InfoRow("User id", _entry.UserId)
+                    @InfoRow("Branch", _entry.LocationName == null ? null : $"{_entry.LocationName} (#{_entry.LocationId})")
+                    @InfoRow("Source", _entry.Source)
+                    @InfoRow("Device", _entry.DeviceName)
+                    @InfoRow("Device id", _entry.DeviceId)
+                    @InfoRow("App version", _entry.AppVersion)
+                    @InfoRow("IP address", _entry.IpAddress)
+                    @InfoRow("Request", _entry.HttpMethod == null ? null : $"{_entry.HttpMethod} {_entry.RequestPath}")
+                    @InfoRow("Browser / client", _entry.UserAgent)
+                    @InfoRow("Request id", _entry.CorrelationId)
+                </tbody>
+            </MudSimpleTable>
+
+            <MudText Typo="Typo.subtitle1" Class="mb-2"><b>Details</b></MudText>
+            @if (_rawDetails != null)
+            {
+                <pre style="white-space:pre-wrap; font-size:0.8rem;">@_rawDetails</pre>
+            }
+            else if (_rows.Count == 0)
+            {
+                <MudText Typo="Typo.body2" Class="mud-text-secondary">None recorded.</MudText>
+            }
+            else
+            {
+                <MudSimpleTable Dense="true" Bordered="true">
+                    <thead>
+                        <tr>
+                            <th>Field</th>
+                            @if (_isDiff)
+                            {
+                                <th>Before</th>
+                                <th>After</th>
+                            }
+                            else
+                            {
+                                <th>Value</th>
+                            }
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var row in _rows)
+                        {
+                            <tr>
+                                <td><b>@row.Field</b></td>
+                                @if (_isDiff)
+                                {
+                                    <td style="color:var(--mud-palette-error); word-break:break-word;">@row.Before</td>
+                                    <td style="color:var(--mud-palette-success); word-break:break-word;">@row.After</td>
+                                }
+                                else
+                                {
+                                    <td style="word-break:break-word;">@row.Value</td>
+                                }
+                            </tr>
+                        }
+                    </tbody>
+                </MudSimpleTable>
+            }
+        }
+    </DialogContent>
+    <DialogActions>
+        @if (!string.IsNullOrEmpty(_entry?.CorrelationId))
+        {
+            <MudButton Variant="Variant.Outlined" Color="Color.Primary" OnClick="ShowSameRequest">Show everything from this request</MudButton>
+        }
+        <MudButton OnClick="Close">Close</MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    [CascadingParameter] private IMudDialogInstance MudDialog { get; set; } = default!;
+    [Parameter] public long EntryId { get; set; }
+
+    private AuditLogDetailDto? _entry;
+    private bool _notFound;
+    private bool _isDiff;
+    private string? _rawDetails;
+    private readonly List<DetailRow> _rows = new();
+
+    private sealed record DetailRow(string Field, string? Value, string? Before, string? After);
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            _entry = await Api.GetDetailAsync(EntryId);
+        }
+        catch (HttpRequestException)
+        {
+            _entry = null;
+        }
+        _notFound = _entry == null;
+        ParseDetails(_entry?.Details);
+    }
+
+    private static RenderFragment InfoRow(string label, string? value) => __builder =>
+    {
+        if (!string.IsNullOrEmpty(value))
+        {
+            <tr>
+                <th style="width:170px; font-weight:500;" class="mud-text-secondary">@label</th>
+                <td style="word-break:break-word;">@value</td>
+            </tr>
+        }
+    };
+
+    // Updates are stored as {field: {old, new}}; everything else as {field: value}.
+    private void ParseDetails(string? json)
+    {
+        _rows.Clear();
+        _rawDetails = null;
+        _isDiff = false;
+        if (string.IsNullOrWhiteSpace(json)) return;
+
+        try
+        {
+            using var doc = JsonDocument.Parse(json);
+            if (doc.RootElement.ValueKind != JsonValueKind.Object)
+            {
+                _rawDetails = json;
+                return;
+            }
+            var props = doc.RootElement.EnumerateObject().ToList();
+            _isDiff = props.Count > 0 && props.All(p => p.Value.ValueKind == JsonValueKind.Object
+                && p.Value.TryGetProperty("old", out _) && p.Value.TryGetProperty("new", out _));
+            foreach (var p in props)
+            {
+                _rows.Add(_isDiff
+                    ? new DetailRow(p.Name, null, FormatValue(p.Value.GetProperty("old")), FormatValue(p.Value.GetProperty("new")))
+                    : new DetailRow(p.Name, FormatValue(p.Value), null, null));
+            }
+        }
+        catch (JsonException)
+        {
+            _rawDetails = json;
+        }
+    }
+
+    private static string FormatValue(JsonElement value) => value.ValueKind switch
+    {
+        JsonValueKind.Null or JsonValueKind.Undefined => "∅",
+        JsonValueKind.String => value.GetString() ?? "∅",
+        _ => value.GetRawText()
+    };
+
+    private void ShowSameRequest() => MudDialog.Close(DialogResult.Ok(_entry!.CorrelationId));
+
+    private void Close() => MudDialog.Cancel();
+}

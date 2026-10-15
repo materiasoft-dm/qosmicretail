@@ -1,6 +1,10 @@
+@using System.Security.Claims
+@using Mercurius.Shared.Account
 @implements IDisposable
 @inject NavigationManager Nav
 @inject Mercurius.Client.Services.PwaService Pwa
+@inject Mercurius.Client.Services.CurrentUserState CurrentUser
+@inject ISnackbar Snackbar
 
 <div class="sidebar-topbar">
     <a class="brand" href="">
@@ -21,16 +25,51 @@
 }
 
 <nav class="sidebar-nav @(_mobileOpen ? "mobile-open" : "")">
+    @if (Me.Branches.Count > 0)
+    {
+        @* The branch this user works in — stock, sales and dashboards follow it. *@
+        <div class="branch-switcher">
+            <button type="button" class="branch-current" id="branchSwitcher" @onclick="ToggleBranches" disabled="@(Me.Branches.Count < 2 || _switching)">
+                <i class="bi bi-shop"></i>
+                <span class="branch-text">
+                    <span class="branch-label">Branch</span>
+                    <span class="branch-name">@(Me.CurrentLocationName ?? "No branch")</span>
+                </span>
+                @if (Me.Branches.Count > 1)
+                {
+                    <i class="bi bi-chevron-down branch-chevron @(_branchesOpen ? "branch-chevron-open" : "")"></i>
+                }
+            </button>
+            @if (_branchesOpen)
+            {
+                <div class="branch-options">
+                    @foreach (var branch in Me.Branches)
+                    {
+                        var isCurrent = branch.Id == Me.CurrentLocationId;
+                        <button type="button" class="branch-option @(isCurrent ? "current" : "")" @onclick="() => SwitchBranchAsync(branch)">
+                            <i class="bi @(isCurrent ? "bi-check2" : "bi-shop-window")"></i> <span>@branch.Name</span>
+                        </button>
+                    }
+                </div>
+            }
+        </div>
+    }
+
     <NavLink class="nav-link standalone" href="" Match="NavLinkMatch.All" @onclick="CloseMobile">
         <i class="bi bi-speedometer2"></i> <span>Dashboard</span>
     </NavLink>
 
-    <NavLink class="nav-link standalone nav-link-cta" href="sell" @onclick="CloseMobile">
-        <i class="bi bi-lightning-charge-fill"></i> <span>Sell</span>
-    </NavLink>
+    @if (_user.Can(ModuleRegistry.Pages.NEWSALE_CREATE))
+    {
+        <NavLink class="nav-link standalone nav-link-cta" href="sell" @onclick="CloseMobile">
+            <i class="bi bi-lightning-charge-fill"></i> <span>Sell</span>
+        </NavLink>
+    }
 
     @foreach (var group in _groups)
     {
+        var items = group.Items.Where(i => i.Visible(_user, Me)).ToList();
+        if (items.Count == 0) continue;
         <div class="nav-group">
             <button type="button" class="nav-group-header" @onclick="() => ToggleGroup(group.Title)">
                 <i class="bi @group.Icon"></i>
@@ -39,7 +78,7 @@
             </button>
             <div class="nav-group-items @(IsExpanded(group.Title) ? "expanded" : "")">
                 <div>
-                    @foreach (var item in group.Items)
+                    @foreach (var item in items)
                     {
                         <NavLink class="nav-link" href="@item.Href" @onclick="CloseMobile">
                             <i class="bi @item.Icon"></i> <span>@item.Text</span>
@@ -50,8 +89,16 @@
         </div>
     }
 
-    <NavLink class="nav-link standalone" href="reports" @onclick="CloseMobile">
-        <i class="bi bi-bar-chart-line-fill"></i> <span>Reports</span>
+    @if (_user.CanAny(ModuleRegistry.Pages.REPORT_INVENTORY, ModuleRegistry.Pages.REPORT_SALES, ModuleRegistry.Pages.REPORT_SHIPMENT,
+        ModuleRegistry.Pages.REPORT_REFUND, ModuleRegistry.Pages.REPORT_ADJUSTMENTS))
+    {
+        <NavLink class="nav-link standalone" href="reports" @onclick="CloseMobile">
+            <i class="bi bi-bar-chart-line-fill"></i> <span>Reports</span>
+        </NavLink>
+    }
+
+    <NavLink class="nav-link standalone" href="downloads" @onclick="CloseMobile">
+        <i class="bi bi-windows"></i> <span>Download Mobile App</span>
     </NavLink>
 
     @if (_showInstallButton)
@@ -63,52 +110,81 @@
 </nav>
 
 @code {
-    private record NavItem(string Text, string Href, string Icon);
+    [CascadingParameter] private Task<AuthenticationState>? AuthState { get; set; }
+
+    // Each link is shown only to roles that can open its page (the same permission the page and
+    // its API require), so nobody is offered a page that would just say "no access".
+    private record NavItem(string Text, string Href, string Icon, Func<ClaimsPrincipal, CurrentUserDto, bool> Visible);
     private record NavGroup(string Title, string Icon, List<NavItem> Items);
 
-    private readonly List<NavGroup> _groups = new()
+    private static Func<ClaimsPrincipal, CurrentUserDto, bool> Page(string page) => (user, _) => user.Can(page);
+
+    private static readonly List<NavGroup> _groups = new()
     {
         new("Sales", "bi-receipt-cutoff", new()
         {
-            new("Invoices", "invoices", "bi-journal-text"),
-            new("Customers", "customers", "bi-people-fill"),
-            new("Refund Reasons", "refund-reasons", "bi-arrow-return-left"),
+            new("Invoices", "invoices", "bi-journal-text", Page(ModuleRegistry.Pages.INVOICE_INDEX)),
+            new("Customers", "customers", "bi-people-fill", Page(ModuleRegistry.Pages.CUSTOMER_LIST)),
+            new("Refund Reasons", "refund-reasons", "bi-arrow-return-left", Page(ModuleRegistry.Pages.CONFIG_REFUND_REASONS)),
         }),
         new("Catalog", "bi-box-seam", new()
         {
-            new("Products", "products", "bi-capsule"),
-            new("Product Categories", "product-categories", "bi-tags-fill"),
-            new("Category Fields", "category-fields", "bi-input-cursor-text"),
+            new("Products", "products", "bi-capsule", Page(ModuleRegistry.Pages.PRODUCTS_INDEX)),
+            new("Product Categories", "product-categories", "bi-tags-fill", Page(ModuleRegistry.Pages.CONFIG_PRODUCT_CATEGORIES)),
+            new("Category Fields", "category-fields", "bi-input-cursor-text", Page(ModuleRegistry.Pages.CONFIG_CATEGORY_FIELDS)),
         }),
         new("Purchasing", "bi-truck", new()
         {
-            new("Suppliers", "suppliers", "bi-building"),
-            new("Purchase Orders", "purchase-orders", "bi-clipboard-check"),
-            new("Shipments", "shipments", "bi-box-arrow-in-down"),
+            new("Suppliers", "suppliers", "bi-building", Page(ModuleRegistry.Pages.CONFIG_SUPPLIERS)),
+            new("Purchase Orders", "purchase-orders", "bi-clipboard-check", Page(ModuleRegistry.Pages.PURCHASE_ORDERS_LIST)),
+            new("Shipments", "shipments", "bi-box-arrow-in-down", Page(ModuleRegistry.Pages.SHIPMENT_LIST)),
         }),
         new("Inventory", "bi-archive-fill", new()
         {
-            new("Adjustments", "adjustments", "bi-sliders"),
-            new("Adjustment Reasons", "adjustment-reasons", "bi-list-check"),
-            new("Locations", "locations", "bi-geo-alt-fill"),
+            new("Adjustments", "adjustments", "bi-sliders", Page(ModuleRegistry.Pages.ADJUSTMENTS_INDEX)),
+            new("Adjustment Reasons", "adjustment-reasons", "bi-list-check", Page(ModuleRegistry.Pages.CONFIG_ADJUSTMENT_REASONS)),
+            new("Locations", "locations", "bi-geo-alt-fill", Page(ModuleRegistry.Pages.CONFIG_LOCATIONS)),
         }),
         new("Administration", "bi-shield-lock-fill", new()
         {
-            new("Roles", "roles-manager", "bi-person-badge-fill"),
-            new("Users", "users-admin", "bi-people"),
-            new("Logs", "logs", "bi-terminal-fill"),
-            new("Settings", "settings", "bi-gear-fill"),
+            new("Roles", "roles-manager", "bi-person-badge-fill", Page(ModuleRegistry.Pages.ADMIN_ROLES_MANAGEMENT)),
+            new("Users", "users-admin", "bi-people", Page(ModuleRegistry.Pages.ADMIN_USERS_MANAGEMENT)),
+            new("Audit Trail", "audit-trail", "bi-clock-history", Page(ModuleRegistry.Pages.ADMIN_AUDIT_TRAIL)),
+            new("Logs", "logs", "bi-terminal-fill", Page(ModuleRegistry.Pages.ADMIN_USERS_MANAGEMENT)),
+            new("Database Backups", "database-backups", "bi-database-down",
+                (user, me) => me.DatabaseBackupsEnabled && user.Can(ModuleRegistry.Pages.CONFIG_DATABASE_BACKUPS)),
+            new("Data Query", "data-query", "bi-database-exclamation", Page(ModuleRegistry.Pages.ADMIN_DATA_QUERY)),
+            new("Tenants", "platform-admin", "bi-buildings", (user, _) => user.IsPlatformAdmin()),
+            new("Settings", "settings", "bi-gear-fill", (user, _) => user.CanAny(
+                ModuleRegistry.Pages.ADMIN_ROLES_MANAGEMENT, ModuleRegistry.Pages.ADMIN_USERS_MANAGEMENT,
+                ModuleRegistry.Pages.CONFIG_PRODUCT_CATEGORIES, ModuleRegistry.Pages.CONFIG_LOCATIONS,
+                ModuleRegistry.Pages.CONFIG_SUPPLIERS, ModuleRegistry.Pages.CONFIG_ADJUSTMENT_REASONS,
+                ModuleRegistry.Pages.CONFIG_REFUND_REASONS, ModuleRegistry.Pages.CONFIG_DATABASE_BACKUPS,
+                ModuleRegistry.Pages.ADMIN_AUDIT_TRAIL)),
         }),
     };
 
+    private ClaimsPrincipal _user = new();
+    private CurrentUserDto Me => CurrentUser.User;
     private readonly HashSet<string> _expandedGroups = new();
     private bool _mobileOpen;
     private bool _showInstallButton;
+    private bool _branchesOpen;
+    private bool _switching;
 
     protected override void OnInitialized()
     {
         Nav.LocationChanged += OnLocationChanged;
+        CurrentUser.Changed += OnCurrentUserChanged;
         ExpandActiveGroup();
+    }
+
+    protected override async Task OnParametersSetAsync()
+    {
+        if (AuthState != null)
+        {
+            _user = (await AuthState).User;
+        }
     }
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
@@ -137,6 +213,30 @@
         }
     }
 
+    private void ToggleBranches() => _branchesOpen = !_branchesOpen;
+
+    private async Task SwitchBranchAsync(BranchOptionDto branch)
+    {
+        if (branch.Id == Me.CurrentLocationId)
+        {
+            _branchesOpen = false;
+            return;
+        }
+
+        _switching = true;
+        var (success, error) = await CurrentUser.SwitchBranchAsync(branch.Id);
+        _switching = false;
+        if (!success)
+        {
+            Snackbar.Add(error ?? "Couldn't switch branch.", Severity.Error);
+            return;
+        }
+
+        // Everything on screen was loaded for the previous branch; reload the current page so it
+        // all comes back for the new one (what the classic switcher's redirect did).
+        Nav.NavigateTo(Nav.Uri, forceLoad: true);
+    }
+
     private void ExpandActiveGroup()
     {
         var relativePath = Nav.ToBaseRelativePath(Nav.Uri);
@@ -155,6 +255,8 @@
         InvokeAsync(StateHasChanged);
     }
 
+    private void OnCurrentUserChanged() => InvokeAsync(StateHasChanged);
+
     private bool IsExpanded(string title) => _expandedGroups.Contains(title);
 
     private void ToggleGroup(string title)
@@ -169,5 +271,9 @@
 
     private void CloseMobile() => _mobileOpen = false;
 
-    public void Dispose() => Nav.LocationChanged -= OnLocationChanged;
+    public void Dispose()
+    {
+        Nav.LocationChanged -= OnLocationChanged;
+        CurrentUser.Changed -= OnCurrentUserChanged;
+    }
 }

@@ -34,7 +34,7 @@
 }
 
 <MudPaper Class="pa-2" Elevation="2">
-    <MudTable Items="@(_result?.Items ?? new())" Loading="@(_result is null)" Hover="true" Dense="true">
+    <MudTable RowsPerPage="25" Items="@(_result?.Items ?? new())" Loading="@(_result is null)" Hover="true" Dense="true">
         <HeaderContent>
             <MudTh>Batch #</MudTh>
             <MudTh>Expiry</MudTh>
@@ -54,6 +54,9 @@
         <NoRecordsContent>
             <MudText>No batches yet.</MudText>
         </NoRecordsContent>
+        <PagerContent>
+            <MudTablePager PageSizeOptions="@(new[] { 25, 50, 100 })" />
+        </PagerContent>
     </MudTable>
 </MudPaper>
 
@@ -67,7 +70,11 @@
     private decimal _unitCost, _unitSalePrice, _initialQuantity;
     private string? _error;
 
-    protected override async Task OnInitializedAsync() => await LoadAsync();
+    protected override async Task OnInitializedAsync()
+    {
+        if (!RendererInfo.IsInteractive) return; // prerendering: show the loading state; the browser loads the data
+        await LoadAsync();
+    }
     private async Task LoadAsync() => _result = await Api.GetAsync(ProductId);
 
     private async Task Submit()

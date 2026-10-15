@@ -1,93 +1,417 @@
+@page "/products/new"
 @page "/products/{Id:int}/edit"
 @attribute [Authorize]
 @inject ProductsApiClient Api
 @inject NavigationManager Nav
 @inject ISnackbar Snackbar
+@inject IJSRuntime JS
+@inject IAuthorizationService Authorization
 
-<PageTitle>Edit Product</PageTitle>
+<PageTitle>@(IsNew ? "Add Product" : "Edit Product")</PageTitle>
 
-@if (_product is null)
+@if (_accessDenied)
 {
-    <MudText><em>Loading...</em></MudText>
+    <AccessDenied />
+}
+else if (_notFound)
+{
+    <MudAlert Severity="Severity.Warning">That product doesn't exist, or isn't visible to your account.</MudAlert>
+    <MudButton Class="mt-3" Href="products" StartIcon="@Icons.Material.Filled.ArrowBack">Back to products</MudButton>
+}
+else if (_form is null)
+{
+    <MudProgressLinear Indeterminate="true" Color="Color.Primary" />
 }
 else
 {
-    <MudText Typo="Typo.h4" Class="mb-4">Edit Product</MudText>
+    <MudText Typo="Typo.h4" Class="mb-4">@(IsNew ? "Add Product" : "Edit Product")</MudText>
 
-    @if (_error != null)
-    {
-        <MudAlert Severity="Severity.Error" Class="mb-3">@_error</MudAlert>
-    }
+    <MudPaper Class="pa-4" Elevation="2" Style="max-width:1000px;">
+        <MudGrid Spacing="3">
+            <MudItem xs="12" sm="6">
+                <MudText Typo="Typo.subtitle2" Class="mb-2">Item photo</MudText>
+                <div class="d-flex align-center gap-4">
+                    @if (PhotoSrc != null)
+                    {
+                        <img src="@PhotoSrc" alt="Product photo" style="@ThumbStyle object-fit:cover;" />
+                    }
+                    else
+                    {
+                        <div class="d-flex align-center justify-center" style="@ThumbStyle">
+                            <MudIcon Icon="@Icons.Material.Outlined.Image" Size="Size.Large" />
+                        </div>
+                    }
+                    <div>
+                        <MudFileUpload T="IBrowserFile" FilesChanged="OnPhotoSelected" Accept=".png,.jpg,.jpeg">
+                            <CustomContent>
+                                <MudButton Variant="Variant.Outlined" Size="Size.Small" StartIcon="@Icons.Material.Filled.PhotoCamera"
+                                           Disabled="_busy" OnClick="@context.OpenFilePickerAsync">
+                                    @(PhotoSrc == null ? "Choose photo" : "Change photo")
+                                </MudButton>
+                            </CustomContent>
+                            <SelectedTemplate></SelectedTemplate>
+                        </MudFileUpload>
+                        <MudText Typo="Typo.caption" Class="d-block mt-1">
+                            @(_pendingPhoto != null ? $"{_pendingPhoto.FileName} is uploaded when you save." : "PNG or JPG, up to 5 MB.")
+                        </MudText>
+                    </div>
+                </div>
+            </MudItem>
 
-    <MudPaper Class="pa-4" Elevation="2" Style="max-width:900px;">
-        <MudGrid>
-            <MudItem xs="12" md="6"><MudTextField @bind-Value="_product.ProductCode" Label="SKU" Variant="Variant.Outlined" /></MudItem>
-            <MudItem xs="12" md="6">
-                <MudSelect T="int?" @bind-Value="_product.ProductCategoryId" Label="Category" Variant="Variant.Outlined">
-                    <MudSelectItem T="int?" Value="@((int?)null)">-- None --</MudSelectItem>
+            @if (!IsNew)
+            {
+                <MudItem xs="12" sm="6">
+                    <MudText Typo="Typo.subtitle2" Class="mb-2">QR code</MudText>
+                    <div class="d-flex align-center gap-4">
+                        <img src="@QrUrl" alt="QR code" style="width:125px;height:125px;" />
+                        <MudButton Variant="Variant.Outlined" Size="Size.Small" StartIcon="@Icons.Material.Filled.Print" OnClick="PrintQrAsync">Print</MudButton>
+                    </div>
+                </MudItem>
+            }
+
+            <MudItem xs="12"><MudDivider /></MudItem>
+
+            <MudItem xs="12" sm="6" md="4">
+                <MudTextField @bind-Value="_form.Name" Label="Item name" Required="true" Variant="Variant.Outlined" />
+            </MudItem>
+            <MudItem xs="12" sm="6" md="4">
+                <MudSelect T="int?" Value="_form.ProductCategoryId" ValueChanged="OnCategoryChanged" Label="Category" Variant="Variant.Outlined" Clearable="true">
                     @foreach (var c in _categories)
                     {
                         <MudSelectItem T="int?" Value="@((int?)c.Id)">@c.Name</MudSelectItem>
                     }
                 </MudSelect>
             </MudItem>
-            <MudItem xs="12"><MudTextField @bind-Value="_product.Name" Label="Name" Variant="Variant.Outlined" /></MudItem>
-            <MudItem xs="12"><MudTextField @bind-Value="_product.Description" Label="Description" Variant="Variant.Outlined" Lines="3" /></MudItem>
-            <MudItem xs="12" md="3"><MudNumericField @bind-Value="_product.CurrentCostPrice" Format="N2" Label="Cost price" Variant="Variant.Outlined" /></MudItem>
-            <MudItem xs="12" md="3"><MudNumericField @bind-Value="_product.MarkUpPercentage" Format="N2" Label="Markup %" Variant="Variant.Outlined" /></MudItem>
-            <MudItem xs="12" md="3"><MudNumericField @bind-Value="_product.CurrentSalePrice" Format="N2" Label="Sale price" Variant="Variant.Outlined" /></MudItem>
-            <MudItem xs="12" md="3"><MudNumericField @bind-Value="_product.LeadTimeDays" Label="Lead time (days)" Variant="Variant.Outlined" /></MudItem>
-            <MudItem xs="12" md="3"><MudTextField Value="@CurrentStockDisplay" Label="Current stock (read-only)" Variant="Variant.Outlined" ReadOnly="true" /></MudItem>
-            <MudItem xs="12" md="3"><MudNumericField @bind-Value="_product.LowStockCount" Format="N2" Label="Low stock warning" Variant="Variant.Outlined" /></MudItem>
-            <MudItem xs="12" md="3" Class="d-flex align-items-center">
-                <MudSwitch @bind-Value="_product.IsActive" Color="Color.Primary" Label="Active" />
+            <MudItem xs="12" sm="6" md="4">
+                <MudTextField @bind-Value="_form.ProductCode" Label="SKU" Required="true" Variant="Variant.Outlined" />
             </MudItem>
-            <MudItem xs="12"><MudTextField @bind-Value="_product.Note" Label="Note" Variant="Variant.Outlined" Lines="2" /></MudItem>
+            <MudItem xs="12" sm="6" md="4">
+                <MudTextField @bind-Value="_form.Barcode" Label="Barcode" Placeholder="Click here and scan" MaxLength="64"
+                              Variant="Variant.Outlined" autocomplete="off" Clearable="true" />
+            </MudItem>
+            <MudItem xs="12" sm="6" md="4">
+                <MudNumericField T="decimal?" Value="_form.CurrentCostPrice" ValueChanged="OnCostChanged" Label="Cost price" Format="N2"
+                                 Variant="Variant.Outlined" HideSpinButtons="true" />
+            </MudItem>
+            <MudItem xs="12" sm="6" md="4">
+                <MudNumericField T="decimal" Value="_form.MarkUpPercentage" ValueChanged="OnMarkupChanged" Label="Markup %" Format="N2"
+                                 Variant="Variant.Outlined" HideSpinButtons="true" />
+            </MudItem>
+            <MudItem xs="12" sm="6" md="4">
+                <MudNumericField T="decimal?" Value="_form.CurrentSalePrice" ValueChanged="OnSaleChanged" Label="Sale price" Format="N2"
+                                 Variant="Variant.Outlined" HideSpinButtons="true"
+                                 HelperText="Cost × (1 + markup). Changing it updates the markup." />
+            </MudItem>
+            <MudItem xs="12" sm="6" md="4">
+                <MudNumericField @bind-Value="_form.LeadTimeDays" Label="Lead time (days)" Variant="Variant.Outlined" HideSpinButtons="true" />
+            </MudItem>
+            <MudItem xs="12" sm="6" md="4">
+                <MudNumericField @bind-Value="_form.LowStockCount" Label="Low stock warning" Format="0.##" Variant="Variant.Outlined" HideSpinButtons="true" />
+            </MudItem>
+            @if (!IsNew)
+            {
+                <MudItem xs="12" sm="6" md="4">
+                    <MudTextField Value="@(_form.CurrentStock.ToString("0.##"))" Label="Stock" Variant="Variant.Outlined" ReadOnly="true"
+                                  HelperText="Changes through sales, shipments and adjustments." />
+                </MudItem>
+                <MudItem xs="12" sm="6" md="4" Class="d-flex align-center">
+                    <MudSwitch @bind-Value="_form.IsActive" Color="Color.Primary" Label="@(_form.IsActive ? "Active" : "Inactive (hidden from selling)")" />
+                </MudItem>
+            }
+            <MudItem xs="12">
+                <MudTextField @bind-Value="_form.Note" Label="Remarks" Variant="Variant.Outlined" Lines="1" />
+            </MudItem>
+
+            @if (_customFields.Count > 0)
+            {
+                <MudItem xs="12">
+                    <MudDivider Class="mb-2" />
+                    <MudText Typo="Typo.subtitle1">Additional details</MudText>
+                </MudItem>
+                @foreach (var field in _customFields)
+                {
+                    <MudItem xs="12" sm="6" md="4">
+                        @switch (field.FieldType)
+                        {
+                            case "select":
+                                <MudSelect T="string" @bind-Value="field.Value" Label="@FieldLabel(field)" Variant="Variant.Outlined" Clearable="true">
+                                    @foreach (var option in field.Options)
+                                    {
+                                        <MudSelectItem T="string" Value="@option">@option</MudSelectItem>
+                                    }
+                                </MudSelect>
+                                break;
+                            case "checkbox":
+                                <MudCheckBox T="bool" Value="@(field.Value == "true")" ValueChanged="@((bool v) => field.Value = v ? "true" : null)"
+                                             Label="@FieldLabel(field)" Color="Color.Primary" />
+                                break;
+                            case "textarea":
+                                <MudTextField T="string" @bind-Value="field.Value" Label="@FieldLabel(field)" Lines="2" Variant="Variant.Outlined" />
+                                break;
+                            case "date":
+                                <MudDatePicker Date="@ParseDate(field.Value)" DateChanged="@((DateTime? d) => field.Value = d?.ToString("yyyy-MM-dd"))"
+                                               Label="@FieldLabel(field)" DateFormat="yyyy-MM-dd" Variant="Variant.Outlined" Clearable="true" />
+                                break;
+                            case "number":
+                                <MudTextField T="string" @bind-Value="field.Value" Label="@FieldLabel(field)" InputType="InputType.Number" Variant="Variant.Outlined" />
+                                break;
+                            default:
+                                <MudTextField T="string" @bind-Value="field.Value" Label="@FieldLabel(field)" Variant="Variant.Outlined" />
+                                break;
+                        }
+                    </MudItem>
+                }
+            }
+
+            <MudItem xs="12">
+                <MudTextField @bind-Value="_form.Description" Label="Description" Variant="Variant.Outlined" Lines="3" />
+            </MudItem>
         </MudGrid>
 
-        <div class="mt-4">
-            <MudButton Color="Color.Primary" Variant="Variant.Filled" OnClick="Save">Save</MudButton>
-            <MudButton OnClick="Cancel">Cancel</MudButton>
+        @if (_error != null)
+        {
+            <MudAlert Severity="Severity.Error" Class="mt-4">@_error</MudAlert>
+        }
+
+        <div class="d-flex justify-space-between mt-6">
+            <MudButton OnClick="Cancel" Disabled="_busy">Cancel</MudButton>
+            <MudButton Color="Color.Primary" Variant="Variant.Filled" OnClick="SaveAsync" Disabled="_busy">
+                @if (_busy)
+                {
+                    <MudProgressCircular Size="Size.Small" Indeterminate="true" Class="me-2" />
+                }
+                @(IsNew ? "Create product" : "Save changes")
+            </MudButton>
         </div>
     </MudPaper>
 }
 
 @code {
-    [Parameter] public int Id { get; set; }
+    private const string ThumbStyle = "width:125px;height:125px;border-radius:8px;border:1px solid var(--mud-palette-lines-default);";
 
-    private ProductDetailDto? _product;
+    [Parameter] public int Id { get; set; }
+    [CascadingParameter] private Task<AuthenticationState> AuthState { get; set; } = default!;
+
+    private bool IsNew => Id <= 0;
+    // One page, two routes with different permissions: adding needs Create, editing needs Edit.
+    private bool _accessDenied;
+    private ProductDetailDto? _form;
+    private List<ProductCustomFieldDto> _customFields = new();
     private List<Mercurius.Shared.Configuration.ProductCategoryDto> _categories = new();
+    private PendingPhoto? _pendingPhoto;
+    private bool _notFound;
+    private bool _busy;
     private string? _error;
 
-    private string CurrentStockDisplay => _product?.CurrentStock.ToString("0.##") ?? string.Empty;
+    private string? PhotoSrc => _pendingPhoto?.DataUrl ?? _form?.ImageUrl;
+    private string QrUrl => $"/api/products/{Id}/qrcode";
 
-    protected override async Task OnInitializedAsync()
+    private sealed record PendingPhoto(byte[] Bytes, string FileName, string ContentType)
     {
+        public string DataUrl { get; } = $"data:{ContentType};base64,{Convert.ToBase64String(Bytes)}";
+    }
+
+    public override Task SetParametersAsync(ParameterView parameters)
+    {
+        // /products/new supplies no Id; if the router reuses this instance after an edit page,
+        // the previous product's Id would otherwise linger and the "new" form would edit it.
+        Id = 0;
+        return base.SetParametersAsync(parameters);
+    }
+
+    protected override async Task OnParametersSetAsync()
+    {
+        if (!RendererInfo.IsInteractive) return; // prerendering: show the loading state; the browser loads the data
+        _form = null;
+        _notFound = false;
+        _error = null;
+        _pendingPhoto = null;
+        _customFields = new();
+
+        var user = (await AuthState).User;
+        var policy = IsNew ? ModuleRegistry.Pages.PRODUCTS_CREATE : ModuleRegistry.Pages.PRODUCTS_EDIT;
+        _accessDenied = !(await Authorization.AuthorizeAsync(user, policy)).Succeeded;
+        if (_accessDenied) return;
+
         _categories = await Api.GetCategoryOptionsAsync();
-        _product = await Api.GetDetailAsync(Id);
-    }
-
-    private async Task Save()
-    {
-        if (_product == null) return;
-        var (success, error) = await Api.UpdateAsync(Id, new UpdateProductRequest
+        if (IsNew)
         {
-            ProductCode = _product.ProductCode,
-            Name = _product.Name,
-            Description = _product.Description,
-            ProductCategoryId = _product.ProductCategoryId,
-            CurrentCostPrice = _product.CurrentCostPrice,
-            MarkUpPercentage = _product.MarkUpPercentage,
-            CurrentSalePrice = _product.CurrentSalePrice,
-            LeadTimeDays = _product.LeadTimeDays,
-            LowStockCount = _product.LowStockCount,
-            Note = _product.Note,
-            IsActive = _product.IsActive
-        });
-        if (!success) { _error = error; return; }
-        Snackbar.Add("Product saved.", Severity.Success);
-        Nav.NavigateTo("products");
+            _form = new ProductDetailDto { IsActive = true };
+            return;
+        }
+
+        var product = await Api.GetDetailAsync(Id);
+        if (product == null)
+        {
+            _notFound = true;
+            return;
+        }
+        _form = product;
+        _customFields = product.CustomFields;
     }
 
-    private void Cancel() => Nav.NavigateTo("products");
+    private static string FieldLabel(ProductCustomFieldDto field) => field.IsRequired ? field.DisplayLabel + " *" : field.DisplayLabel;
+
+    private static DateTime? ParseDate(string? value) =>
+        DateTime.TryParseExact(value, "yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture,
+            System.Globalization.DateTimeStyles.None, out var d) ? d : null;
+
+    private async Task OnCategoryChanged(int? categoryId)
+    {
+        if (_form == null) return;
+        _form.ProductCategoryId = categoryId;
+        _customFields = categoryId.HasValue
+            ? await Api.GetCategoryFieldsAsync(categoryId.Value, IsNew ? null : Id)
+            : new();
+    }
+
+    // Same pricing behaviour as the classic form: cost or markup drives the sale price, and
+    // typing a sale price back-solves the markup. A blank/zero cost never overwrites a sale
+    // price the user already typed.
+    private void OnCostChanged(decimal? value)
+    {
+        if (_form == null) return;
+        _form.CurrentCostPrice = value;
+        RecalculateSalePrice();
+    }
+
+    private void OnMarkupChanged(decimal value)
+    {
+        if (_form == null) return;
+        _form.MarkUpPercentage = value;
+        RecalculateSalePrice();
+    }
+
+    private void OnSaleChanged(decimal? value)
+    {
+        if (_form == null) return;
+        _form.CurrentSalePrice = value;
+        var cost = _form.CurrentCostPrice ?? 0m;
+        if (cost > 0 && value.HasValue)
+        {
+            _form.MarkUpPercentage = Math.Round((value.Value / cost - 1) * 100, 2);
+        }
+    }
+
+    private void RecalculateSalePrice()
+    {
+        var cost = _form!.CurrentCostPrice ?? 0m;
+        if (cost > 0)
+        {
+            _form.CurrentSalePrice = Math.Round(cost * (1 + _form.MarkUpPercentage / 100), 2);
+        }
+    }
+
+    private async Task OnPhotoSelected(IBrowserFile? file)
+    {
+        if (file == null) return;
+        var ext = Path.GetExtension(file.Name).ToLowerInvariant();
+        if (ext is not (".png" or ".jpg" or ".jpeg"))
+        {
+            Snackbar.Add("Only PNG or JPG images are supported.", Severity.Warning);
+            return;
+        }
+        if (file.Size > ProductsApiClient.MaxImageBytes)
+        {
+            Snackbar.Add("The image must be 5 MB or smaller.", Severity.Warning);
+            return;
+        }
+
+        await using var stream = file.OpenReadStream(ProductsApiClient.MaxImageBytes);
+        using var buffer = new MemoryStream();
+        await stream.CopyToAsync(buffer);
+        var contentType = string.IsNullOrEmpty(file.ContentType) ? (ext == ".png" ? "image/png" : "image/jpeg") : file.ContentType;
+        _pendingPhoto = new PendingPhoto(buffer.ToArray(), file.Name, contentType);
+    }
+
+    private async Task PrintQrAsync()
+    {
+        var opened = await JS.InvokeAsync<bool>("mercuriusPrint.printImage", QrUrl, $"{_form?.Name} ({_form?.ProductCode})");
+        if (!opened) Snackbar.Add("Allow pop-ups for this site to print the QR code.", Severity.Warning);
+    }
+
+    private async Task SaveAsync()
+    {
+        if (_form == null) return;
+        _error = null;
+        if (string.IsNullOrWhiteSpace(_form.Name) || string.IsNullOrWhiteSpace(_form.ProductCode))
+        {
+            _error = "Item name and SKU are required.";
+            return;
+        }
+
+        _busy = true;
+        try
+        {
+            var customValues = _customFields.ToDictionary(f => f.CategoryFieldId, f => f.Value);
+            int productId;
+            if (IsNew)
+            {
+                var (newId, error) = await Api.CreateAsync(new CreateProductRequest
+                {
+                    ProductCode = _form.ProductCode,
+                    Barcode = _form.Barcode,
+                    Name = _form.Name,
+                    Description = _form.Description,
+                    ProductCategoryId = _form.ProductCategoryId,
+                    CurrentCostPrice = _form.CurrentCostPrice,
+                    MarkUpPercentage = _form.MarkUpPercentage,
+                    CurrentSalePrice = _form.CurrentSalePrice,
+                    LeadTimeDays = _form.LeadTimeDays,
+                    LowStockCount = _form.LowStockCount,
+                    Note = _form.Note,
+                    CustomFieldValues = customValues
+                });
+                if (newId == null)
+                {
+                    _error = error;
+                    return;
+                }
+                productId = newId.Value;
+            }
+            else
+            {
+                var (success, error) = await Api.UpdateAsync(Id, new UpdateProductRequest
+                {
+                    ProductCode = _form.ProductCode,
+                    Barcode = _form.Barcode,
+                    Name = _form.Name,
+                    Description = _form.Description,
+                    ProductCategoryId = _form.ProductCategoryId,
+                    CurrentCostPrice = _form.CurrentCostPrice,
+                    MarkUpPercentage = _form.MarkUpPercentage,
+                    CurrentSalePrice = _form.CurrentSalePrice,
+                    LeadTimeDays = _form.LeadTimeDays,
+                    LowStockCount = _form.LowStockCount,
+                    Note = _form.Note,
+                    IsActive = _form.IsActive,
+                    CustomFieldValues = customValues
+                });
+                if (!success)
+                {
+                    _error = error;
+                    return;
+                }
+                productId = Id;
+            }
+
+            if (_pendingPhoto != null)
+            {
+                var (_, photoError) = await Api.UploadPhotoAsync(productId, _pendingPhoto.Bytes, _pendingPhoto.FileName, _pendingPhoto.ContentType);
+                if (photoError != null)
+                {
+                    Snackbar.Add($"The product was saved, but its photo wasn't: {photoError}", Severity.Warning);
+                }
+            }
+
+            Snackbar.Add(IsNew ? "Product created." : "Product saved.", Severity.Success);
+            Nav.NavigateTo($"products/{productId}");
+        }
+        finally
+        {
+            _busy = false;
+        }
+    }
+
+    private void Cancel() => Nav.NavigateTo(IsNew ? "products" : $"products/{Id}");
 }

@@ -45,8 +45,8 @@ namespace Mercurius.Client.Services
                 try
                 {
                     var response = await _http.PostAsJsonAsync("api/sales/offline-sync", sale);
-                    if (!response.IsSuccessStatusCode) continue;
-                    await _store.RemovePendingSaleAsync(sale.SyncId);
+                    if (!response.IsSuccessStatusCode || sale.SyncId is not Guid syncId) continue;
+                    await _store.RemovePendingSaleAsync(syncId);
                     synced++;
                 }
                 catch

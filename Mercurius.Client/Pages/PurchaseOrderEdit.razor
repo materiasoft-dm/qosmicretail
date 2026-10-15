@@ -1,0 +1,265 @@
+@page "/purchase-orders/new"
+@page "/purchase-orders/{Id:int}/edit"
+@attribute [Authorize]
+@inject PurchaseOrdersApiClient Api
+@inject NavigationManager Nav
+@inject ISnackbar Snackbar
+@inject IAuthorizationService Authorization
+
+<PageTitle>@(IsNew ? "New Purchase Order" : "Edit Purchase Order")</PageTitle>
+
+@if (_accessDenied)
+{
+    <AccessDenied />
+}
+else if (_notFound)
+{
+    <MudAlert Severity="Severity.Warning">That purchase order doesn't exist, or isn't visible to your account.</MudAlert>
+    <MudButton Class="mt-3" Href="purchase-orders" StartIcon="@Icons.Material.Filled.ArrowBack">Back to purchase orders</MudButton>
+}
+else if (_loading)
+{
+    <MudProgressLinear Indeterminate="true" Color="Color.Primary" />
+}
+else if (_lockedStatus != null)
+{
+    <MudAlert Severity="Severity.Info">
+        This order is @PurchaseOrderStatus.Label(_lockedStatus).ToLowerInvariant(), so it can no longer be edited.
+        Only orders that are still pending approval can change.
+    </MudAlert>
+    <MudButton Class="mt-3" Href="@($"purchase-orders/{Id}")" StartIcon="@Icons.Material.Filled.ArrowBack">Back to the order</MudButton>
+}
+else
+{
+    <MudText Typo="Typo.h4" Class="mb-4">@(IsNew ? "New Purchase Order" : $"Edit {_orderNumber}")</MudText>
+
+    <MudPaper Class="pa-4" Elevation="2" Style="max-width:1100px;">
+        <MudGrid Spacing="3">
+            <MudItem xs="12" md="5">
+                <MudSelect T="int" @bind-Value="_supplierId" Label="Supplier" Variant="Variant.Outlined" Required="true">
+                    @foreach (var s in _suppliers)
+                    {
+                        <MudSelectItem T="int" Value="@s.Id">@s.Name</MudSelectItem>
+                    }
+                </MudSelect>
+            </MudItem>
+            <MudItem xs="12" md="3">
+                <MudDatePicker @bind-Date="_expectedDelivery" Label="Expected delivery" DateFormat="yyyy-MM-dd" Variant="Variant.Outlined" Clearable="true" />
+            </MudItem>
+            <MudItem xs="12">
+                <MudTextField @bind-Value="_notes" Label="Notes" Variant="Variant.Outlined" Lines="2" />
+            </MudItem>
+        </MudGrid>
+
+        <MudText Typo="Typo.h6" Class="mt-6 mb-2">Products to order</MudText>
+        @for (var i = 0; i < _lines.Count; i++)
+        {
+            var line = _lines[i];
+            var number = i + 1;
+            <MudGrid Spacing="2" Class="mb-1 align-center">
+                <MudItem xs="12" md="5">
+                    <MudAutocomplete T="ProductOptionDto" @bind-Value="line.Product" SearchFunc="SearchProductsAsync" ToStringFunc="DescribeProduct"
+                                     Label="@($"Product {number}")" Placeholder="Type a name, SKU or barcode" Variant="Variant.Outlined"
+                                     DebounceInterval="300" MaxItems="50" ResetValueOnEmptyText="true" Dense="true" />
+                </MudItem>
+                <MudItem xs="4" md="2">
+                    <MudNumericField T="decimal" @bind-Value="line.Quantity" Label="Quantity" Min="0" Format="0.##" Variant="Variant.Outlined" HideSpinButtons="true" />
+                </MudItem>
+                <MudItem xs="4" md="2">
+                    <MudNumericField T="decimal?" @bind-Value="line.EstimatedUnitCost" Label="Est. unit cost" Format="N2" Variant="Variant.Outlined" HideSpinButtons="true" />
+                </MudItem>
+                <MudItem xs="3" md="2">
+                    <MudText Typo="Typo.caption" Class="mud-text-secondary d-block">Est. total</MudText>
+                    <MudText>@(line.EstimatedUnitCost.HasValue ? Money.Format(line.EstimatedUnitCost.Value * line.Quantity) : "-")</MudText>
+                </MudItem>
+                <MudItem xs="1" md="1">
+                    <MudIconButton Icon="@Icons.Material.Filled.Close" Size="Size.Small" Color="Color.Error" aria-label="@($"Remove line {number}")"
+                                   Disabled="_lines.Count == 1" OnClick="@(() => _lines.Remove(line))" />
+                </MudItem>
+            </MudGrid>
+        }
+        <div class="d-flex justify-space-between align-center mt-2">
+            <MudButton Variant="Variant.Outlined" Size="Size.Small" StartIcon="@Icons.Material.Filled.Add" OnClick="@(() => _lines.Add(new LineModel()))">Add product</MudButton>
+            <MudText><b>Estimated total:</b> @Money.Format(EstimatedTotal)</MudText>
+        </div>
+
+        @if (_error != null)
+        {
+            <MudAlert Severity="Severity.Error" Class="mt-4">@_error</MudAlert>
+        }
+
+        <div class="d-flex justify-space-between mt-6">
+            <MudButton OnClick="Cancel" Disabled="_busy">Cancel</MudButton>
+            <MudButton Color="Color.Primary" Variant="Variant.Filled" OnClick="SaveAsync" Disabled="_busy">
+                @(IsNew ? "Create purchase order" : "Save changes")
+            </MudButton>
+        </div>
+    </MudPaper>
+}
+
+@code {
+    [Parameter] public int Id { get; set; }
+    [CascadingParameter] private Task<AuthenticationState> AuthState { get; set; } = default!;
+
+    private bool IsNew => Id <= 0;
+    // One page, two routes with different permissions: creating needs Create, editing needs Edit.
+    private bool _accessDenied;
+    private bool _loading = true;
+    private bool _notFound;
+    private bool _busy;
+    private string? _lockedStatus;
+    private string? _error;
+    private string _orderNumber = string.Empty;
+    private List<SupplierOptionDto> _suppliers = new();
+    private int _supplierId;
+    private DateTime? _expectedDelivery;
+    private string? _notes;
+    private List<LineModel> _lines = new();
+
+    private decimal EstimatedTotal => _lines.Sum(l => (l.EstimatedUnitCost ?? 0m) * l.Quantity);
+
+    private sealed class LineModel
+    {
+        public ProductOptionDto? Product { get; set; }
+        public decimal Quantity { get; set; } = 1;
+        public decimal? EstimatedUnitCost { get; set; }
+    }
+
+    public override Task SetParametersAsync(ParameterView parameters)
+    {
+        // /purchase-orders/new supplies no Id — don't let a previously edited order's Id linger
+        // if the router reuses this instance.
+        Id = 0;
+        return base.SetParametersAsync(parameters);
+    }
+
+    protected override async Task OnParametersSetAsync()
+    {
+        if (!RendererInfo.IsInteractive) return; // prerendering: show the loading state; the browser loads the data
+        _loading = true;
+        _notFound = false;
+        _lockedStatus = null;
+        _error = null;
+
+        var user = (await AuthState).User;
+        var policy = IsNew ? ModuleRegistry.Pages.PURCHASE_ORDERS_CREATE : ModuleRegistry.Pages.PURCHASE_ORDERS_EDIT;
+        _accessDenied = !(await Authorization.AuthorizeAsync(user, policy)).Succeeded;
+        if (_accessDenied)
+        {
+            _loading = false;
+            return;
+        }
+
+        _suppliers = await Api.GetSuppliersAsync();
+
+        if (IsNew)
+        {
+            _orderNumber = string.Empty;
+            _supplierId = 0;
+            _expectedDelivery = null;
+            _notes = null;
+            _lines = new List<LineModel> { new() };
+            _loading = false;
+            return;
+        }
+
+        var order = await Api.GetDetailAsync(Id);
+        if (order == null)
+        {
+            _notFound = true;
+            _loading = false;
+            return;
+        }
+        if (order.Status != PurchaseOrderStatus.PendingApproval)
+        {
+            _lockedStatus = order.Status;
+        }
+
+        _orderNumber = order.OrderNumber;
+        _supplierId = order.SupplierId;
+        // An inactive supplier isn't in the lookup list but is still this order's supplier.
+        if (_suppliers.All(s => s.Id != order.SupplierId))
+        {
+            _suppliers.Add(new SupplierOptionDto { Id = order.SupplierId, Name = order.SupplierName });
+        }
+        _expectedDelivery = order.ExpectedDeliveryDate;
+        _notes = order.Notes;
+        _lines = order.Items.Select(i => new LineModel
+        {
+            Product = new ProductOptionDto { Id = i.ProductId, Name = i.ProductName, ProductCode = i.ProductCode },
+            Quantity = i.Quantity,
+            EstimatedUnitCost = i.EstimatedUnitCost
+        }).ToList();
+        if (_lines.Count == 0) _lines.Add(new LineModel());
+        _loading = false;
+    }
+
+    private async Task<IEnumerable<ProductOptionDto>> SearchProductsAsync(string? value, CancellationToken token) =>
+        await Api.GetProductsAsync(value, token);
+
+    private static string DescribeProduct(ProductOptionDto? product) =>
+        product == null ? string.Empty : $"{product.Name} ({product.ProductCode})";
+
+    private async Task SaveAsync()
+    {
+        _error = null;
+        var lines = _lines.Where(l => l.Product != null && l.Quantity > 0)
+            .Select(l => new CreatePurchaseOrderLineRequest { ProductId = l.Product!.Id, Quantity = l.Quantity, EstimatedUnitCost = l.EstimatedUnitCost })
+            .ToList();
+        if (_supplierId <= 0 || lines.Count == 0)
+        {
+            _error = "Choose a supplier and at least one product with a quantity above zero.";
+            return;
+        }
+        if (_lines.Any(l => l.Product == null && l.Quantity > 0 && _lines.Count > 1))
+        {
+            _error = "Every line needs a product — remove the lines you don't need.";
+            return;
+        }
+
+        _busy = true;
+        try
+        {
+            if (IsNew)
+            {
+                var (newId, error) = await Api.CreateAsync(new CreatePurchaseOrderRequest
+                {
+                    SupplierId = _supplierId,
+                    ExpectedDeliveryDate = _expectedDelivery,
+                    Notes = _notes,
+                    Lines = lines
+                });
+                if (newId == null)
+                {
+                    _error = error;
+                    return;
+                }
+                Snackbar.Add("Purchase order created.", Severity.Success);
+                Nav.NavigateTo($"purchase-orders/{newId}");
+            }
+            else
+            {
+                var (success, error) = await Api.UpdateAsync(Id, new UpdatePurchaseOrderRequest
+                {
+                    SupplierId = _supplierId,
+                    ExpectedDeliveryDate = _expectedDelivery,
+                    Notes = _notes,
+                    Lines = lines
+                });
+                if (!success)
+                {
+                    _error = error;
+                    return;
+                }
+                Snackbar.Add("Purchase order saved.", Severity.Success);
+                Nav.NavigateTo($"purchase-orders/{Id}");
+            }
+        }
+        finally
+        {
+            _busy = false;
+        }
+    }
+
+    private void Cancel() => Nav.NavigateTo(IsNew ? "purchase-orders" : $"purchase-orders/{Id}");
+}

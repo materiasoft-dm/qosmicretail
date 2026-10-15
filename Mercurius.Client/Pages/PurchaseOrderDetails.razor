@@ -1,26 +1,66 @@
 @page "/purchase-orders/{Id:int}"
-@attribute [Authorize]
+@attribute [Authorize(Policy = ModuleRegistry.Pages.PURCHASE_ORDERS_LIST)]
 @inject PurchaseOrdersApiClient Api
+@inject ISnackbar Snackbar
 
-<PageTitle>Purchase Order</PageTitle>
+<PageTitle>@(_order?.OrderNumber ?? "Purchase Order")</PageTitle>
 
-@if (_order is null)
+@if (_notFound)
 {
-    <MudText><em>Loading...</em></MudText>
+    <MudAlert Severity="Severity.Warning">That purchase order doesn't exist, or isn't visible to your account.</MudAlert>
+    <MudButton Class="mt-3" Href="purchase-orders" StartIcon="@Icons.Material.Filled.ArrowBack">Back to purchase orders</MudButton>
+}
+else if (_order is null)
+{
+    <MudProgressLinear Indeterminate="true" Color="Color.Primary" />
 }
 else
 {
-    <MudText Typo="Typo.h4" Class="mb-4">@_order.OrderNumber</MudText>
-    <MudGrid Class="mb-4">
-        <MudItem xs="6" md="3"><MudText Typo="Typo.caption" Color="Color.Secondary">Supplier</MudText><MudText>@_order.SupplierName</MudText></MudItem>
-        <MudItem xs="6" md="3"><MudText Typo="Typo.caption" Color="Color.Secondary">Status</MudText><MudChip T="string" Size="Size.Small" Color="Color.Info">@_order.Status</MudChip></MudItem>
-        <MudItem xs="6" md="3"><MudText Typo="Typo.caption" Color="Color.Secondary">Order date</MudText><MudText>@_order.OrderDate.ToString("yyyy-MM-dd")</MudText></MudItem>
-        <MudItem xs="6" md="3"><MudText Typo="Typo.caption" Color="Color.Secondary">Expected delivery</MudText><MudText>@(_order.ExpectedDeliveryDate?.ToString("yyyy-MM-dd") ?? "-")</MudText></MudItem>
-    </MudGrid>
-    @if (!string.IsNullOrEmpty(_order.Notes))
-    {
-        <MudText Class="mb-3"><strong>Notes:</strong> @_order.Notes</MudText>
-    }
+    <div class="d-flex justify-space-between align-center flex-wrap gap-2 mb-4">
+        <div class="d-flex align-center gap-3">
+            <MudText Typo="Typo.h4">@_order.OrderNumber</MudText>
+            <MudChip T="string" Size="Size.Small" Color="@PurchaseOrderStatus.Color(_order.Status)">@PurchaseOrderStatus.Label(_order.Status)</MudChip>
+        </div>
+        <div class="d-flex flex-wrap gap-2">
+            <MudButton Variant="Variant.Text" Href="purchase-orders" StartIcon="@Icons.Material.Filled.ArrowBack">Purchase orders</MudButton>
+            @if (PurchaseOrderStatus.CanReceive(_order.Status) && _user.Can(ModuleRegistry.Pages.SHIPMENT_CREATE))
+            {
+                <MudButton Variant="Variant.Outlined" Href="@($"shipments?poId={Id}")" StartIcon="@Icons.Material.Filled.LocalShipping">Receive shipment</MudButton>
+            }
+            @if (_order.Status == PurchaseOrderStatus.PendingApproval && _canEdit)
+            {
+                <MudButton Variant="Variant.Outlined" Href="@($"purchase-orders/{Id}/edit")" StartIcon="@Icons.Material.Filled.Edit">Edit</MudButton>
+            }
+            @if (_order.Status == PurchaseOrderStatus.PendingApproval && _canApprove)
+            {
+                <MudButton Variant="Variant.Filled" Color="Color.Success" Disabled="_busy" OnClick="@(() => RunAsync(() => Api.ApproveAsync(Id), "Purchase order approved."))">Approve</MudButton>
+            }
+            else if (_order.Status == PurchaseOrderStatus.Approved && _canEdit)
+            {
+                <MudButton Variant="Variant.Filled" Color="Color.Primary" Disabled="_busy" OnClick="@(() => RunAsync(() => Api.MarkSentAsync(Id), "Marked as sent to the supplier."))">Mark sent</MudButton>
+            }
+            else if (_order.Status == PurchaseOrderStatus.OrderSent && _canEdit)
+            {
+                <MudButton Variant="Variant.Filled" Color="Color.Success" Disabled="_busy" OnClick="@(() => RunAsync(() => Api.MarkReceivedAsync(Id, true), "Marked as received."))">Received (complete)</MudButton>
+                <MudButton Variant="Variant.Filled" Color="Color.Warning" Disabled="_busy" OnClick="@(() => RunAsync(() => Api.MarkReceivedAsync(Id, false), "Marked as received (incomplete)."))">Received (incomplete)</MudButton>
+            }
+        </div>
+    </div>
+
+    <MudPaper Class="pa-4 mb-4" Elevation="2">
+        <MudGrid>
+            <MudItem xs="12" sm="6" md="3"><MudText Typo="Typo.caption" Class="mud-text-secondary">Supplier</MudText><MudText>@_order.SupplierName</MudText></MudItem>
+            <MudItem xs="6" md="2"><MudText Typo="Typo.caption" Class="mud-text-secondary">Order date</MudText><MudText>@LocalTime.FormatDate(_order.OrderDate)</MudText></MudItem>
+            @* A calendar date the user picked, not a timestamp â€” shown as-is, never time-zone shifted. *@
+            <MudItem xs="6" md="2"><MudText Typo="Typo.caption" Class="mud-text-secondary">Expected delivery</MudText><MudText>@(_order.ExpectedDeliveryDate?.ToString("yyyy-MM-dd") ?? "â€”")</MudText></MudItem>
+            <MudItem xs="6" md="2"><MudText Typo="Typo.caption" Class="mud-text-secondary">Approved</MudText><MudText>@LocalTime.FormatDateTime(_order.ApprovedDate)</MudText></MudItem>
+            <MudItem xs="6" md="3"><MudText Typo="Typo.caption" Class="mud-text-secondary">Sent</MudText><MudText>@LocalTime.FormatDateTime(_order.SentDate)</MudText></MudItem>
+            @if (!string.IsNullOrWhiteSpace(_order.Notes))
+            {
+                <MudItem xs="12"><MudText Typo="Typo.caption" Class="mud-text-secondary">Notes</MudText><MudText Style="white-space:pre-wrap;">@_order.Notes</MudText></MudItem>
+            }
+        </MudGrid>
+    </MudPaper>
 
     <MudText Typo="Typo.h6" Class="mb-2">Line items</MudText>
     <MudPaper Class="pa-2" Elevation="2">
@@ -29,21 +69,67 @@ else
                 <MudTh>Product</MudTh>
                 <MudTh Style="text-align:right;">Quantity</MudTh>
                 <MudTh Style="text-align:right;">Est. unit cost</MudTh>
+                <MudTh Style="text-align:right;">Est. total</MudTh>
                 <MudTh Style="text-align:right;">Received</MudTh>
             </HeaderContent>
             <RowTemplate>
-                <MudTd DataLabel="Product">@context.ProductName</MudTd>
-                <MudTd DataLabel="Quantity" Style="text-align:right;">@context.Quantity</MudTd>
+                <MudTd DataLabel="Product">
+                    <MudLink Href="@($"products/{context.ProductId}")">@context.ProductName</MudLink>
+                    @if (!string.IsNullOrEmpty(context.ProductCode))
+                    {
+                        <MudText Typo="Typo.caption" Class="mud-text-secondary d-block">@context.ProductCode</MudText>
+                    }
+                </MudTd>
+                <MudTd DataLabel="Quantity" Style="text-align:right;">@context.Quantity.ToString("0.##")</MudTd>
                 <MudTd DataLabel="Est. unit cost" Style="text-align:right;">@Money.Format(context.EstimatedUnitCost)</MudTd>
-                <MudTd DataLabel="Received" Style="text-align:right;">@(context.ReceivedQuantity?.ToString() ?? "-")</MudTd>
+                <MudTd DataLabel="Est. total" Style="text-align:right;">@(context.EstimatedUnitCost.HasValue ? Money.Format(context.EstimatedUnitCost.Value * context.Quantity) : "-")</MudTd>
+                <MudTd DataLabel="Received" Style="text-align:right;">@(context.ReceivedQuantity?.ToString("0.##") ?? "-")</MudTd>
             </RowTemplate>
+            <FooterContent>
+                <MudTd colspan="3" Style="text-align:right;"><b>Estimated total</b></MudTd>
+                <MudTd Style="text-align:right;"><b>@Money.Format(_order.Items.Sum(i => (i.EstimatedUnitCost ?? 0m) * i.Quantity))</b></MudTd>
+                <MudTd />
+            </FooterContent>
         </MudTable>
     </MudPaper>
 }
 
 @code {
     [Parameter] public int Id { get; set; }
-    private PurchaseOrderDetailDto? _order;
+    [CascadingParameter] private Task<AuthenticationState> AuthState { get; set; } = default!;
 
-    protected override async Task OnInitializedAsync() => _order = await Api.GetDetailAsync(Id);
+    private System.Security.Claims.ClaimsPrincipal _user = new();
+    // Actions the user's role can't perform are hidden (the server refuses them regardless).
+    private bool _canEdit;
+    private bool _canApprove;
+    private PurchaseOrderDetailDto? _order;
+    private bool _notFound;
+    private bool _busy;
+
+    protected override async Task OnParametersSetAsync()
+    {
+        _user = (await AuthState).User;
+        _canEdit = _user.Can(ModuleRegistry.Pages.PURCHASE_ORDERS_EDIT);
+        _canApprove = _user.Can(ModuleRegistry.Pages.PURCHASE_ORDERS_APPROVE);
+        if (!RendererInfo.IsInteractive) return; // prerendering: show the loading state; the browser loads the data
+        _order = null;
+        _order = await Api.GetDetailAsync(Id);
+        _notFound = _order == null;
+    }
+
+    private async Task RunAsync(Func<Task<(bool Success, string? Error)>> action, string successMessage)
+    {
+        _busy = true;
+        try
+        {
+            var (success, error) = await action();
+            if (success) Snackbar.Add(successMessage, Severity.Success);
+            else Snackbar.Add(error ?? "The order couldn't be updated.", Severity.Error);
+            _order = await Api.GetDetailAsync(Id);
+        }
+        finally
+        {
+            _busy = false;
+        }
+    }
 }

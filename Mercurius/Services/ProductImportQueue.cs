@@ -9,6 +9,9 @@ namespace Mercurius.Services
         public string JobId { get; set; } = "";
         public byte[] FileContent { get; set; } = System.Array.Empty<byte>();
         public bool UpdateExisting { get; set; }
+        // The uploader's tenant, captured from the request that queued the job — the background
+        // service has no signed-in user of its own (see HttpContextCurrentTenantContext).
+        public int TenantId { get; set; }
     }
 
     /// <summary>

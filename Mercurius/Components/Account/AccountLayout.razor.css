@@ -1,0 +1,170 @@
+.auth-shell {
+    min-height: 100vh;
+    display: flex;
+    font-family: 'Inter', 'Helvetica Neue', Arial, sans-serif;
+    background: #f5f7fb;
+}
+
+.auth-brand {
+    flex: 0 0 42%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 3rem;
+    color: #fff;
+    background: linear-gradient(160deg, #0f172a 0%, #1e3a5f 60%, #0f766e 100%);
+}
+
+.auth-brand-inner {
+    max-width: 22rem;
+}
+
+.auth-logo {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 3.25rem;
+    height: 3.25rem;
+    border-radius: 0.9rem;
+    background: rgba(255, 255, 255, 0.12);
+    font-size: 1.5rem;
+}
+
+.auth-brand-name {
+    margin: 1.25rem 0 0.5rem;
+    font-size: 2rem;
+    font-weight: 700;
+    letter-spacing: 0.01em;
+}
+
+.auth-brand-sub {
+    margin: 0;
+    color: rgba(255, 255, 255, 0.75);
+    line-height: 1.6;
+}
+
+.auth-main {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 2rem 1rem;
+}
+
+.auth-card {
+    width: 100%;
+    max-width: 26rem;
+    padding: 2.5rem 2rem;
+    border-radius: 1rem;
+    background: #fff;
+    box-shadow: 0 10px 40px rgba(15, 23, 42, 0.08);
+}
+
+@media (max-width: 767.98px) {
+    .auth-shell {
+        flex-direction: column;
+    }
+
+    .auth-brand {
+        flex: 0 0 auto;
+        padding: 2rem 1.5rem;
+    }
+
+    .auth-brand-sub {
+        display: none;
+    }
+}
+
+/* Page content inside the card comes from the individual account pages, so it's styled
+   through ::deep from here — one look for every sign-in screen. */
+.auth-card ::deep .auth-title {
+    margin: 0 0 0.35rem;
+    font-size: 1.5rem;
+    font-weight: 700;
+    color: #0f172a;
+}
+
+.auth-card ::deep .auth-subtitle {
+    margin: 0 0 1.5rem;
+    color: #64748b;
+    line-height: 1.55;
+}
+
+.auth-card ::deep .auth-alert {
+    margin-bottom: 1.25rem;
+    padding: 0.75rem 1rem;
+    border-radius: 0.6rem;
+    background: #fef2f2;
+    border: 1px solid #fecaca;
+    color: #b91c1c;
+    font-size: 0.9rem;
+}
+
+.auth-card ::deep .auth-field {
+    margin-bottom: 1.1rem;
+}
+
+    .auth-card ::deep .auth-field label {
+        display: block;
+        margin-bottom: 0.4rem;
+        font-size: 0.85rem;
+        font-weight: 600;
+        color: #334155;
+    }
+
+    .auth-card ::deep .auth-field input {
+        width: 100%;
+        padding: 0.7rem 0.85rem;
+        border: 1px solid #cbd5e1;
+        border-radius: 0.6rem;
+        font-size: 0.95rem;
+        background: #fff;
+        transition: border-color 0.15s ease, box-shadow 0.15s ease;
+    }
+
+        .auth-card ::deep .auth-field input:focus {
+            outline: none;
+            border-color: #0f766e;
+            box-shadow: 0 0 0 3px rgba(15, 118, 110, 0.15);
+        }
+
+.auth-card ::deep .validation-message {
+    margin-top: 0.35rem;
+    font-size: 0.8rem;
+    color: #b91c1c;
+}
+
+.auth-card ::deep .auth-check {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    margin: 0.25rem 0 1.5rem;
+    font-size: 0.9rem;
+    color: #475569;
+}
+
+.auth-card ::deep .auth-submit {
+    display: inline-block;
+    width: 100%;
+    padding: 0.75rem 1rem;
+    border: none;
+    border-radius: 0.6rem;
+    background: #0f766e;
+    color: #fff;
+    font-size: 0.95rem;
+    font-weight: 600;
+    text-align: center;
+    text-decoration: none;
+    cursor: pointer;
+    transition: background-color 0.15s ease;
+}
+
+    .auth-card ::deep .auth-submit:hover {
+        background: #115e59;
+    }
+
+.auth-card ::deep .auth-reference {
+    margin-bottom: 1.5rem;
+    color: #475569;
+    font-size: 0.9rem;
+}

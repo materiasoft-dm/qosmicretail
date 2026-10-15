@@ -20,6 +20,9 @@ namespace Mercurius.Client.Services
             var response = await _http.PostAsJsonAsync("api/adjustment-reasons", request);
             return response.IsSuccessStatusCode ? await response.Content.ReadFromJsonAsync<AdjustmentReasonDto>() : null;
         }
+
+        public async Task<bool> UpdateAsync(int id, UpdateAdjustmentReasonRequest request) =>
+            (await _http.PutAsJsonAsync($"api/adjustment-reasons/{id}", request)).IsSuccessStatusCode;
     }
 
     public class ProductCategoriesApiClient
@@ -38,6 +41,9 @@ namespace Mercurius.Client.Services
             var response = await _http.PostAsJsonAsync("api/product-categories", request);
             return response.IsSuccessStatusCode ? await response.Content.ReadFromJsonAsync<ProductCategoryDto>() : null;
         }
+
+        public async Task<bool> UpdateAsync(int id, UpdateProductCategoryRequest request) =>
+            (await _http.PutAsJsonAsync($"api/product-categories/{id}", request)).IsSuccessStatusCode;
     }
 
     public class LocationsApiClient
@@ -56,6 +62,9 @@ namespace Mercurius.Client.Services
             var response = await _http.PostAsJsonAsync("api/locations", request);
             return response.IsSuccessStatusCode ? await response.Content.ReadFromJsonAsync<LocationDto>() : null;
         }
+
+        public async Task<bool> UpdateAsync(int id, UpdateLocationRequest request) =>
+            (await _http.PutAsJsonAsync($"api/locations/{id}", request)).IsSuccessStatusCode;
     }
 
     public class RefundReasonsApiClient
@@ -97,9 +106,13 @@ namespace Mercurius.Client.Services
         public async Task<(bool Success, string? Error)> CreateAsync(CreateCategoryFieldRequest request)
         {
             var response = await _http.PostAsJsonAsync("api/category-fields", request);
-            if (response.IsSuccessStatusCode) return (true, null);
-            var body = await response.Content.ReadFromJsonAsync<Dictionary<string, string>>();
-            return (false, body != null && body.TryGetValue("error", out var e) ? e : "Failed to create field.");
+            return response.IsSuccessStatusCode ? (true, null) : (false, await ApiErrors.ReadAsync(response, "Failed to create field."));
+        }
+
+        public async Task<(bool Success, string? Error)> UpdateAsync(int id, UpdateCategoryFieldRequest request)
+        {
+            var response = await _http.PutAsJsonAsync($"api/category-fields/{id}", request);
+            return response.IsSuccessStatusCode ? (true, null) : (false, await ApiErrors.ReadAsync(response, "Failed to save field."));
         }
     }
 }

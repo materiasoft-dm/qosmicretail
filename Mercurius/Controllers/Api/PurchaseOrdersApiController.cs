@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Security.Claims;
 using System.Threading;
 using System.Threading.Tasks;
 using Mercurius.Repo.Models;
@@ -44,8 +45,6 @@ namespace Mercurius.Controllers.Api
             return Ok(new ListResultDto<PurchaseOrderListItemDto> { Items = items, Total = items.Count });
         }
 
-        // Mirrors PurchaseOrdersController.Edit — a read-only line-item view in this app (no PO
-        // edit form exists; the workflow moves via Approve/MarkSent/MarkReceived instead).
         [HttpGet("{id}")]
         [Authorize(Policy = Mercurius.Common.ModuleRegistry.Pages.PURCHASE_ORDERS_LIST)]
         public async Task<ActionResult<PurchaseOrderDetailDto>> GetDetail(int id, CancellationToken ct = default)
@@ -54,7 +53,8 @@ namespace Mercurius.Controllers.Api
             if (order == null) return NotFound();
 
             var supplier = await _unitOfWork.Repository<Supplier>().GetByIdAsync(order.SupplierId, ct);
-            var items = (await _unitOfWork.Repository<PurchaseOrderItem>().FindAsync(poi => poi.PurchaseOrderId == order.Id, ct)).ToList();
+            var items = (await _unitOfWork.Repository<PurchaseOrderItem>().FindAsync(poi => poi.PurchaseOrderId == order.Id, ct))
+                .OrderBy(i => i.Id).ToList();
             var productIds = items.Select(i => i.ProductId).Distinct().ToList();
             var productsById = productIds.Count == 0
                 ? new Dictionary<int, Product>()
@@ -64,14 +64,19 @@ namespace Mercurius.Controllers.Api
             {
                 Id = order.Id,
                 OrderNumber = order.OrderNumber,
+                SupplierId = order.SupplierId,
                 SupplierName = supplier?.Name ?? string.Empty,
                 Status = order.Status,
                 OrderDate = order.OrderDate,
                 ExpectedDeliveryDate = order.ExpectedDeliveryDate,
+                ApprovedDate = order.ApprovedDate,
+                SentDate = order.SentDate,
                 Notes = order.Notes,
                 Items = items.Select(i => new PurchaseOrderLineDto
                 {
+                    ProductId = i.ProductId,
                     ProductName = productsById.TryGetValue(i.ProductId, out var p) ? p.Name ?? string.Empty : "(deleted product)",
+                    ProductCode = productsById.TryGetValue(i.ProductId, out var pc) ? pc.ProductCode ?? string.Empty : string.Empty,
                     Quantity = i.Quantity,
                     EstimatedUnitCost = i.EstimatedUnitCost,
                     ReceivedQuantity = i.ReceivedQuantity
@@ -79,8 +84,57 @@ namespace Mercurius.Controllers.Api
             });
         }
 
+        // The classic Edit page never saved anything (it posted to an action that doesn't exist),
+        // so this is the first working PO edit. Only a PendingApproval order can change — after
+        // approval the approved contents are what the supplier gets.
+        [HttpPut("{id}")]
+        [Authorize(Policy = Mercurius.Common.ModuleRegistry.Pages.PURCHASE_ORDERS_EDIT)]
+        public async Task<IActionResult> Update(int id, UpdatePurchaseOrderRequest request, CancellationToken ct = default)
+        {
+            var order = await _unitOfWork.Repository<PurchaseOrder>().GetByIdAsync(id, ct);
+            if (order == null) return NotFound();
+            if (order.Status != "PendingApproval")
+            {
+                return BadRequest(new { error = "Only orders that are still pending approval can be edited." });
+            }
+            if (request.SupplierId <= 0 || !request.Lines.Any(l => l.ProductId > 0 && l.Quantity > 0))
+            {
+                return BadRequest(new { error = "Supplier and at least one valid product line are required." });
+            }
+            if (!_unitOfWork.Query<Supplier>().Any(s => s.Id == request.SupplierId))
+            {
+                return BadRequest(new { error = "That supplier doesn't exist." });
+            }
+
+            order.SupplierId = request.SupplierId;
+            order.ExpectedDeliveryDate = request.ExpectedDeliveryDate;
+            order.Notes = request.Notes;
+            order.UpdatedDate = DateTime.UtcNow;
+            await _unitOfWork.Repository<PurchaseOrder>().UpdateAsync(order, ct);
+
+            var itemRepo = _unitOfWork.Repository<PurchaseOrderItem>();
+            foreach (var existing in await itemRepo.FindAsync(poi => poi.PurchaseOrderId == order.Id, ct))
+            {
+                await itemRepo.DeleteAsync(existing.Id, ct);
+            }
+            foreach (var line in request.Lines.Where(l => l.ProductId > 0 && l.Quantity > 0))
+            {
+                await itemRepo.AddAsync(new PurchaseOrderItem
+                {
+                    PurchaseOrderId = order.Id,
+                    ProductId = line.ProductId,
+                    Quantity = line.Quantity,
+                    EstimatedUnitCost = line.EstimatedUnitCost
+                }, ct);
+            }
+            await _unitOfWork.SaveChangesAsync(ct);
+            return Ok();
+        }
+
+        // Lookups for the PO form: gated on the list permission (not Create) so a user who may
+        // only edit orders can still load them. They only expose names/codes already visible on POs.
         [HttpGet("suppliers")]
-        [Authorize(Policy = Mercurius.Common.ModuleRegistry.Pages.PURCHASE_ORDERS_CREATE)]
+        [Authorize(Policy = Mercurius.Common.ModuleRegistry.Pages.PURCHASE_ORDERS_LIST)]
         public ActionResult<List<SupplierOptionDto>> GetSuppliers()
         {
             var items = _unitOfWork.Query<Supplier>().Where(s => s.IsActive).OrderBy(s => s.Name)
@@ -89,14 +143,15 @@ namespace Mercurius.Controllers.Api
         }
 
         [HttpGet("products")]
-        [Authorize(Policy = Mercurius.Common.ModuleRegistry.Pages.PURCHASE_ORDERS_CREATE)]
+        [Authorize(Policy = Mercurius.Common.ModuleRegistry.Pages.PURCHASE_ORDERS_LIST)]
         public ActionResult<List<ProductOptionDto>> GetProducts(string? search = null)
         {
             var query = _unitOfWork.Query<Product>().Where(p => p.IsActive);
             if (!string.IsNullOrWhiteSpace(search))
             {
                 var s = search.Trim().ToLowerInvariant();
-                query = query.Where(p => (p.Name != null && p.Name.ToLower().Contains(s)) || (p.ProductCode != null && p.ProductCode.ToLower().Contains(s)));
+                query = query.Where(p => (p.Name != null && p.Name.ToLower().Contains(s)) || (p.ProductCode != null && p.ProductCode.ToLower().Contains(s))
+                    || (p.Barcode != null && p.Barcode.ToLower().Contains(s)));
             }
             var items = query.OrderBy(p => p.Name).Take(50)
                 .Select(p => new ProductOptionDto { Id = p.Id, Name = p.Name ?? string.Empty, ProductCode = p.ProductCode ?? string.Empty }).ToList();
@@ -120,7 +175,8 @@ namespace Mercurius.Controllers.Api
                 ExpectedDeliveryDate = request.ExpectedDeliveryDate,
                 Notes = request.Notes,
                 Status = "PendingApproval",
-                CreatedDate = DateTime.UtcNow
+                CreatedDate = DateTime.UtcNow,
+                CreatedBy = CurrentUserId
             };
             await _unitOfWork.Repository<PurchaseOrder>().AddAsync(order, ct);
             await _unitOfWork.SaveChangesAsync(ct);
@@ -150,6 +206,7 @@ namespace Mercurius.Controllers.Api
 
             order.Status = "Approved";
             order.ApprovedDate = DateTime.UtcNow;
+            order.ApprovedBy = CurrentUserId;
             order.UpdatedDate = DateTime.UtcNow;
             await _unitOfWork.Repository<PurchaseOrder>().UpdateAsync(order, ct);
             await _unitOfWork.SaveChangesAsync(ct);
@@ -166,6 +223,7 @@ namespace Mercurius.Controllers.Api
 
             order.Status = "OrderSent";
             order.SentDate = DateTime.UtcNow;
+            order.SentBy = CurrentUserId;
             order.UpdatedDate = DateTime.UtcNow;
             await _unitOfWork.Repository<PurchaseOrder>().UpdateAsync(order, ct);
             await _unitOfWork.SaveChangesAsync(ct);
@@ -186,5 +244,8 @@ namespace Mercurius.Controllers.Api
             await _unitOfWork.SaveChangesAsync(ct);
             return Ok(new { status = order.Status });
         }
+
+        private Guid CurrentUserId =>
+            Guid.TryParse(User.FindFirstValue(ClaimTypes.NameIdentifier), out var uid) ? uid : Guid.Empty;
     }
 }

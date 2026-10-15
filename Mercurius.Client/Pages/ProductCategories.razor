@@ -1,6 +1,8 @@
 @page "/product-categories"
-@attribute [Authorize]
+@attribute [Authorize(Policy = ModuleRegistry.Pages.CONFIG_PRODUCT_CATEGORIES)]
+@using Mercurius.Client.Pages.Dialogs
 @inject ProductCategoriesApiClient Api
+@inject IDialogService DialogService
 @inject ISnackbar Snackbar
 
 <PageTitle>Product Categories</PageTitle>
@@ -31,20 +33,31 @@
 }
 
 <MudPaper Class="pa-2" Elevation="2">
-    <MudTable Items="@(_result?.Items ?? new())" Loading="@(_result is null)" Hover="true" Dense="true">
+    <MudTable RowsPerPage="25" Items="@(_result?.Items ?? new())" Loading="@(_result is null)" Hover="true" Dense="true">
         <HeaderContent>
             <MudTh>Name</MudTh>
             <MudTh>Description</MudTh>
-            <MudTh>Active</MudTh>
+            <MudTh>Status</MudTh>
+            <MudTh></MudTh>
         </HeaderContent>
         <RowTemplate>
             <MudTd DataLabel="Name">@context.Name</MudTd>
             <MudTd DataLabel="Description">@context.Description</MudTd>
-            <MudTd DataLabel="Active">@(context.IsActive ? "Yes" : "No")</MudTd>
+            <MudTd DataLabel="Status">
+                <MudChip T="string" Size="Size.Small" Color="@(context.IsActive ? Color.Success : Color.Default)">
+                    @(context.IsActive ? "Active" : "Inactive")
+                </MudChip>
+            </MudTd>
+            <MudTd>
+                <MudIconButton Icon="@Icons.Material.Filled.Edit" Size="Size.Small" aria-label="Edit" OnClick="() => OpenEdit(context)" />
+            </MudTd>
         </RowTemplate>
         <NoRecordsContent>
             <MudText>No product categories yet.</MudText>
         </NoRecordsContent>
+        <PagerContent>
+            <MudTablePager PageSizeOptions="@(new[] { 25, 50, 100 })" />
+        </PagerContent>
     </MudTable>
 </MudPaper>
 
@@ -54,7 +67,11 @@
     private string _name = string.Empty, _description = string.Empty;
     private string? _error;
 
-    protected override async Task OnInitializedAsync() => await LoadAsync();
+    protected override async Task OnInitializedAsync()
+    {
+        if (!RendererInfo.IsInteractive) return; // prerendering: show the loading state; the browser loads the data
+        await LoadAsync();
+    }
     private async Task LoadAsync() => _result = await Api.GetAsync();
 
     private void ShowCreate() { _showCreate = true; _error = null; _name = _description = string.Empty; }
@@ -67,5 +84,16 @@
         _showCreate = false;
         Snackbar.Add("Category created.", Severity.Success);
         await LoadAsync();
+    }
+
+    private async Task OpenEdit(ProductCategoryDto category)
+    {
+        var parameters = new DialogParameters<ProductCategoryDialog> { { d => d.Existing, category } };
+        var dialog = await DialogService.ShowAsync<ProductCategoryDialog>("Edit Category", parameters);
+        if (await dialog.Result is { Canceled: false })
+        {
+            Snackbar.Add("Category updated.", Severity.Success);
+            await LoadAsync();
+        }
     }
 }

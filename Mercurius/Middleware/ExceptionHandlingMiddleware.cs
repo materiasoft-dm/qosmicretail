@@ -10,7 +10,10 @@ namespace Mercurius.Middleware
         private readonly ILogger<ExceptionHandlingMiddleware> _logger;
         private readonly SemaphoreSlim _semaphore = new(1, 1);
         private readonly string _logDirectory;
-        private readonly StreamWriter _logWriter;
+
+        // Null when the log file couldn't be opened (see the constructor) — the app then relies on
+        // ILogger alone rather than failing to start.
+        private readonly StreamWriter? _logWriter;
         private readonly Timer _flushTimer;
         private bool _disposed;
 
@@ -26,7 +29,27 @@ namespace Mercurius.Middleware
             }
 
             var logFile = Path.Combine(_logDirectory, $"mercurius_{DateTime.UtcNow:yyyyMMdd}.log");
-            _logWriter = new StreamWriter(logFile, append: true) { AutoFlush = false };
+
+            // Opened with FileShare.ReadWrite rather than a bare StreamWriter (which uses
+            // FileShare.None): a logging sink must never be the reason the app fails to start. The
+            // repo lives in a OneDrive-synced folder, and OneDrive/antivirus can hold the file open
+            // at the same time as the app does — with an exclusive handle that threw IOException from
+            // this constructor and took the whole host down with it.
+            try
+            {
+                _logWriter = new StreamWriter(
+                    new FileStream(logFile, FileMode.Append, FileAccess.Write, FileShare.ReadWrite),
+                    Encoding.UTF8)
+                {
+                    AutoFlush = false
+                };
+            }
+            catch (IOException)
+            {
+                // Another process owns the file exclusively. Carry on with ILogger only rather
+                // than refusing to run.
+                _logWriter = null;
+            }
             
             // Flush every 5 seconds
             _flushTimer = new Timer(_ => FlushAsync().ConfigureAwait(false).GetAwaiter().GetResult(), 
@@ -88,11 +111,12 @@ StackTrace: {exception.StackTrace}
             }
 
             // For regular requests, redirect to error page
-            context.Response.Redirect($"/Home/Error?requestId={context.TraceIdentifier}");
+            context.Response.Redirect($"/error?requestId={Uri.EscapeDataString(context.TraceIdentifier)}");
         }
 
         private async Task WriteToFileAsync(string message)
         {
+            if (_logWriter == null) return;
             try
             {
                 await _semaphore.WaitAsync();
@@ -138,7 +162,7 @@ StackTrace: {exception.StackTrace}
 
         private async Task FlushAsync()
         {
-            if (_disposed) return;
+            if (_disposed || _logWriter == null) return;
             
             await _semaphore.WaitAsync();
             try
@@ -164,8 +188,8 @@ StackTrace: {exception.StackTrace}
             _semaphore.Wait();
             try
             {
-                _logWriter.Flush();
-                _logWriter.Dispose();
+                _logWriter?.Flush();
+                _logWriter?.Dispose();
             }
             finally
             {

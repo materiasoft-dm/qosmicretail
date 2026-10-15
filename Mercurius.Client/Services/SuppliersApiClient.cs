@@ -12,10 +12,10 @@ namespace Mercurius.Client.Services
             _http = http;
         }
 
-        public async Task<SupplierListResultDto> GetAsync(string? search, int page, int pageSize)
+        public async Task<SupplierListResultDto> GetAsync(string? search, int page, int pageSize, CancellationToken ct = default)
         {
             var url = $"api/suppliers?search={Uri.EscapeDataString(search ?? string.Empty)}&page={page}&pageSize={pageSize}";
-            var result = await _http.GetFromJsonAsync<SupplierListResultDto>(url);
+            var result = await _http.GetFromJsonAsync<SupplierListResultDto>(url, ct);
             return result ?? new SupplierListResultDto();
         }
 
@@ -25,5 +25,8 @@ namespace Mercurius.Client.Services
             if (!response.IsSuccessStatusCode) return null;
             return await response.Content.ReadFromJsonAsync<SupplierListItemDto>();
         }
+
+        public async Task<bool> UpdateAsync(int id, UpdateSupplierRequest request) =>
+            (await _http.PutAsJsonAsync($"api/suppliers/{id}", request)).IsSuccessStatusCode;
     }
 }

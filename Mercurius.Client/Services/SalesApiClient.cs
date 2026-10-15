@@ -8,9 +8,11 @@ namespace Mercurius.Client.Services
         private readonly HttpClient _http;
         public SalesApiClient(HttpClient http) => _http = http;
 
-        public async Task<List<CustomerOptionDto>> GetCustomersAsync(string? search) =>
-            await _http.GetFromJsonAsync<List<CustomerOptionDto>>("api/sales/customers?search=" + Uri.EscapeDataString(search ?? string.Empty)) ?? new();
+        public async Task<List<CustomerOptionDto>> GetCustomersAsync(string? search, CancellationToken ct = default) =>
+            await _http.GetFromJsonAsync<List<CustomerOptionDto>>("api/sales/customers?search=" + Uri.EscapeDataString(search ?? string.Empty), ct) ?? new();
 
+        // Throws HttpRequestException only when the server couldn't be reached — the caller's cue
+        // to queue the sale offline. Anything the server answered comes back as Success/Error.
         public async Task<(bool Success, CheckoutResultDto? Result, string? Error)> CheckoutAsync(CheckoutRequest request)
         {
             var response = await _http.PostAsJsonAsync("api/sales/checkout", request);
@@ -18,8 +20,7 @@ namespace Mercurius.Client.Services
             {
                 return (true, await response.Content.ReadFromJsonAsync<CheckoutResultDto>(), null);
             }
-            var body = await response.Content.ReadFromJsonAsync<Dictionary<string, string>>();
-            return (false, null, body != null && body.TryGetValue("error", out var e) ? e : "Checkout failed.");
+            return (false, null, await ApiErrors.ReadAsync(response, "Checkout failed."));
         }
     }
 }

@@ -1,0 +1,123 @@
+@page "/data-query"
+@attribute [Authorize(Policy = ModuleRegistry.Pages.ADMIN_DATA_QUERY)]
+@using System.Text.RegularExpressions
+@inject AdminToolsApiClient Api
+@inject IDialogService DialogService
+
+<PageTitle>Data Query</PageTitle>
+
+<MudText Typo="Typo.h4" Class="mb-4">Data Query</MudText>
+
+<MudAlert Severity="Severity.Warning" Class="mb-4">
+    Runs raw SQL directly against this site's live database, with full read/write access and no undo.
+    Every statement is logged and recorded in the audit trail with your name, whatever the outcome.
+</MudAlert>
+
+<MudPaper Class="pa-4 mb-4" Elevation="2">
+    <MudTextField @bind-Value="_apiKey" Label="Admin key" InputType="InputType.Password" Variant="Variant.Outlined"
+                  HelperText="Required on every request, on top of your Data Query permission." autocomplete="off" Class="mb-3" Style="max-width:480px;" />
+    <MudTextField @bind-Value="_sql" Label="SQL" Variant="Variant.Outlined" Lines="8" Placeholder="SELECT * FROM Products"
+                  Style="font-family:monospace;" />
+    <div class="d-flex justify-end mt-3">
+        <MudButton Variant="Variant.Filled" Color="Color.Error" StartIcon="@Icons.Material.Filled.PlayArrow" Disabled="_running" OnClick="RunAsync">
+            @(_running ? "Running..." : "Execute")
+        </MudButton>
+    </div>
+</MudPaper>
+
+@if (_error != null)
+{
+    <MudAlert Severity="Severity.Error" Class="mb-4">@_error</MudAlert>
+}
+
+@if (_result != null)
+{
+    <MudPaper Class="pa-4" Elevation="2">
+        <MudText Typo="Typo.body2" Class="mb-2">
+            @_result.Rows.Count row(s) returned@(_result.RecordsAffected >= 0 ? $" · {_result.RecordsAffected} row(s) affected" : "")
+            @if (_result.Rows.Count > MaxRowsShown)
+            {
+                <span> · showing the first @MaxRowsShown</span>
+            }
+        </MudText>
+        @if (_result.Columns.Count > 0)
+        {
+            <div style="overflow-x:auto;">
+                <MudSimpleTable Dense="true" Bordered="true" Striped="true" Style="font-size:0.8rem;">
+                    <thead>
+                        <tr>
+                            @foreach (var column in _result.Columns)
+                            {
+                                <th style="white-space:nowrap;">@column</th>
+                            }
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var row in _result.Rows.Take(MaxRowsShown))
+                        {
+                            <tr>
+                                @foreach (var column in _result.Columns)
+                                {
+                                    var value = row.TryGetValue(column, out var v) ? v : null;
+                                    <td style="white-space:nowrap; max-width:400px; overflow:hidden; text-overflow:ellipsis;">
+                                        @if (value == null)
+                                        {
+                                            <span class="mud-text-disabled">NULL</span>
+                                        }
+                                        else
+                                        {
+                                            @value.ToString()
+                                        }
+                                    </td>
+                                }
+                            </tr>
+                        }
+                    </tbody>
+                </MudSimpleTable>
+            </div>
+        }
+    </MudPaper>
+}
+
+@code {
+    private const int MaxRowsShown = 500;
+    // Statements that can change data or schema get a confirmation first.
+    private static readonly Regex WritePattern = new(@"\b(insert|update|delete|drop|alter|create|truncate|merge|replace|exec|execute)\b",
+        RegexOptions.IgnoreCase | RegexOptions.Compiled);
+
+    private string _apiKey = string.Empty;
+    private string _sql = string.Empty;
+    private bool _running;
+    private string? _error;
+    private DataQueryResultDto? _result;
+
+    private async Task RunAsync()
+    {
+        _error = null;
+        if (string.IsNullOrWhiteSpace(_apiKey) || string.IsNullOrWhiteSpace(_sql))
+        {
+            _error = "Enter the admin key and a SQL statement.";
+            return;
+        }
+
+        if (WritePattern.IsMatch(_sql))
+        {
+            var confirmed = await DialogService.ShowMessageBoxAsync("Change live data?",
+                "This statement can change data or schema in the live database, and it can't be undone. Run it?",
+                yesText: "Run it", cancelText: "Cancel");
+            if (confirmed != true) return;
+        }
+
+        _running = true;
+        try
+        {
+            var (result, error) = await Api.ExecuteQueryAsync(_apiKey, _sql);
+            _result = result;
+            _error = error;
+        }
+        finally
+        {
+            _running = false;
+        }
+    }
+}

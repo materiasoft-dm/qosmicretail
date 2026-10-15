@@ -1,7 +1,98 @@
 @page "/settings"
 @attribute [Authorize]
+@using System.Security.Claims
+@inject CurrentUserState CurrentUser
 
 <PageTitle>Settings</PageTitle>
 
-<MudText Typo="Typo.h4" Class="mb-3">Settings</MudText>
-<MudText Color="Color.Secondary">No settings are configured yet — this mirrors the original page, which was also an empty shell.</MudText>
+<MudText Typo="Typo.h4" Class="mb-1">Settings</MudText>
+<MudText Class="mud-text-secondary mb-5">Set up your pharmacy, and manage who can do what.</MudText>
+
+@foreach (var section in Sections)
+{
+    var visible = section.Items.Where(i => i.Visible(_user, CurrentUser.User)).ToList();
+    if (visible.Count == 0) continue;
+
+    <MudText Typo="Typo.overline" Class="d-block mb-2 mt-4 settings-section-title">@section.Title</MudText>
+    <MudGrid Spacing="3">
+        @foreach (var item in visible)
+        {
+            <MudItem xs="12" sm="6" lg="4">
+                <MudCard Elevation="1" Class="settings-card h-100">
+                    <MudCardContent Class="d-flex gap-3">
+                        <div class="settings-icon"><i class="bi @item.Icon"></i></div>
+                        <div class="flex-grow-1">
+                            <MudText Typo="Typo.h6">@item.Title</MudText>
+                            <MudText Typo="Typo.body2" Class="mud-text-secondary">@item.Description</MudText>
+                        </div>
+                    </MudCardContent>
+                    <MudCardActions Class="px-4 pb-3">
+                        <MudButton Href="@item.Href" Variant="Variant.Text" Color="Color.Primary" EndIcon="@Icons.Material.Filled.ArrowForward">Manage</MudButton>
+                    </MudCardActions>
+                </MudCard>
+            </MudItem>
+        }
+    </MudGrid>
+}
+
+@code {
+    [CascadingParameter] private Task<AuthenticationState> AuthState { get; set; } = default!;
+
+    private ClaimsPrincipal _user = new();
+
+    private record SettingsItem(string Title, string Description, string Href, string Icon, Func<ClaimsPrincipal, CurrentUserDto, bool> Visible);
+    private record SettingsSection(string Title, List<SettingsItem> Items);
+
+    private static Func<ClaimsPrincipal, CurrentUserDto, bool> Page(string page) => (user, _) => user.Can(page);
+
+    // The same permissions the pages themselves (and their APIs) require.
+    private static readonly List<SettingsSection> Sections = new()
+    {
+        new("Catalog", new()
+        {
+            new("Product Categories", "Group products so they're easy to find at the till.", "product-categories", "bi-tags-fill",
+                Page(ModuleRegistry.Pages.CONFIG_PRODUCT_CATEGORIES)),
+            new("Category Fields", "Extra details a category's products carry, like dosage form or strength.", "category-fields", "bi-input-cursor-text",
+                Page(ModuleRegistry.Pages.CONFIG_CATEGORY_FIELDS)),
+        }),
+        new("Operations", new()
+        {
+            new("Locations", "Branches: address, contact details and monthly sales targets.", "locations", "bi-geo-alt-fill",
+                Page(ModuleRegistry.Pages.CONFIG_LOCATIONS)),
+            new("Suppliers", "Who you buy from, for purchase orders and shipments.", "suppliers", "bi-building",
+                Page(ModuleRegistry.Pages.CONFIG_SUPPLIERS)),
+            new("Adjustment Reasons", "Why stock is added or written off outside a sale.", "adjustment-reasons", "bi-list-check",
+                Page(ModuleRegistry.Pages.CONFIG_ADJUSTMENT_REASONS)),
+            new("Refund Reasons", "Why a customer returned something.", "refund-reasons", "bi-arrow-return-left",
+                Page(ModuleRegistry.Pages.CONFIG_REFUND_REASONS)),
+        }),
+        new("People & access", new()
+        {
+            new("Users", "Add staff, reset passwords and assign roles.", "users-admin", "bi-people",
+                Page(ModuleRegistry.Pages.ADMIN_USERS_MANAGEMENT)),
+            new("Roles", "Choose exactly which pages and actions each role can use.", "roles-manager", "bi-person-badge-fill",
+                Page(ModuleRegistry.Pages.ADMIN_ROLES_MANAGEMENT)),
+            new("My account", "Your name, email and password.", "account/settings", "bi-person-circle", (_, _) => true),
+        }),
+        new("System", new()
+        {
+            new("Audit Trail", "Every change and sign-in: who, when, where and what.", "audit-trail", "bi-clock-history",
+                Page(ModuleRegistry.Pages.ADMIN_AUDIT_TRAIL)),
+            new("Database Backups", "Daily snapshots of the database, kept for up to 10 days.", "database-backups", "bi-database-down",
+                (user, me) => me.DatabaseBackupsEnabled && user.Can(ModuleRegistry.Pages.CONFIG_DATABASE_BACKUPS)),
+            new("Logs", "Server log files, for troubleshooting.", "logs", "bi-terminal-fill",
+                Page(ModuleRegistry.Pages.ADMIN_USERS_MANAGEMENT)),
+            new("Data Query", "Run SQL directly against the database. Use with care.", "data-query", "bi-database-exclamation",
+                Page(ModuleRegistry.Pages.ADMIN_DATA_QUERY)),
+            new("Tenants", "Create and manage the pharmacies on this deployment.", "platform-admin", "bi-buildings",
+                (user, _) => user.IsPlatformAdmin()),
+            new("Mobile app", "Download the Android and Windows point-of-sale app.", "downloads", "bi-phone",
+                (_, _) => true),
+        }),
+    };
+
+    protected override async Task OnInitializedAsync()
+    {
+        _user = (await AuthState).User;
+    }
+}

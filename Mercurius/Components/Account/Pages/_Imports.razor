@@ -1,0 +1,6 @@
+@* Sign-in pages are plain server-rendered forms: they read and set the sign-in cookie, which only
+   a real HTTP request/response can do — so they never run interactively. (Scoped to this Pages
+   folder: applied to AccountLayout itself, @layout would make it its own layout and loop forever.) *@
+@using Mercurius.Components.Account
+@attribute [ExcludeFromInteractiveRouting]
+@layout AccountLayout

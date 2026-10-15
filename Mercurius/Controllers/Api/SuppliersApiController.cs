@@ -9,9 +9,8 @@ using Microsoft.AspNetCore.Mvc;
 
 namespace Mercurius.Controllers.Api
 {
-    // JSON equivalent of SuppliersController.DataTable — mirrors it exactly, including the
-    // active-only filter (SuppliersController.DataTable line ~57: only IsActive suppliers are
-    // ever listed; recordsTotal reflects that filtered set, not the whole table).
+    // Suppliers page. Inactive suppliers are included, flagged, and sorted last — "delete" is a
+    // soft delete (IsActive=false, see PUT below), and a hidden row couldn't be reactivated.
     [ApiController]
     [Route("api/suppliers")]
     [Authorize(Policy = Mercurius.Common.ModuleRegistry.Pages.CONFIG_SUPPLIERS)]
@@ -32,7 +31,7 @@ namespace Mercurius.Controllers.Api
             if (pageSize < 1) pageSize = 25;
             if (pageSize > 200) pageSize = 200;
 
-            var query = _unitOfWork.Query<Supplier>().Where(sp => sp.IsActive);
+            var query = _unitOfWork.Query<Supplier>();
             if (!string.IsNullOrWhiteSpace(search))
             {
                 var s = search.Trim().ToLowerInvariant();
@@ -40,7 +39,7 @@ namespace Mercurius.Controllers.Api
             }
 
             var total = query.Count();
-            var items = query.OrderBy(sp => sp.Name)
+            var items = query.OrderByDescending(sp => sp.IsActive).ThenBy(sp => sp.Name)
                 .Skip((page - 1) * pageSize).Take(pageSize)
                 .Select(sp => new SupplierListItemDto { Id = sp.Id, Name = sp.Name ?? string.Empty, IsActive = sp.IsActive })
                 .ToList();
@@ -56,11 +55,25 @@ namespace Mercurius.Controllers.Api
                 return BadRequest(new { error = "Name is required." });
             }
 
-            var supplier = new Supplier { Name = request.Name, IsActive = true };
+            var supplier = new Supplier { Name = request.Name.Trim(), IsActive = true };
             await _unitOfWork.Repository<Supplier>().AddAsync(supplier, ct);
             await _unitOfWork.SaveChangesAsync(ct);
 
             return Ok(new SupplierListItemDto { Id = supplier.Id, Name = supplier.Name, IsActive = supplier.IsActive });
+        }
+
+        [HttpPut("{id:int}")]
+        public async Task<IActionResult> Update(int id, UpdateSupplierRequest request, CancellationToken ct = default)
+        {
+            if (string.IsNullOrWhiteSpace(request.Name)) return BadRequest(new { error = "Name is required." });
+            var supplier = await _unitOfWork.Repository<Supplier>().GetByIdAsync(id, ct);
+            if (supplier == null) return NotFound();
+
+            supplier.Name = request.Name.Trim();
+            supplier.IsActive = request.IsActive;
+            await _unitOfWork.Repository<Supplier>().UpdateAsync(supplier, ct);
+            await _unitOfWork.SaveChangesAsync(ct);
+            return NoContent();
         }
     }
 }
