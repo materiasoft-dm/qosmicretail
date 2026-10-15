@@ -1,8 +1,12 @@
 # Mercurius Multitenancy Architecture — Proposed Design
 
-Status: **draft for review** — nothing in this document has been implemented. It describes a
-recommended target architecture and migration path, grounded in the current codebase as of
-2026-09-12. Written for review before any code changes begin.
+Status: **partially implemented** (checked against the code on 2026-10-15). The core tenant
+isolation described in §4.1 is in place: `ITenantScoped`, `ICurrentTenantContext` /
+`ITenantScopeOverride` (`HttpContextCurrentTenantContext`), the global query filter in
+`MercuriusDbContext`, `TenantId` auto-stamping in `EfRepository.AddAsync`, and the tenant claim
+on the mobile JWT used by `SyncController`. Other parts of this document (for example the move
+back to SQL Server) have not been re-checked and should be read as proposals until verified.
+The text below is otherwise the original design, grounded in the codebase as of 2026-09-12.
 
 ## 1. Goals (as given)
 

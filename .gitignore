@@ -16,6 +16,10 @@ identity.db
 # Logs
 **/logs/
 
+# Downloadable POS app builds (Mercurius.Mobile/publish-downloads.ps1) — ~100 MB each, far too big
+# for git; served by DownloadsController and shipped by publishing from the machine that built them.
+Mercurius/Downloads/
+
 # Uploaded runtime files
 **/wwwroot/ProductImages/*.png
 **/wwwroot/ProductImages/*.jpg
@@ -27,6 +31,9 @@ identity.db
 **/*.tmp
 **/*.temp
 **/*.log
+
+# Test run output (dotnet test --logger trx)
+**/TestResults/
 
 # OS / editor
 .DS_Store

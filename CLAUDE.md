@@ -4,10 +4,12 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Admin Data Query API
 
-`/DataQuery` (`Mercurius/Controllers/Admin/DataQueryController.cs`) runs raw SQL directly
-against the live database — full read/write, key-gated. See `ADMIN_DATA_QUERY_ACCESS.md` at
-the repo root for the key, request/response shape, and the auth sequence needed to call it
-programmatically (it requires an authenticated admin session, not just the key). This is the
+The `/data-query` page, backed by `POST api/admin/data-query` (`DataQueryApiController` in
+`Mercurius/Controllers/Api/AdminToolsApiControllers.cs`, rules in `DataQueryService`), runs raw
+SQL directly against the live database — full read/write, key-gated. See
+`ADMIN_DATA_QUERY_ACCESS.md` at the repo root for the key and how to call it programmatically
+(written for the old MVC `/DataQuery` endpoint, so check its request details against the API
+controller) (it requires an authenticated admin session, not just the key). This is the
 intended way to inspect/fix live data now that SQLite has no live remote-query path — prefer
 it over ad-hoc scripts against the DB file, and note that unlike casual investigation, using
 this endpoint to actually modify data is explicit, logged, deliberate action, not something
@@ -46,13 +48,13 @@ If a `dotnet run` process is left running, a subsequent `dotnet build` will fail
 
 ## Architecture
 
-**Projects**: `Mercurius` (ASP.NET Core MVC web app, entry point), `Mercurius.Repo` (EF Core persistence + domain models), `Mercurius.Common` (cross-cutting constants, `ModuleRegistry`, shared helpers), `Mercurius.Tests` (xUnit).
+**Projects**: `Mercurius` (ASP.NET Core host, entry point: the `/api` controllers, the sign-in/error pages in `Components/`, and prerendering for the Blazor client), `Mercurius.Client` (the web UI, Blazor WebAssembly + MudBlazor, served from the site root), `Mercurius.Shared` (DTOs shared by server and client, plus `ModuleRegistry`), `Mercurius.Repo` (EF Core persistence + domain models), `Mercurius.Common` (cross-cutting constants, shared helpers), `Mercurius.Tests` (xUnit).
 
 ### Persistence is provider-switchable
 
 `Program.cs` reads `DatabaseProvider` from configuration (`"Sqlite"` default, or `"SqlServer"`) and configures `MercuriusDbContext` (in `Mercurius.Repo/Repositories/`) accordingly. `MercuriusDbContext.OnModelCreating` does several things that apply regardless of provider and are easy to miss:
 
-- Forces every `string` property without an explicit `[Required]` attribute to be nullable at the EF model level, overriding the convention that infers `NOT NULL` from C#'s non-nullable-reference-type annotation. This mirrors `SuppressImplicitRequiredAttributeForNonNullableReferenceTypes` in `Program.cs`'s MVC config — the two must stay in sync, since many models declare optional fields (`Description`, `Note`, etc.) as non-nullable `string` for convenience.
+- Forces every `string` property without an explicit `[Required]` attribute to be nullable at the EF model level, overriding the convention that infers `NOT NULL` from C#'s non-nullable-reference-type annotation. This mirrors `SuppressImplicitRequiredAttributeForNonNullableReferenceTypes` in `Program.cs`'s `AddControllers` config — the two must stay in sync, since many models declare optional fields (`Description`, `Note`, etc.) as non-nullable `string` for convenience.
 - Sets `DeleteBehavior.Restrict` on every foreign key, globally overriding EF's cascade-by-default convention for required relationships. SQL Server refuses to create a schema where two cascade paths converge on the same table (e.g. `InvoiceStatus` → `Invoice` → `InvoiceItem` and `InvoiceStatus` → `InvoiceItem` directly) — SQLite never enforced this, so the failure only surfaces against SQL Server.
 - Gives every `decimal`/`decimal?` property explicit `HasPrecision(18, 4)` — SQL Server requires an explicit precision/scale or defaults silently; SQLite doesn't care.
 - Mirrors the index list from the old LiteDB implementation (see `EnsureCoreIndexes`-style grouping by entity) directly as `HasIndex` calls.
@@ -89,7 +91,7 @@ JwtBearerDefaults.AuthenticationScheme)]`) exposes `GET .../pull?since=<utc time
 - **Invoices** are create-once/idempotent by `SyncId` — a synced sale is a completed financial
   record; re-pushing the same `SyncId` is a safe no-op rather than overwriting it. Edits to a
   submitted sale should go through a refund/void flow, not sync. `PushInvoices` mirrors
-  `SalesController.NewSale`'s inventory bookkeeping for every line: it calls
+  web checkout's (`SalesApiController`) inventory bookkeeping for every line: it calls
   `BatchPricingService.FindFulfillingBatchAsync` to pick a batch, decrements
   `MedicineBatch.RemainingQuantity`/`Product.CurrentStock`, writes a `ZeroStockSaleAuditLog` row
   when stock goes to zero or below, and calls `RefreshActivePriceAsync` afterward — the price the
@@ -199,29 +201,26 @@ browser against a real instance of the app:
   (`xunit.runner.json`), since they all share one database.
 - Before running for the first time: build `Mercurius` (`dotnet build`, not `dotnet run` — the
   fixture execs the DLL directly) and install the Chromium binary once via the packaged script,
-  e.g. `pwsh Mercurius.E2ETests/bin/Debug/net9.0/playwright.ps1 install chromium`.
-- `SalesTests.CompleteSale_SucceedsAndRedirectsToInvoiceList` and `RolesManagerTests` exist
-  specifically to catch the two production bugs above if they're ever reintroduced — don't remove
-  or weaken them without a good reason.
-- Gotcha hit while writing these: DataTables' `#searchInput` boxes only react to a real `keyup`
-  DOM event — Playwright's `FillAsync` sets the value directly without dispatching one, so searches
-  silently no-op. Use `Locator.PressSequentiallyAsync` for those. Also, an ajax-form's success
-  redirect can't be awaited with `WaitForURLAsync(url => url.Contains(...))` if you're already
-  sitting on a URL that contains that same substring — it resolves before the underlying fetch
-  even finishes. Wait for the POST's own response instead (`RunAndWaitForResponseAsync`).
+  e.g. `pwsh Mercurius.E2ETests/bin/Debug/net10.0/playwright.ps1 install chromium`.
+- Every test drives the Blazor UI through `Infrastructure/BlazorTestBase` (see the Blazor client
+  section below for its helpers and MudBlazor gotchas). The suite was first written against the
+  classic MVC pages; those pages are gone and the tests were ported, keeping their names and the
+  bugs they guard against.
+- `SalesTests.CompleteSale_ViaCardPayment_ClearsCartAndShowsConfirmation` and `RolesManagerTests`
+  exist specifically to catch the two production bugs above if they're ever reintroduced — don't
+  remove or weaken them without a good reason.
 - Set `E2E_HEADED=1` before `dotnet test` to watch the browser locally instead of running headless
   (also slows actions down via `SlowMo` so it's actually followable).
 - The test server's full stdout/stderr (including any unhandled-exception dumps from
   `ExceptionHandlingMiddleware`) is mirrored to `%TEMP%\mercurius-e2e-server.log` on every run —
   check it first when a test fails with no obvious cause from the Playwright error alone.
-- A subtle timing trap worth knowing about: waiting for a POST's own `Response` event
-  (`RunAndWaitForResponseAsync`) is *not* the same as waiting for the page that POST redirects to.
-  For an ajax-form, the response arrives before the page's own `.then()` callback has run
-  `window.location.href = ...`; for a plain form that 302s, the response for the POST can arrive
-  before the browser finishes following the redirect. Either way, code that immediately calls
-  `WaitForLoadStateAsync` afterward can resolve against the *old* page. Wait for a real DOM signal
-  instead — a modal closing, a button/row re-rendering — see `TestDataHelpers.CreateTestProductAsync`
-  and `ShipmentTests.CreateAndApprovePurchaseOrderAsync` for two different flavors of this.
+- Wait for a real DOM signal (a dialog closing, a row or toast appearing, the URL changing to the
+  new record) rather than a network response or load state — a response can arrive before the page
+  has re-rendered. `BlazorTestBase.CreateProductViaFormAsync` and
+  `ShipmentTests.CreateAndApprovePurchaseOrderAsync` show the pattern.
+- The bugs below were caught by this suite while it still drove the classic MVC pages. The classic
+  views and controllers named in them no longer exist; the model, seeding and validation fixes
+  still apply.
 - `PurchaseOrderTests` caught a fourth production bug: `PurchaseOrder.OrderNumber` was `[Required]`
   but is always server-generated in `PurchaseOrdersController.Create` *after* `ModelState` is
   already validated — the Create form has no field for it, so it bound to `""`, failed `[Required]`
@@ -533,7 +532,7 @@ not assumed — the fixes are in `Infrastructure/`, but the reasoning is worth k
 
 ### FIFO batch pricing (`BatchPricingService`)
 
-`MedicineBatch` rows (created via `MedicineBatchesController`, one per stock receipt) each carry their own `UnitCost`/`UnitSalePrice`. A new shipment at a different price is just a new batch queued behind older stock — `SalesController.NewSale` calls `BatchPricingService.FindFulfillingBatchAsync` to pick, oldest first, the first batch whose `RemainingQuantity` alone covers the full line quantity; if the oldest batch falls short, the *whole* line is priced and drawn from the next batch that can cover it rather than splitting across two batches' ledgers (a deliberate simplification, confirmed with the product owner). `InvoiceItem.MedicineBatchId` records which batch a line was actually priced/deducted from, for refund credit and lot-recall tracing. Products with no batches at all (most non-drug items) fall back to `Product.CurrentSalePrice`/`CurrentCostPrice` unchanged — this feature is purely additive. `BatchPricingService.RefreshActivePriceAsync` keeps those flat fields in sync with whichever batch is now the oldest non-depleted one, so every screen that reads them (Products list, DataTables, the mobile sync API) keeps working without knowing batches exist.
+`MedicineBatch` rows (created via `MedicineBatchesApiController`, one per stock receipt) each carry their own `UnitCost`/`UnitSalePrice`. A new shipment at a different price is just a new batch queued behind older stock — web checkout (`SalesApiController`) and mobile invoice push (`SyncController.PushInvoices`) call `BatchPricingService.FindFulfillingBatchAsync` to pick, oldest first, the first batch whose `RemainingQuantity` alone covers the full line quantity; if the oldest batch falls short, the *whole* line is priced and drawn from the next batch that can cover it rather than splitting across two batches' ledgers (a deliberate simplification, confirmed with the product owner). `InvoiceItem.MedicineBatchId` records which batch a line was actually priced/deducted from, for refund credit and lot-recall tracing. Products with no batches at all (most non-drug items) fall back to `Product.CurrentSalePrice`/`CurrentCostPrice` unchanged — this feature is purely additive. `BatchPricingService.RefreshActivePriceAsync` keeps those flat fields in sync with whichever batch is now the oldest non-depleted one, so every screen that reads them (the Products list, the Sell page, the mobile sync API) keeps working without knowing batches exist.
 
 ### Audit trail (`AuditLog`, Settings → Audit Trail)
 
@@ -547,29 +546,88 @@ pulled up together), plus a JSON diff of what changed (secrets masked). Updates 
 values are skipped; `IsActive` true→false is labeled `Deactivated` (this codebase soft-deletes).
 Things with no EF write of their own are logged explicitly via `IAuditLogger`: web/Blazor/mobile
 sign-in (success, failure, lockout), sign-out, and every raw-SQL console statement
-(`DataQueryController` — raw SQL and `ExecuteUpdate`/`ExecuteDelete` bypass the interceptor).
+(`DataQueryService` — raw SQL and `ExecuteUpdate`/`ExecuteDelete` bypass the interceptor).
 `AuditLog` is intentionally *not* `ITenantScoped` (failed sign-ins for unknown emails have no
-tenant); `AuditTrailController` filters by tenant explicitly. Viewing is gated by the
+tenant); `AuditTrailApiController` filters by tenant explicitly. Viewing is gated by the
 `ADMIN - Audit Trail` permission, grantable/revocable per role in Roles management. Reads are not
 audited.
 
 ### Repository pattern — controllers never touch `DbContext` directly
 
-`IUnitOfWork` / `IRepository<T>` (in `Mercurius.Repo/Repositories/`) wrap `MercuriusDbContext`; controllers depend on `IUnitOfWork` (scoped per request), never the context. `IRepository<T>` covers standard CRUD/paging. For DataTables-driven list pages (server-side sort/filter/paging), ~12 controllers instead call `IUnitOfWork.Query<T>()` (returns `IQueryable<T>` straight off the `DbSet`) and compose `.Where()`/`.OrderBy()`/`.Skip()`/`.Take()` directly — this is the pattern to follow for any new paged list page, mirroring `ProductsController.DataTable` as the reference implementation.
+`IUnitOfWork` / `IRepository<T>` (in `Mercurius.Repo/Repositories/`) wrap `MercuriusDbContext`; controllers depend on `IUnitOfWork` (scoped per request), never the context. `IRepository<T>` covers standard CRUD/paging. For server-paged list endpoints behind the Blazor tables (server-side sort/filter/paging), the API controllers instead call `IUnitOfWork.Query<T>()` (returns `IQueryable<T>` straight off the `DbSet`) and compose `.Where()`/`.OrderBy()`/`.Skip()`/`.Take()` directly — this is the pattern to follow for any new paged list, mirroring `ProductsApiController.Get` as the reference implementation.
 
 Nothing persists until `IUnitOfWork.SaveChangesAsync()` is called — every `AddAsync`/`UpdateAsync`/`DeleteAsync` call must be paired with an explicit save afterward.
 
 ### Database Backups feature is SQLite-only
 
-`DatabaseBackupService` (a `BackgroundService` in `Mercurius/Services/`) takes a daily `VACUUM INTO` snapshot of the SQLite file and prunes anything older than `DatabaseBackup:RetentionDays`, hard-capped at 10 days. It's only registered as a hosted service — and the "Database Backups" sidebar link / controller only reachable — when `DatabaseProvider` is `Sqlite`; there's no equivalent under SQL Server (shared hosting typically blocks `BACKUP DATABASE` at the OS level, and hosting providers manage their own backups anyway).
+`DatabaseBackupService` (a `BackgroundService` in `Mercurius/Services/`) takes a daily `VACUUM INTO` snapshot of the SQLite file and prunes anything older than `DatabaseBackup:RetentionDays`, hard-capped at 10 days. It's only registered as a hosted service — and the "Database Backups" sidebar link / page only reachable — when `DatabaseProvider` is `Sqlite`; there's no equivalent under SQL Server (shared hosting typically blocks `BACKUP DATABASE` at the OS level, and hosting providers manage their own backups anyway).
 
 ### Authorization is claim-driven from a single registry
 
-`Mercurius.Common.ModuleRegistry` defines every permission as a `Pages.*` string constant, plus a `Modules` array listing all of them. `Program.cs` turns that array into one ASP.NET Core authorization policy per entry (`options.AddPolicy(module, policy => policy.RequireClaim(...))`) and, at seed time, grants every one of them to the `Administrator` role. Adding a new protected page means: add the constant, add it to `Modules`, gate the controller with `[Authorize(Policy = ModuleRegistry.Pages.X)]`, and (if it should appear in the sidebar) add a `CanView*` property to `SidebarViewComponent`/`SidebarViewModel` and a guarded link in `Views/Shared/Components/Sidebar/Default.cshtml`.
+`Mercurius.Common.ModuleRegistry` defines every permission as a `Pages.*` string constant, plus a `Modules` array listing all of them. The file lives in `Mercurius.Shared/Security/` (still namespace `Mercurius.Common`, and `Mercurius.Common` references `Mercurius.Shared`, so no `using` changed) so the Blazor client can build its UI from the same names. `Program.cs` turns that array into one ASP.NET Core authorization policy per entry (`options.AddPolicy(module, policy => policy.RequireClaim(...))`) and, at seed time, grants every one of them to the `Administrator` role; `Mercurius.Client/ClientServices.cs` registers the same policies client-side. Adding a new protected page means: add the constant, add it to `Modules`, gate the API with `[Authorize(Policy = ModuleRegistry.Pages.X)]`, gate the Blazor page the same way, and give it a guarded entry in `Mercurius.Client/Layout/NavMenu.razor`.
+
+### Blazor client (`Mercurius.Client`, served from the site root)
+
+The web UI is a Blazor WebAssembly app (MudBlazor 9). It replaced the classic MVC site, whose
+views, controllers, view components and webpack theme assets have been removed. The host
+prerenders each page (`MapRazorComponents<App>().AddInteractiveWebAssemblyRenderMode()` in
+`Program.cs`), then WebAssembly takes over. The sign-in, lockout, access-denied and error pages
+are server-rendered components in `Mercurius/Components`. `Endpoints/LegacyRedirects.cs`
+permanently redirects the old MVC URLs and the app's previous `/app/...` paths to the current
+pages; add a rule there if you rename a route.
+
+- **Auth**: no tokens. The browser already sends the Identity cookie to the same-origin `/api/*`
+  controllers. Claims flow from server to client through
+  `AddAuthenticationStateSerialization`/`AddAuthenticationStateDeserialization`. `CurrentUserState`
+  holds the rest (tenant, current branch, branch list, whether backups exist): the server builds it
+  while prerendering, and the browser re-fetches it from `api/account/me` when needed (see
+  `ICurrentUserProfileSource`). Sign-in happens on `/account/login`.
+- **Permissions**: pages use `@attribute [Authorize(Policy = ModuleRegistry.Pages.X)]`, the same
+  policy their API enforces. `Routes.razor` shows `AccessDenied` to a signed-in user who lacks one
+  (redirecting them to login would just loop). Pages serving two routes with different permissions
+  (`/products/new` vs `/products/{id}/edit`, same for POs) check in code instead. Buttons for
+  actions the role can't perform are hidden via `user.Can(...)` (`Access.cs`). The UI checks are
+  cosmetic; the API is what enforces.
+- **Links**: in-app links are relative (`products/5`) and resolve against `<base href="/">`.
+  Anything served by the server itself (images, QR codes, file downloads such as `/Downloads/Windows`,
+  `/api/admin/backups/...`, `/api/logs/.../download`) must be an absolute `/...` path with a full
+  page load, so the browser fetches it instead of the Blazor router.
+- **Branch switcher** (top of the sidebar): `POST api/account/branch` updates
+  `UserCurrentLocation` (only to a branch in the caller's tenant), then the page force-reloads so
+  everything re-queries for the new branch.
+- **Shared server logic**: `DataQueryService` (key check + auditing for raw SQL),
+  `TenantProvisioningService` (creates a tenant, branch and admin in one transaction, so a rejected
+  password no longer leaves an orphan tenant) and `AuditLogQuery` (audit trail filters) hold those
+  rules — change them there, not in the API controllers that call them.
+
+Gotchas hit while building it:
+- **SQLite can't `ORDER BY` a `decimal` column** (`NotSupportedException`); SQL Server can, so it
+  only fails locally. Cast the sort key: `OrderBy(p => (double?)p.CurrentSalePrice)`
+  (`ProductsApiController`).
+- **A `MudDialog`'s `TitleContent` isn't redrawn** when the dialog's own state changes (the title
+  renders outside the component). Pass a title to `DialogService.ShowAsync` instead of building
+  one after loading.
+- **MudBlazor 9 `MudFileUpload`** uses `<CustomContent>` with `context.OpenFilePickerAsync`
+  (not `ActivatorContent`), and shows a chip list of chosen files unless given an empty
+  `<SelectedTemplate>`.
+- **Background jobs have no signed-in user**, so the tenant query filter sees tenant -1 and hides
+  everything. The CSV import captures the uploader's tenant and applies it with
+  `ITenantScopeOverride.UseTenant(...)` on its own scope; do the same for any new background work.
+- **E2E (`Mercurius.E2ETests/Tests`, including `Tests/Blazor`)**: `BlazorTestBase.GotoAppAsync`
+  waits for `.page[data-interactive='true']`, which `MainLayout` sets once WebAssembly has taken
+  over from the prerendered HTML. Waiting on `article.content` alone is a race: the prerendered
+  page is visible but its buttons do nothing yet. It also has helpers for MudBlazor
+  fields/selects/autocompletes. Fields that aren't `Immediate` only commit on change/blur, so use
+  `FillFieldAsync` (fill, then Tab) rather than a bare `FillAsync`. MudTable's *header* row also
+  has class `mud-table-row` — count body rows with `.mud-table-body tr.mud-table-row`. The test
+  server can't start while a local `dotnet run` of Mercurius is up (both open
+  `logs/mercurius_<date>.log` exclusively), so stop that first. There is no self-registration page
+  (the old `/Identity/Account/Register` redirects to sign-in), so the tests create a tenant's
+  admin through Platform Admin.
 
 ### Soft delete, not hard delete
 
-"Delete" actions should set `IsActive = false` via `UpdateAsync`, not remove the row via `DeleteAsync` — this is the established convention for master-data controllers (e.g. `SuppliersController`). Some older controllers still hard-delete; when touching them, bring them in line rather than adding new hard-deletes. A model being soft-deletable requires an `IsActive` column — not every entity has one (e.g. `Color`, `Size`, `Location` currently don't).
+"Delete" actions should set `IsActive = false` via `UpdateAsync`, not remove the row via `DeleteAsync` — this is the established convention for master-data APIs (e.g. `SuppliersApiController`, where deactivating is a `PUT` with `IsActive = false`). Some older controllers still hard-delete; when touching them, bring them in line rather than adding new hard-deletes. A model being soft-deletable requires an `IsActive` column — not every entity has one (e.g. `Color`, `Size`, `Location` currently don't).
 
 ### Startup seeding
 
