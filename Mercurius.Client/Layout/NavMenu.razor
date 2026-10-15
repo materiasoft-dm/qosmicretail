@@ -125,7 +125,7 @@
         {
             new("Invoices", "invoices", "bi-journal-text", Page(ModuleRegistry.Pages.INVOICE_INDEX)),
             new("Customers", "customers", "bi-people-fill", Page(ModuleRegistry.Pages.CUSTOMER_LIST)),
-            new("Refund Reasons", "refund-reasons", "bi-arrow-return-left", Page(ModuleRegistry.Pages.CONFIG_REFUND_REASONS)),
+            new("Refunds", "refunds", "bi-arrow-counterclockwise", Page(ModuleRegistry.Pages.INVOICE_INDEX)),
         }),
         new("Catalog", "bi-box-seam", new()
         {
@@ -150,6 +150,7 @@
             new("Roles", "roles-manager", "bi-person-badge-fill", Page(ModuleRegistry.Pages.ADMIN_ROLES_MANAGEMENT)),
             new("Users", "users-admin", "bi-people", Page(ModuleRegistry.Pages.ADMIN_USERS_MANAGEMENT)),
             new("Audit Trail", "audit-trail", "bi-clock-history", Page(ModuleRegistry.Pages.ADMIN_AUDIT_TRAIL)),
+            new("Refund Reasons", "refund-reasons", "bi-arrow-return-left", Page(ModuleRegistry.Pages.CONFIG_REFUND_REASONS)),
             new("Logs", "logs", "bi-terminal-fill", Page(ModuleRegistry.Pages.ADMIN_USERS_MANAGEMENT)),
             new("Database Backups", "database-backups", "bi-database-down",
                 (user, me) => me.DatabaseBackupsEnabled && user.Can(ModuleRegistry.Pages.CONFIG_DATABASE_BACKUPS)),

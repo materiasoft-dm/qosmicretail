@@ -22,6 +22,16 @@ namespace Mercurius.Client.Services
             return result ?? new InvoiceListResultDto();
         }
 
+        // sortBy: number | invoice | date (see InvoicesApiController.GetRefunds).
+        public async Task<RefundListResultDto> GetRefundsAsync(string? search, int page, int pageSize,
+            string? sortBy = null, bool desc = true, CancellationToken ct = default)
+        {
+            var url = $"api/invoice-list/refunds?search={Uri.EscapeDataString(search ?? string.Empty)}&page={page}&pageSize={pageSize}"
+                + $"&sortBy={Uri.EscapeDataString(sortBy ?? string.Empty)}&desc={(desc ? "true" : "false")}";
+            var result = await _http.GetFromJsonAsync<RefundListResultDto>(url, ct);
+            return result ?? new RefundListResultDto();
+        }
+
         public async Task<InvoiceDetailDto?> GetDetailAsync(int id) => await _http.GetFromJsonAsync<InvoiceDetailDto>($"api/invoice-list/{id}");
 
         public async Task<(bool Success, string? Error)> CreateRefundAsync(CreateRefundRequest request)

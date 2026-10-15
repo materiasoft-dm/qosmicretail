@@ -99,6 +99,111 @@ namespace Mercurius.Controllers.Api
             return Ok(new InvoiceListResultDto { Items = items, Total = total });
         }
 
+        // The Refunds page: every refund in the tenant, newest first, searchable by refund # or
+        // invoice #. One query per lookup table for the whole page (no N+1 per refund).
+        // sortBy: number | invoice | date (default).
+        [HttpGet("refunds")]
+        public ActionResult<RefundListResultDto> GetRefunds(string? search = null, int page = 1, int pageSize = 25,
+            string? sortBy = null, bool desc = true, CancellationToken ct = default)
+        {
+            ct.ThrowIfCancellationRequested();
+            if (page < 1) page = 1;
+            if (pageSize < 1) pageSize = 25;
+            if (pageSize > 200) pageSize = 200;
+
+            var query = _unitOfWork.Query<InvoiceRefund>();
+            if (!string.IsNullOrWhiteSpace(search))
+            {
+                var s = search.Trim().ToLowerInvariant();
+                var matchingInvoiceIds = _unitOfWork.Query<Invoice>()
+                    .Where(i => i.InvoiceNumber != null && i.InvoiceNumber.ToLower().Contains(s))
+                    .Select(i => i.Id).ToList();
+                query = query.Where(r => (r.RefundNumber != null && r.RefundNumber.ToLower().Contains(s))
+                                         || matchingInvoiceIds.Contains(r.InvoiceId));
+            }
+
+            var total = query.Count();
+            IOrderedQueryable<InvoiceRefund> ordered = (sortBy ?? "date").ToLowerInvariant() switch
+            {
+                "number" => desc ? query.OrderByDescending(r => r.RefundNumber) : query.OrderBy(r => r.RefundNumber),
+                "invoice" => desc ? query.OrderByDescending(r => r.InvoiceId) : query.OrderBy(r => r.InvoiceId),
+                _ => desc ? query.OrderByDescending(r => r.DateRefunded) : query.OrderBy(r => r.DateRefunded)
+            };
+            var refunds = ordered.ThenByDescending(r => r.Id).Skip((page - 1) * pageSize).Take(pageSize).ToList();
+
+            var refundIds = refunds.Select(r => r.Id).ToList();
+            var lines = refundIds.Count == 0 ? new List<InvoiceItemRefund>()
+                : _unitOfWork.Query<InvoiceItemRefund>().Where(l => refundIds.Contains(l.InvoiceRefundId)).ToList();
+
+            var invoiceIds = refunds.Select(r => r.InvoiceId).Distinct().ToList();
+            var invoices = invoiceIds.Count == 0 ? new Dictionary<int, Invoice>()
+                : _unitOfWork.Query<Invoice>().Where(i => invoiceIds.Contains(i.Id)).ToDictionary(i => i.Id);
+
+            var customerIds = invoices.Values.Where(i => i.CustomerId.HasValue).Select(i => i.CustomerId!.Value).Distinct().ToList();
+            var customers = customerIds.Count == 0 ? new Dictionary<int, string>()
+                : _unitOfWork.Query<Customer>().Where(c => customerIds.Contains(c.Id))
+                    .ToDictionary(c => c.Id, c => $"{c.FirstName} {c.LastName}".Trim());
+
+            var itemIds = lines.Select(l => l.InvoiceItemId).Distinct().ToList();
+            var invoiceItems = itemIds.Count == 0 ? new Dictionary<int, InvoiceItem>()
+                : _unitOfWork.Query<InvoiceItem>().Where(ii => itemIds.Contains(ii.Id)).ToDictionary(ii => ii.Id);
+
+            var productIds = lines.Select(l => l.ProductId).Distinct().ToList();
+            var products = productIds.Count == 0 ? new Dictionary<int, string>()
+                : _unitOfWork.Query<Product>().Where(p => productIds.Contains(p.Id)).ToDictionary(p => p.Id, p => p.Name ?? string.Empty);
+
+            var reasonIds = lines.Select(l => l.RefundReasonId).Distinct().ToList();
+            var reasons = reasonIds.Count == 0 ? new Dictionary<int, string>()
+                : _unitOfWork.Query<RefundReason>().Where(r => reasonIds.Contains(r.Id)).ToDictionary(r => r.Id, r => r.Name ?? string.Empty);
+
+            // Users aren't tenant-filtered, but these ids come from this tenant's refunds only.
+            var userIds = refunds.Where(r => r.RefundedByUserId != Guid.Empty).Select(r => r.RefundedByUserId.ToString()).Distinct().ToList();
+            var users = userIds.Count == 0 ? new Dictionary<string, string>()
+                : _unitOfWork.Query<Mercurius.Repo.IdentityModel.MercuriusUser>().Where(u => userIds.Contains(u.Id))
+                    .Select(u => new { u.Id, u.FirstName, u.LastName, u.Email }).ToList()
+                    .ToDictionary(u => u.Id, u => string.IsNullOrWhiteSpace($"{u.FirstName} {u.LastName}".Trim())
+                        ? u.Email ?? string.Empty : $"{u.FirstName} {u.LastName}".Trim(), StringComparer.OrdinalIgnoreCase);
+
+            var items = refunds.Select(r =>
+            {
+                var refundLines = lines.Where(l => l.InvoiceRefundId == r.Id).ToList();
+                invoices.TryGetValue(r.InvoiceId, out var invoice);
+                var customerName = invoice?.CustomerId is int cid && customers.TryGetValue(cid, out var c) ? c : string.Empty;
+                var productNames = refundLines.Select(l => products.TryGetValue(l.ProductId, out var n) ? n : "(deleted product)")
+                    .Distinct().ToList();
+                users.TryGetValue(r.RefundedByUserId.ToString(), out var refundedBy);
+                return new RefundListItemDto
+                {
+                    Id = r.Id,
+                    RefundNumber = r.RefundNumber ?? string.Empty,
+                    DateRefunded = r.DateRefunded,
+                    InvoiceId = r.InvoiceId,
+                    InvoiceNumber = invoice?.InvoiceNumber ?? string.Empty,
+                    CustomerName = customerName,
+                    Products = productNames.Count switch
+                    {
+                        0 => string.Empty,
+                        1 => productNames[0],
+                        _ => $"{productNames[0]} +{productNames.Count - 1} more"
+                    },
+                    LineCount = refundLines.Count,
+                    Quantity = refundLines.Sum(l => l.Quantity),
+                    Amount = refundLines.Sum(l => invoiceItems.TryGetValue(l.InvoiceItemId, out var ii) ? UnitPrice(ii) * l.Quantity : 0m),
+                    Reasons = string.Join(", ", refundLines.Select(l => reasons.TryGetValue(l.RefundReasonId, out var n) ? n : "(deleted reason)").Distinct()),
+                    RestockedLines = refundLines.Count(l => l.WasRestocked),
+                    RefundedBy = refundedBy ?? string.Empty,
+                    Notes = r.Notes
+                };
+            }).ToList();
+
+            return Ok(new RefundListResultDto { Items = items, Total = total });
+        }
+
+        // What one unit actually sold for: a custom line total (a negotiated price) wins over the
+        // list sale price — the same rule the receipts use.
+        private static decimal UnitPrice(InvoiceItem item) =>
+            item.CustomTotalPrice.HasValue && item.Quantity != 0 ? item.CustomTotalPrice.Value / item.Quantity : item.SalePrice;
+
         // Refund reasons and refund headers are resolved in one batch each (no N+1 per line).
         [HttpGet("{id}")]
         [Authorize(Policy = Mercurius.Common.ModuleRegistry.Pages.INVOICE_VIEW)]
