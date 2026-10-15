@@ -1,0 +1,6 @@
+/* The category row scrolls sideways; without this the chips shrink to fit and their names get
+   cut down to a letter or two. */
+.category-chips ::deep .mud-chip {
+    flex: 0 0 auto;
+    margin: 0;
+}

@@ -1,0 +1,300 @@
+/* Dashboard. Widget frames are styled by Dashboard/WidgetCard.razor.css; the content inside them
+   is rendered by this page, so it's styled here. */
+
+.dashboard-header {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: flex-end;
+    justify-content: space-between;
+    gap: 16px;
+    margin-bottom: 24px;
+}
+
+    .dashboard-header ::deep .dashboard-greeting {
+        font-size: 1.9rem;
+        font-weight: 700;
+        letter-spacing: -.025em;
+        background: linear-gradient(90deg, #0f2847 0%, #0369a1 60%, #0ea5e9 100%);
+        -webkit-background-clip: text;
+        background-clip: text;
+        color: transparent;
+    }
+
+/* Sales overview: four KPI tiles. */
+.kpi-grid {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 14px;
+}
+
+.kpi {
+    position: relative;
+    padding: 16px 18px;
+    border-radius: 12px;
+    background: linear-gradient(180deg, #f7fbff 0%, #eef6fd 100%);
+    border: 1px solid #e1ecf7;
+    overflow: hidden;
+}
+
+    .kpi:first-child {
+        background: linear-gradient(135deg, #0f2847 0%, #0369a1 70%, #0ea5e9 100%);
+        border-color: transparent;
+        box-shadow: 0 10px 24px rgba(3, 105, 161, .25);
+    }
+
+        .kpi:first-child .kpi-label {
+            color: rgba(224, 242, 254, .85);
+        }
+
+        .kpi:first-child .kpi-value {
+            color: #fff;
+        }
+
+.kpi-label {
+    font-size: .74rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: .06em;
+    color: var(--mud-palette-text-secondary);
+}
+
+.kpi-value {
+    margin-top: 6px;
+    font-size: 1.55rem;
+    font-weight: 700;
+    letter-spacing: -.02em;
+    color: var(--mud-palette-text-primary);
+    font-variant-numeric: tabular-nums;
+}
+
+.kpi-foot {
+    margin-top: 4px;
+    font-size: .78rem;
+    color: var(--mud-palette-text-secondary);
+}
+
+    .kpi-foot.kpi-up {
+        color: var(--mud-palette-success);
+        font-weight: 600;
+    }
+
+    .kpi-foot.kpi-down {
+        color: var(--mud-palette-error);
+        font-weight: 600;
+    }
+
+/* Single big figure (new customers). */
+.big-number {
+    font-size: 2.6rem;
+    font-weight: 700;
+    letter-spacing: -.03em;
+    line-height: 1.1;
+    background: linear-gradient(135deg, #0f2847 0%, #0284c7 100%);
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+}
+
+/* Ranked lists (items sold, stock watch, expiry). */
+.widget-list {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+}
+
+    .widget-list li {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        padding: 9px 2px;
+        border-bottom: 1px solid var(--mud-palette-table-lines);
+    }
+
+        .widget-list li:last-child {
+            border-bottom: none;
+        }
+
+.widget-list-main {
+    flex: 1 1 auto;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    font-size: .88rem;
+    font-weight: 500;
+    color: var(--mud-palette-text-primary);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.widget-list-sub {
+    font-size: .74rem;
+    font-weight: 400;
+    color: var(--mud-palette-text-secondary);
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.widget-list-value {
+    flex: 0 0 auto;
+    min-width: 2.5rem;
+    text-align: right;
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
+    color: var(--mud-palette-text-primary);
+}
+
+    .widget-list-value.text-danger {
+        color: var(--mud-palette-error) !important;
+    }
+
+.widget-empty {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 18px 14px;
+    border-radius: 10px;
+    background: #f6f9fc;
+    border: 1px dashed #d6e1ec;
+    color: var(--mud-palette-text-secondary);
+    font-size: .88rem;
+}
+
+    .widget-empty i {
+        font-size: 1.1rem;
+        color: var(--mud-palette-primary);
+    }
+
+/* Quick actions: a grid of tiles. */
+.shortcut-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(118px, 1fr));
+    gap: 10px;
+}
+
+.shortcut {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 10px;
+    padding: 14px;
+    border-radius: 12px;
+    border: 1px solid #e1ecf7;
+    background: #f9fcff;
+    color: var(--mud-palette-text-primary);
+    font-size: .84rem;
+    font-weight: 600;
+    text-decoration: none;
+    transition: transform .16s ease, box-shadow .16s ease, border-color .16s ease, background-color .16s ease;
+}
+
+    .shortcut i {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        width: 34px;
+        height: 34px;
+        border-radius: 10px;
+        font-size: 1.05rem;
+        color: #0284c7;
+        background: rgba(56, 189, 248, .14);
+        transition: background .16s ease, color .16s ease;
+    }
+
+    .shortcut:hover {
+        color: var(--mud-palette-text-primary);
+        background: #fff;
+        border-color: rgba(56, 189, 248, .55);
+        box-shadow: 0 8px 22px rgba(2, 132, 199, .14);
+        transform: translateY(-2px);
+    }
+
+        .shortcut:hover i {
+            color: #fff;
+            background: linear-gradient(135deg, #38bdf8 0%, #0284c7 100%);
+        }
+
+/* Expiry alerts: three counters. */
+.expiry-stats {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 12px;
+    margin-bottom: 14px;
+}
+
+.expiry-stat {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    padding: 12px 14px;
+    border-radius: 12px;
+    border: 1px solid transparent;
+}
+
+    .expiry-stat strong {
+        font-size: 1.5rem;
+        font-weight: 700;
+        letter-spacing: -.02em;
+        line-height: 1.15;
+    }
+
+    .expiry-stat span {
+        font-size: .76rem;
+        font-weight: 500;
+    }
+
+.expiry-expired {
+    background: #fef2f2;
+    border-color: #fde2e2;
+    color: #b91c1c;
+}
+
+.expiry-soon {
+    background: #fffbeb;
+    border-color: #fdecc8;
+    color: #b45309;
+}
+
+.expiry-later {
+    background: #f0f9ff;
+    border-color: #dbeefc;
+    color: #0369a1;
+}
+
+.dashboard-empty-icon {
+    font-size: 2.4rem;
+    color: var(--mud-palette-primary);
+}
+
+@media (max-width: 1199.98px) {
+    .kpi-grid {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+}
+
+@media (max-width: 575.98px) {
+    .kpi-grid {
+        grid-template-columns: 1fr 1fr;
+        gap: 10px;
+    }
+
+    .kpi {
+        padding: 12px 14px;
+    }
+
+    .kpi-value {
+        font-size: 1.2rem;
+    }
+
+    .expiry-stats {
+        gap: 8px;
+    }
+
+    .expiry-stat strong {
+        font-size: 1.2rem;
+    }
+
+    .dashboard-header ::deep .dashboard-greeting {
+        font-size: 1.5rem;
+    }
+}

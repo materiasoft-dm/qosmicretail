@@ -1,0 +1,76 @@
+@* A count measured against a target (e.g. sales today vs. the branch's daily target): a progress
+   ring plus the numbers. With no target set it just shows the count. *@
+<div class="target">
+    <div class="target-ring">
+        <svg viewBox="0 0 120 120" aria-hidden="true">
+            <defs>
+                <linearGradient id="@_gradientId" x1="0" y1="0" x2="1" y2="1">
+                    <stop offset="0%" stop-color="#7dd3fc" />
+                    <stop offset="100%" stop-color="#0284c7" />
+                </linearGradient>
+            </defs>
+            <circle class="target-track" cx="60" cy="60" r="52" />
+            @* A zero-length arc with round caps would still draw a dot. *@
+            @if (HasTarget && Count > 0)
+            {
+                <circle class="target-value" cx="60" cy="60" r="52" stroke="url(#@_gradientId)"
+                        stroke-dasharray="@Dash" stroke-dashoffset="0" />
+            }
+        </svg>
+        <div class="target-center">
+            @if (HasTarget)
+            {
+                <span class="target-pct">@Percent.ToString("0")%</span>
+                <span class="target-pct-label">of target</span>
+            }
+            else
+            {
+                <span class="target-pct">@Count</span>
+            }
+        </div>
+    </div>
+    <div class="target-text">
+        <div class="target-count">@Count <span>@Unit</span></div>
+        @if (HasTarget)
+        {
+            <div class="target-goal">Target: <strong>@Target</strong></div>
+            <div class="target-note">
+                @if (Count >= Target)
+                {
+                    <span class="target-met"><i class="bi bi-check-circle-fill"></i> Target reached</span>
+                }
+                else
+                {
+                    <span>@(Target - Count) to go</span>
+                }
+            </div>
+        }
+        else
+        {
+            <div class="target-note">No target set for this branch. Set one under Locations.</div>
+        }
+    </div>
+</div>
+
+@code {
+    private const double Circumference = 2 * Math.PI * 52;
+    private readonly string _gradientId = "tp-" + Guid.NewGuid().ToString("N")[..8];
+
+    [Parameter] public int Count { get; set; }
+    [Parameter] public int Target { get; set; }
+    [Parameter] public string Unit { get; set; } = string.Empty;
+
+    private bool HasTarget => Target > 0;
+    private double Percent => HasTarget ? Count * 100.0 / Target : 0;
+    private double RingPercent => Math.Clamp(Percent, 0, 100);
+
+    // The filled arc, then the gap: an SVG circle drawn as a dashed stroke.
+    private string Dash
+    {
+        get
+        {
+            var filled = Circumference * RingPercent / 100;
+            return string.Create(System.Globalization.CultureInfo.InvariantCulture, $"{filled:0.##} {Circumference:0.##}");
+        }
+    }
+}
