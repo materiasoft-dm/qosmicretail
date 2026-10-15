@@ -1,5 +1,5 @@
 @page "/refund-reasons"
-@attribute [Authorize]
+@attribute [Authorize(Policy = ModuleRegistry.Pages.CONFIG_REFUND_REASONS)]
 @using Mercurius.Client.Pages.Dialogs
 @inject RefundReasonsApiClient Api
 @inject IDialogService DialogService
@@ -15,7 +15,7 @@
 </div>
 
 <MudPaper Class="pa-2" Elevation="2">
-    <MudTable Items="@(_result?.Items ?? new())" Loading="@(_result is null)" Hover="true" Dense="true">
+    <MudTable RowsPerPage="25" Items="@(_result?.Items ?? new())" Loading="@(_result is null)" Hover="true" Dense="true">
         <HeaderContent>
             <MudTh>Name</MudTh>
             <MudTh>Description</MudTh>
@@ -37,13 +37,20 @@
         <NoRecordsContent>
             <MudText>No refund reasons yet.</MudText>
         </NoRecordsContent>
+        <PagerContent>
+            <MudTablePager PageSizeOptions="@(new[] { 25, 50, 100 })" />
+        </PagerContent>
     </MudTable>
 </MudPaper>
 
 @code {
     private ListResultDto<RefundReasonDto>? _result;
 
-    protected override async Task OnInitializedAsync() => await LoadAsync();
+    protected override async Task OnInitializedAsync()
+    {
+        if (!RendererInfo.IsInteractive) return; // prerendering: show the loading state; the browser loads the data
+        await LoadAsync();
+    }
 
     private async Task LoadAsync() => _result = await Api.GetAsync();
 

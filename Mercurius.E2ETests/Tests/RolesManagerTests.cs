@@ -4,13 +4,7 @@ using Xunit;
 
 namespace Mercurius.E2ETests.Tests;
 
-/// <summary>
-/// RolesManagerController used to have duplicate Create/Edit/Delete action methods (one plain,
-/// one with an added CancellationToken parameter), which threw an AmbiguousMatchException on
-/// every single hit to those pages. See CLAUDE.md / the fix commit. These tests exist
-/// specifically to catch that regression if it's ever reintroduced.
-/// </summary>
-public class RolesManagerTests : MercuriusTestBase
+public class RolesManagerTests : BlazorTestBase
 {
     public RolesManagerTests(MercuriusCollectionFixture fixture) : base(fixture) { }
 
@@ -18,44 +12,35 @@ public class RolesManagerTests : MercuriusTestBase
     public async Task RolesList_Loads()
     {
         await LoginAsAdminAsync();
-        await Page.GotoAsync("/RolesManager");
-
-        await Page.Locator("table tbody tr").First.WaitForAsync(new LocatorWaitForOptions { Timeout = 10000 });
+        await GotoAppAsync("roles-manager");
+        await FirstRow.WaitForAsync(new LocatorWaitForOptions { Timeout = UiTimeoutMs });
+        // The seeded roles must be there, not just an empty grid.
+        await Assertions.Expect(Page.Locator(".mud-table-body")).ToContainTextAsync("Administrator",
+            new LocatorAssertionsToContainTextOptions { Timeout = UiTimeoutMs });
+        await AssertNoBlazorErrorAsync();
     }
 
+    /// <summary>
+    /// Creating a role and ticking permissions is the surviving equivalent of the old MVC Edit page's
+    /// "Update Permissions" — the properties under test (a role's page permissions actually persist)
+    /// are unchanged. The MVC page's AmbiguousMatchException failure mode has no counterpart here:
+    /// a Blazor page is one component with one click handler, not action methods resolved by name.
+    /// </summary>
     [Fact]
-    public async Task EditRole_LoadsWithoutAmbiguousMatchError()
+    public async Task CreateRole_WithSelectedPermission_AppearsInList()
     {
         await LoginAsAdminAsync();
-        await Page.GotoAsync("/RolesManager");
+        var name = $"E2E Role {Guid.NewGuid().ToString("N")[..8]}";
+        await GotoAppAsync("roles-manager");
 
-        var editLink = Page.Locator("a[title='Edit']").First;
-        await editLink.WaitForAsync(new LocatorWaitForOptions { Timeout = 10000 });
-        await editLink.ClickAsync();
+        await Page.GetByRole(AriaRole.Button, new PageGetByRoleOptions { Name = "New Role" }).ClickAsync();
+        await FillFieldAsync("Role name", name);
+        // The permission checkboxes are the ModuleRegistry page names, e.g. "Product List Page".
+        await Page.Locator(".mud-checkbox").Filter(new LocatorFilterOptions { HasTextString = "Product List Page" }).First.ClickAsync();
+        await Page.GetByRole(AriaRole.Button, new PageGetByRoleOptions { Name = "Save", Exact = true }).ClickAsync();
 
-        await Page.WaitForURLAsync(url => url.Contains("/RolesManager/Edit"), new PageWaitForURLOptions { Timeout = 10000 });
-
-        var content = await Page.ContentAsync();
-        Assert.DoesNotContain("AmbiguousMatchException", content);
-        Assert.DoesNotContain("error occurred while processing your request", content, StringComparison.OrdinalIgnoreCase);
-        await Page.Locator("#roleEditForm").WaitForAsync(new LocatorWaitForOptions { Timeout = 5000 });
-    }
-
-    [Fact]
-    public async Task EditRole_SubmitPermissions_Succeeds()
-    {
-        await LoginAsAdminAsync();
-        await Page.GotoAsync("/RolesManager");
-
-        var editLink = Page.Locator("a[title='Edit']").First;
-        await editLink.WaitForAsync(new LocatorWaitForOptions { Timeout = 10000 });
-        await editLink.ClickAsync();
-        await Page.WaitForURLAsync(url => url.Contains("/RolesManager/Edit"), new PageWaitForURLOptions { Timeout = 10000 });
-
-        await Page.ClickAsync("button:has-text('Update Permissions')");
-
-        await Page.WaitForURLAsync(url => url.Contains("/RolesManager") && !url.Contains("Edit"), new PageWaitForURLOptions { Timeout = 10000 });
-        var content = await Page.ContentAsync();
-        Assert.DoesNotContain("AmbiguousMatchException", content);
+        await Assertions.Expect(Page.Locator(".mud-table-body")).ToContainTextAsync(name,
+            new LocatorAssertionsToContainTextOptions { Timeout = UiTimeoutMs });
+        await AssertNoBlazorErrorAsync();
     }
 }

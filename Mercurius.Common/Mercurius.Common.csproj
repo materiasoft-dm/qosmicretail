@@ -1,16 +1,20 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
-    <TargetFramework>net9.0</TargetFramework>
+    <TargetFramework>net10.0</TargetFramework>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
     <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
   </PropertyGroup>
 
+  <!-- For ModuleRegistry, which lives in Mercurius.Shared (still namespace Mercurius.Common) so the
+       Blazor client can use the same permission names as the server's policies. -->
   <ItemGroup>
-    <PackageReference Include="Microsoft.AspNetCore.Http.Abstractions" Version="2.2.0" />
-    <PackageReference Include="Microsoft.AspNetCore.Identity.UI" Version="9.0.14" />
-    <PackageReference Include="System.Drawing.Common" Version="6.0.0" />
+    <ProjectReference Include="..\Mercurius.Shared\Mercurius.Shared.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
   </ItemGroup>
 
 </Project>

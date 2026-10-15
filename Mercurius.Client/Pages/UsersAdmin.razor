@@ -1,74 +1,86 @@
 @page "/users-admin"
-@attribute [Authorize]
+@attribute [Authorize(Policy = ModuleRegistry.Pages.ADMIN_USERS_MANAGEMENT)]
+@using Mercurius.Client.Pages.Dialogs
 @inject UsersApiClient Api
+@inject IDialogService DialogService
 @inject ISnackbar Snackbar
 
 <PageTitle>Users</PageTitle>
 
-<MudText Typo="Typo.h4" Class="mb-4">Users</MudText>
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <MudText Typo="Typo.h4">Users</MudText>
+    <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Filled.PersonAdd" OnClick="AddUserAsync">Add user</MudButton>
+</div>
 
 <MudSwitch T="bool" Value="_showDeactivated" ValueChanged="OnShowDeactivatedChanged" Color="Color.Primary" Label="Show deactivated users" Class="mb-3" />
 
 @if (_error != null)
 {
-    <MudAlert Severity="Severity.Error" Class="mb-3">@_error</MudAlert>
+    <MudAlert Severity="Severity.Error" Class="mb-3" ShowCloseIcon="true" CloseIconClicked="@(() => _error = null)">@_error</MudAlert>
 }
 
 <MudPaper Class="pa-2" Elevation="2">
-    <MudTable Items="@(_result?.Items ?? new())" Loading="@(_result is null)" Hover="true" Dense="true">
+    <MudTable Items="@(_result?.Items ?? new())" Loading="@(_result is null)" Hover="true" Dense="true" RowsPerPage="25">
         <HeaderContent>
-            <MudTh>Username</MudTh>
-            <MudTh>First name</MudTh>
-            <MudTh>Last name</MudTh>
+            <MudTh>Name</MudTh>
+            <MudTh>Email</MudTh>
             <MudTh>Roles</MudTh>
-            <MudTh>Active</MudTh>
+            <MudTh>Status</MudTh>
             <MudTh>Actions</MudTh>
         </HeaderContent>
         <RowTemplate>
-            <MudTd DataLabel="Username">@context.UserName</MudTd>
-            <MudTd DataLabel="First name">@context.FirstName</MudTd>
-            <MudTd DataLabel="Last name">@context.LastName</MudTd>
-            <MudTd DataLabel="Roles">@context.Roles</MudTd>
-            <MudTd DataLabel="Active">@(context.IsActive ? "Yes" : "No")</MudTd>
+            <MudTd DataLabel="Name">
+                @($"{context.FirstName} {context.LastName}".Trim())
+                @if (context.IsCurrentUser)
+                {
+                    <MudChip T="string" Size="Size.Small" Variant="Variant.Outlined" Class="ms-1">You</MudChip>
+                }
+            </MudTd>
+            <MudTd DataLabel="Email">@(string.IsNullOrEmpty(context.Email) ? context.UserName : context.Email)</MudTd>
+            <MudTd DataLabel="Roles">@(string.IsNullOrEmpty(context.Roles) ? "—" : context.Roles)</MudTd>
+            <MudTd DataLabel="Status">
+                <MudChip T="string" Size="Size.Small" Color="@(context.IsActive ? Color.Success : Color.Default)">@(context.IsActive ? "Active" : "Inactive")</MudChip>
+                @if (context.IsLockedOut)
+                {
+                    <MudChip T="string" Size="Size.Small" Color="Color.Warning">Locked out</MudChip>
+                }
+            </MudTd>
             <MudTd DataLabel="Actions">
-                <MudButton Size="Size.Small" Variant="Variant.Outlined" Class="me-1" OnClick="@(() => ShowAssignRoles(context.Id))">Roles</MudButton>
-                <MudButton Size="Size.Small" Variant="Variant.Filled" Color="@(context.IsActive ? Color.Warning : Color.Success)"
-                           OnClick="@(() => ToggleActive(context.Id, !context.IsActive))">
-                    @(context.IsActive ? "Deactivate" : "Activate")
-                </MudButton>
+                <MudButton Size="Size.Small" Variant="Variant.Outlined" Class="me-1" OnClick="@(() => EditRolesAsync(context))">Roles</MudButton>
+                <MudButton Size="Size.Small" Variant="Variant.Outlined" Class="me-1" OnClick="@(() => ResetPasswordAsync(context))">Reset password</MudButton>
+                @if (!context.IsCurrentUser)
+                {
+                    <MudButton Size="Size.Small" Variant="Variant.Filled" Color="@(context.IsActive ? Color.Warning : Color.Success)"
+                               OnClick="@(() => ToggleActiveAsync(context))">
+                        @(context.IsActive ? "Deactivate" : "Activate")
+                    </MudButton>
+                }
             </MudTd>
         </RowTemplate>
         <NoRecordsContent>
             <MudText>No users found.</MudText>
         </NoRecordsContent>
+        <PagerContent>
+            <MudTablePager PageSizeOptions="@(new[] { 25, 50, 100 })" />
+        </PagerContent>
     </MudTable>
 </MudPaper>
 
-@if (_assignUserId != null)
-{
-    <MudPaper Class="pa-4 mt-4" Elevation="2">
-        <MudText Typo="Typo.h6" Class="mb-2">Assign roles</MudText>
-        @foreach (var r in _allRoles)
-        {
-            <MudCheckBox T="bool" Value="@_selectedRoleIds.Contains(r.Id)" ValueChanged="@((bool v) => ToggleRole(r.Id, v))" Label="@r.Name" Color="Color.Primary" />
-        }
-        <div class="mt-2">
-            <MudButton Color="Color.Primary" Variant="Variant.Filled" OnClick="SaveRoles">Save</MudButton>
-            <MudButton OnClick="@(() => _assignUserId = null)">Cancel</MudButton>
-        </div>
-    </MudPaper>
-}
-
 @code {
     private ListResultDto<UserListItemDto>? _result;
+    private List<RoleDto>? _roles;
     private bool _showDeactivated;
     private string? _error;
-    private string? _assignUserId;
-    private List<RoleDto> _allRoles = new();
-    private HashSet<string> _selectedRoleIds = new();
 
-    protected override async Task OnInitializedAsync() => await LoadAsync();
+    protected override async Task OnInitializedAsync()
+    {
+        if (!RendererInfo.IsInteractive) return; // prerendering: show the loading state; the browser loads the data
+        await LoadAsync();
+    }
+
     private async Task LoadAsync() => _result = await Api.GetAsync(_showDeactivated);
+
+    private async Task<List<RoleDto>> RolesAsync() => _roles ??= await Api.GetRolesAsync();
 
     private async Task OnShowDeactivatedChanged(bool value)
     {
@@ -76,30 +88,66 @@
         await LoadAsync();
     }
 
-    private async void ShowAssignRoles(string userId)
+    private async Task AddUserAsync()
     {
-        _assignUserId = userId;
-        _allRoles = await Api.GetRolesAsync();
-        StateHasChanged();
+        var parameters = new DialogParameters<UserDialog> { { d => d.Roles, await RolesAsync() } };
+        var dialog = await DialogService.ShowAsync<UserDialog>("Add user", parameters,
+            new DialogOptions { MaxWidth = MaxWidth.Small, FullWidth = true });
+        if (await dialog.Result is { Canceled: false })
+        {
+            Snackbar.Add("User added.", Severity.Success);
+            await LoadAsync();
+        }
     }
 
-    private void ToggleRole(string roleId, bool isChecked)
+    private async Task EditRolesAsync(UserListItemDto user)
     {
-        if (isChecked) _selectedRoleIds.Add(roleId); else _selectedRoleIds.Remove(roleId);
+        var parameters = new DialogParameters<UserRolesDialog>
+        {
+            { d => d.UserId, user.Id },
+            { d => d.UserName, string.IsNullOrEmpty(user.Email) ? user.UserName : user.Email },
+            { d => d.SelectedRoleIds, user.RoleIds },
+            { d => d.Roles, await RolesAsync() }
+        };
+        var dialog = await DialogService.ShowAsync<UserRolesDialog>("Roles", parameters,
+            new DialogOptions { MaxWidth = MaxWidth.ExtraSmall, FullWidth = true });
+        if (await dialog.Result is { Canceled: false })
+        {
+            Snackbar.Add("Roles updated.", Severity.Success);
+            await LoadAsync();
+        }
     }
 
-    private async Task SaveRoles()
+    private async Task ResetPasswordAsync(UserListItemDto user)
     {
-        if (_assignUserId == null) return;
-        await Api.AssignRolesAsync(_assignUserId, _selectedRoleIds.ToList());
-        _assignUserId = null;
-        Snackbar.Add("Roles updated.", Severity.Success);
-        await LoadAsync();
+        var parameters = new DialogParameters<ResetPasswordDialog>
+        {
+            { d => d.UserId, user.Id },
+            { d => d.UserName, string.IsNullOrEmpty(user.Email) ? user.UserName : user.Email }
+        };
+        var dialog = await DialogService.ShowAsync<ResetPasswordDialog>("Reset password", parameters,
+            new DialogOptions { MaxWidth = MaxWidth.ExtraSmall, FullWidth = true });
+        if (await dialog.Result is { Canceled: false })
+        {
+            Snackbar.Add("Password reset.", Severity.Success);
+            await LoadAsync();
+        }
     }
 
-    private async Task ToggleActive(string id, bool activate)
+    private async Task ToggleActiveAsync(UserListItemDto user)
     {
-        var (success, error) = await Api.SetActiveAsync(id, activate);
+        var activate = !user.IsActive;
+        if (!activate)
+        {
+            // IsActive is a record-keeping flag in this app — sign-in doesn't check it — so say so
+            // rather than imply access is revoked.
+            var confirmed = await DialogService.ShowMessageBoxAsync("Deactivate user",
+                $"{user.FirstName} {user.LastName} will be marked inactive and moved to the deactivated list. "
+                + "This doesn't block sign-in; reset their password to revoke access.",
+                yesText: "Deactivate", cancelText: "Cancel");
+            if (confirmed != true) return;
+        }
+        var (success, error) = await Api.SetActiveAsync(user.Id, activate);
         if (!success) { _error = error; return; }
         _error = null;
         Snackbar.Add(activate ? "User activated." : "User deactivated.", Severity.Success);

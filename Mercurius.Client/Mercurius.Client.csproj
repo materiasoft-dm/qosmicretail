@@ -1,19 +1,19 @@
 <Project Sdk="Microsoft.NET.Sdk.BlazorWebAssembly">
 
+  <!-- The interactive half of the Blazor Web App: every page and the layout live here and run
+       in the browser on WebAssembly, after being prerendered by the Mercurius host. -->
   <PropertyGroup>
-    <TargetFramework>net9.0</TargetFramework>
+    <TargetFramework>net10.0</TargetFramework>
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
-    <!-- Served under /app on the Mercurius host (ASP.NET Core hosted model) rather than at the
-         root — the MVC app still owns "/" during the incremental page-by-page conversion. -->
-    <StaticWebAssetBasePath>app</StaticWebAssetBasePath>
+    <NoDefaultLaunchSettingsFile>true</NoDefaultLaunchSettingsFile>
+    <StaticWebAssetProjectMode>Default</StaticWebAssetProjectMode>
   </PropertyGroup>
 
   <ItemGroup>
-    <PackageReference Include="Microsoft.AspNetCore.Components.Authorization" Version="9.0.9" />
-    <PackageReference Include="Microsoft.AspNetCore.Components.WebAssembly" Version="9.0.9" />
-    <PackageReference Include="Microsoft.AspNetCore.Components.WebAssembly.DevServer" Version="9.0.9" PrivateAssets="all" />
-    <PackageReference Include="MudBlazor" Version="9.9.0" />
+    <PackageReference Include="Microsoft.AspNetCore.Components.WebAssembly" Version="10.0.12" />
+    <PackageReference Include="Microsoft.AspNetCore.Components.WebAssembly.Authentication" Version="10.0.12" />
+    <PackageReference Include="MudBlazor" Version="9.10.0" />
   </ItemGroup>
 
   <ItemGroup>

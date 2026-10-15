@@ -6,12 +6,9 @@ using Mercurius.Repo.Repositories;
 namespace Mercurius.Services
 {
     /// <summary>
-    /// Applies an Adjustment's quantity to its product's stock. Split out of
-    /// AdjustmentsController so RefundsController's restock step goes through the exact same
-    /// logic — before this existed, AdjustmentsController.Create only ever saved the Adjustment
-    /// row and never touched Product.CurrentStock at all, so manual adjustments silently had no
-    /// real inventory effect despite AdjustmentReason.IsInbound existing specifically to describe
-    /// which direction they should move stock.
+    /// Applies an Adjustment's quantity to its product's stock, in the direction its reason's
+    /// IsInbound says. Manual adjustments (AdjustmentsApiController) and refund restocks
+    /// (InvoicesApiController.CreateRefund) both go through here, so they move stock the same way.
     /// </summary>
     public class AdjustmentService
     {

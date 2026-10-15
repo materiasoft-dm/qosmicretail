@@ -1,140 +1,112 @@
 @page "/purchase-orders"
-@attribute [Authorize]
+@attribute [Authorize(Policy = ModuleRegistry.Pages.PURCHASE_ORDERS_LIST)]
 @inject PurchaseOrdersApiClient Api
+@inject NavigationManager Nav
 @inject ISnackbar Snackbar
 
 <PageTitle>Purchase Orders</PageTitle>
 
 <div class="d-flex justify-content-between align-items-center mb-4">
     <MudText Typo="Typo.h4">Purchase Orders</MudText>
-    <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Filled.Add" OnClick="ShowCreate">
-        New Purchase Order
-    </MudButton>
+    @if (_user.Can(ModuleRegistry.Pages.PURCHASE_ORDERS_CREATE))
+    {
+        <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Filled.Add" Href="purchase-orders/new">
+            New Purchase Order
+        </MudButton>
+    }
 </div>
 
-@if (_showCreate)
-{
-    <MudPaper Class="pa-4 mb-4" Elevation="2">
-        <MudGrid Class="mb-2">
-            <MudItem xs="12" md="4">
-                <MudSelect T="int" @bind-Value="_supplierId" Label="Supplier" Variant="Variant.Outlined">
-                    <MudSelectItem T="int" Value="0">-- Supplier --</MudSelectItem>
-                    @foreach (var s in _suppliers)
-                    {
-                        <MudSelectItem T="int" Value="@s.Id">@s.Name</MudSelectItem>
-                    }
-                </MudSelect>
-            </MudItem>
-            <MudItem xs="12" md="4"><MudTextField @bind-Value="_notes" Label="Notes" Variant="Variant.Outlined" /></MudItem>
-        </MudGrid>
-
-        <MudText Typo="Typo.subtitle2" Class="mb-2">Line items</MudText>
-        @for (int i = 0; i < _lines.Count; i++)
-        {
-            var idx = i;
-            <MudGrid Class="mb-1">
-                <MudItem xs="12" md="5">
-                    <MudSelect T="int" @bind-Value="_lines[idx].ProductId" Variant="Variant.Outlined">
-                        <MudSelectItem T="int" Value="0">-- Product --</MudSelectItem>
-                        @foreach (var p in _products)
-                        {
-                            <MudSelectItem T="int" Value="@p.Id">@p.Name (@p.ProductCode)</MudSelectItem>
-                        }
-                    </MudSelect>
-                </MudItem>
-                <MudItem xs="12" md="3"><MudNumericField @bind-Value="_lines[idx].Quantity" Min="0" Format="N2" Placeholder="Quantity" Variant="Variant.Outlined" /></MudItem>
-                <MudItem xs="12" md="3"><MudNumericField @bind-Value="_lines[idx].EstimatedUnitCost" Min="0" Format="N2" Placeholder="Est. unit cost" Variant="Variant.Outlined" /></MudItem>
-            </MudGrid>
-        }
-        <MudButton Size="Size.Small" Variant="Variant.Outlined" Class="mb-2" OnClick="AddLine">+ Add line</MudButton>
-
-        @if (_error != null)
-        {
-            <MudAlert Severity="Severity.Error" Class="mb-2">@_error</MudAlert>
-        }
-        <div class="mt-2">
-            <MudButton Color="Color.Primary" Variant="Variant.Filled" OnClick="Submit">Save</MudButton>
-            <MudButton OnClick="@(() => _showCreate = false)">Cancel</MudButton>
-        </div>
-    </MudPaper>
-}
-
 <MudPaper Class="pa-2" Elevation="2">
-    <MudTable Items="@(_result?.Items ?? new())" Loading="@(_result is null)" Hover="true" Dense="true">
+    <MudTable RowsPerPage="25" T="PurchaseOrderListItemDto" Items="@(_result?.Items ?? new())" Loading="@(_result is null)" Hover="true" Dense="true"
+              OnRowClick="@((TableRowClickEventArgs<PurchaseOrderListItemDto> e) => Nav.NavigateTo($"purchase-orders/{e.Item?.Id}"))" RowStyle="cursor:pointer;">
         <HeaderContent>
             <MudTh>Order #</MudTh>
             <MudTh>Supplier</MudTh>
-            <MudTh>Status</MudTh>
             <MudTh>Date</MudTh>
-            <MudTh>Actions</MudTh>
+            <MudTh>Status</MudTh>
+            <MudTh Style="text-align:right;">Actions</MudTh>
         </HeaderContent>
         <RowTemplate>
-            <MudTd DataLabel="Order #"><MudLink Href="@($"purchase-orders/{context.Id}")">@context.OrderNumber</MudLink></MudTd>
+            <MudTd DataLabel="Order #"><code>@context.OrderNumber</code></MudTd>
             <MudTd DataLabel="Supplier">@context.SupplierName</MudTd>
-            <MudTd DataLabel="Status"><MudChip T="string" Size="Size.Small" Color="Color.Info">@context.Status</MudChip></MudTd>
-            <MudTd DataLabel="Date">@context.OrderDate.ToString("yyyy-MM-dd")</MudTd>
-            <MudTd DataLabel="Actions">
-                @if (context.Status == "PendingApproval")
-                {
-                    <MudButton Size="Size.Small" Color="Color.Success" Variant="Variant.Filled" OnClick="@(() => Approve(context.Id))">Approve</MudButton>
-                }
-                else if (context.Status == "Approved")
-                {
-                    <MudButton Size="Size.Small" Color="Color.Primary" Variant="Variant.Filled" OnClick="@(() => MarkSent(context.Id))">Mark Sent</MudButton>
-                }
-                else if (context.Status == "OrderSent")
-                {
-                    <MudButton Size="Size.Small" Color="Color.Success" Variant="Variant.Filled" Class="me-1" OnClick="@(() => MarkReceived(context.Id, true))">Received (complete)</MudButton>
-                    <MudButton Size="Size.Small" Color="Color.Warning" Variant="Variant.Filled" OnClick="@(() => MarkReceived(context.Id, false))">Received (incomplete)</MudButton>
-                }
+            <MudTd DataLabel="Date">@LocalTime.FormatDate(context.OrderDate)</MudTd>
+            <MudTd DataLabel="Status">
+                <MudChip T="string" Size="Size.Small" Color="@PurchaseOrderStatus.Color(context.Status)">@PurchaseOrderStatus.Label(context.Status)</MudChip>
+            </MudTd>
+            <MudTd DataLabel="Actions" Style="text-align:right; white-space:nowrap;">
+                @* Stops the row's own click (open details) from also firing under these buttons. *@
+                <div class="d-inline-flex gap-1" @onclick:stopPropagation="true">
+                    @if (PurchaseOrderStatus.CanReceive(context.Status) && _user.Can(ModuleRegistry.Pages.SHIPMENT_CREATE))
+                    {
+                        <MudButton Size="Size.Small" Variant="Variant.Text" StartIcon="@Icons.Material.Filled.LocalShipping" Href="@($"shipments?poId={context.Id}")">Receive</MudButton>
+                    }
+                    @if (context.Status == PurchaseOrderStatus.PendingApproval && _canEdit)
+                    {
+                        <MudIconButton Icon="@Icons.Material.Filled.Edit" Size="Size.Small" Href="@($"purchase-orders/{context.Id}/edit")" aria-label="Edit" />
+                    }
+                    @if (context.Status == PurchaseOrderStatus.PendingApproval && _canApprove)
+                    {
+                        <MudButton Size="Size.Small" Color="Color.Success" Variant="Variant.Filled" Disabled="_busy"
+                                   OnClick="@(() => RunAsync(() => Api.ApproveAsync(context.Id), "Purchase order approved."))">Approve</MudButton>
+                    }
+                    else if (context.Status == PurchaseOrderStatus.Approved && _canEdit)
+                    {
+                        <MudButton Size="Size.Small" Color="Color.Primary" Variant="Variant.Filled" Disabled="_busy"
+                                   OnClick="@(() => RunAsync(() => Api.MarkSentAsync(context.Id), "Marked as sent to the supplier."))">Mark sent</MudButton>
+                    }
+                    else if (context.Status == PurchaseOrderStatus.OrderSent && _canEdit)
+                    {
+                        <MudButton Size="Size.Small" Color="Color.Success" Variant="Variant.Filled" Disabled="_busy"
+                                   OnClick="@(() => RunAsync(() => Api.MarkReceivedAsync(context.Id, true), "Marked as received."))">Complete</MudButton>
+                        <MudButton Size="Size.Small" Color="Color.Warning" Variant="Variant.Filled" Disabled="_busy"
+                                   OnClick="@(() => RunAsync(() => Api.MarkReceivedAsync(context.Id, false), "Marked as received (incomplete)."))">Incomplete</MudButton>
+                    }
+                </div>
             </MudTd>
         </RowTemplate>
         <NoRecordsContent>
             <MudText>No purchase orders yet.</MudText>
         </NoRecordsContent>
+        <PagerContent>
+            <MudTablePager PageSizeOptions="@(new[] { 25, 50, 100 })" />
+        </PagerContent>
     </MudTable>
 </MudPaper>
 
 @code {
+    [CascadingParameter] private Task<AuthenticationState> AuthState { get; set; } = default!;
+
+    private System.Security.Claims.ClaimsPrincipal _user = new();
     private ListResultDto<PurchaseOrderListItemDto>? _result;
-    private List<SupplierOptionDto> _suppliers = new();
-    private List<ProductOptionDto> _products = new();
-    private bool _showCreate;
-    private int _supplierId;
-    private string _notes = string.Empty;
-    private List<CreatePurchaseOrderLineRequest> _lines = new();
-    private string? _error;
+    private bool _busy;
 
-    protected override async Task OnInitializedAsync() => await LoadAsync();
-    private async Task LoadAsync() => _result = await Api.GetAsync();
+    // Actions the user's role can't perform are hidden (the server refuses them regardless).
+    private bool _canEdit;
+    private bool _canApprove;
 
-    private async void ShowCreate()
+    protected override async Task OnInitializedAsync()
     {
-        _showCreate = true; _error = null;
-        _supplierId = 0; _notes = string.Empty;
-        _lines = new List<CreatePurchaseOrderLineRequest> { new() };
-        _suppliers = await Api.GetSuppliersAsync();
-        _products = await Api.GetProductsAsync(null);
-        StateHasChanged();
-    }
-
-    private void AddLine() => _lines.Add(new CreatePurchaseOrderLineRequest());
-
-    private async Task Submit()
-    {
-        if (_supplierId <= 0 || !_lines.Any(l => l.ProductId > 0 && l.Quantity > 0))
-        {
-            _error = "Supplier and at least one valid product line are required.";
-            return;
-        }
-        var (success, error) = await Api.CreateAsync(new CreatePurchaseOrderRequest { SupplierId = _supplierId, Notes = _notes, Lines = _lines });
-        if (!success) { _error = error; return; }
-        _showCreate = false;
-        Snackbar.Add("Purchase order created.", Severity.Success);
+        _user = (await AuthState).User;
+        _canEdit = _user.Can(ModuleRegistry.Pages.PURCHASE_ORDERS_EDIT);
+        _canApprove = _user.Can(ModuleRegistry.Pages.PURCHASE_ORDERS_APPROVE);
+        if (!RendererInfo.IsInteractive) return; // prerendering: show the loading state; the browser loads the data
         await LoadAsync();
     }
+    private async Task LoadAsync() => _result = await Api.GetAsync();
 
-    private async Task Approve(int id) { await Api.ApproveAsync(id); Snackbar.Add("Purchase order approved.", Severity.Success); await LoadAsync(); }
-    private async Task MarkSent(int id) { await Api.MarkSentAsync(id); Snackbar.Add("Marked as sent.", Severity.Success); await LoadAsync(); }
-    private async Task MarkReceived(int id, bool complete) { await Api.MarkReceivedAsync(id, complete); Snackbar.Add("Marked as received.", Severity.Success); await LoadAsync(); }
+    private async Task RunAsync(Func<Task<(bool Success, string? Error)>> action, string successMessage)
+    {
+        _busy = true;
+        try
+        {
+            var (success, error) = await action();
+            if (success) Snackbar.Add(successMessage, Severity.Success);
+            else Snackbar.Add(error ?? "The order couldn't be updated.", Severity.Error);
+            await LoadAsync();
+        }
+        finally
+        {
+            _busy = false;
+        }
+    }
 }

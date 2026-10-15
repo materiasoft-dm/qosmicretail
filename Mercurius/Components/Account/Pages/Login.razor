@@ -1,0 +1,113 @@
+@page "/account/login"
+@using System.ComponentModel.DataAnnotations
+@using Mercurius.Repo.IdentityModel
+@using Mercurius.Services.Auditing
+@using Microsoft.AspNetCore.Authentication
+@using Microsoft.AspNetCore.Identity
+@inject SignInManager<MercuriusUser> SignInManager
+@inject IAuditLogger AuditLogger
+@inject NavigationManager Nav
+@inject ILogger<Login> Logger
+
+<PageTitle>Sign in · Mercurius</PageTitle>
+
+<h2 class="auth-title">Sign in</h2>
+<p class="auth-subtitle">Welcome back. Sign in with your Mercurius account.</p>
+
+@if (_error != null)
+{
+    <div class="auth-alert" role="alert">@_error</div>
+}
+
+<div class="auth-form">
+    <EditForm Model="Input" method="post" OnValidSubmit="SignInAsync" FormName="login">
+        <DataAnnotationsValidator />
+        <div class="auth-field">
+            <label for="email">Email</label>
+            <InputText id="email" @bind-Value="Input.Email" autocomplete="username" aria-required="true" placeholder="name@pharmacy.com" />
+            <ValidationMessage For="() => Input.Email" />
+        </div>
+        <div class="auth-field">
+            <label for="password">Password</label>
+            <InputText id="password" type="password" @bind-Value="Input.Password" autocomplete="current-password" aria-required="true" />
+            <ValidationMessage For="() => Input.Password" />
+        </div>
+        <label class="auth-check" for="rememberMe">
+            <InputCheckbox id="rememberMe" @bind-Value="Input.RememberMe" /> Keep me signed in
+        </label>
+        <button type="submit" id="loginSubmit" class="auth-submit">Sign in</button>
+    </EditForm>
+</div>
+
+@code {
+    [CascadingParameter] private HttpContext HttpContext { get; set; } = default!;
+
+    [SupplyParameterFromForm] private LoginInput Input { get; set; } = default!;
+
+    [SupplyParameterFromQuery(Name = "ReturnUrl")] private string? ReturnUrl { get; set; }
+
+    private string? _error;
+
+    protected override async Task OnInitializedAsync()
+    {
+        // The posted values on submit; a fresh form on first load.
+        Input ??= new LoginInput();
+        if (HttpMethods.IsGet(HttpContext.Request.Method))
+        {
+            // Clear any half-finished external sign-in so this one starts clean.
+            await HttpContext.SignOutAsync(IdentityConstants.ExternalScheme);
+        }
+    }
+
+    private async Task SignInAsync()
+    {
+        // Repeated failures trigger Identity's lockout (5 attempts, 15 minutes — see Program.cs).
+        var result = await SignInManager.PasswordSignInAsync(Input.Email, Input.Password, Input.RememberMe, lockoutOnFailure: true);
+        if (result.Succeeded)
+        {
+            Logger.LogInformation("User signed in.");
+            await AuditAsync(AuditActions.LoginSucceeded, $"Signed in to the web app as {Input.Email}");
+            Nav.NavigateTo(LocalReturnUrl(ReturnUrl));
+            return;
+        }
+        if (result.IsLockedOut)
+        {
+            Logger.LogWarning("User account locked out.");
+            await AuditAsync(AuditActions.LockedOut, $"Web sign-in blocked — account locked out: {Input.Email}");
+            Nav.NavigateTo("account/lockout");
+            return;
+        }
+
+        await AuditAsync(AuditActions.LoginFailed, $"Failed web sign-in attempt for {Input.Email}");
+        _error = "That email and password don't match an account.";
+    }
+
+    // The user isn't signed in yet at this point, so name the actor explicitly — or, for an
+    // unknown email, record just what was typed.
+    private async Task AuditAsync(string action, string summary)
+    {
+        var user = await SignInManager.UserManager.FindByEmailAsync(Input.Email);
+        var actor = new AuditActor(user?.Id, user?.Email ?? Input.Email, user?.TenantId);
+        await AuditLogger.LogAsync(action, summary, new { email = Input.Email, channel = "Web" }, actor,
+            entityType: user != null ? "MercuriusUser" : null, entityId: user?.Id);
+    }
+
+    // Only ever return to a page on this site (a crafted ReturnUrl must not bounce users elsewhere).
+    private static string LocalReturnUrl(string? returnUrl) =>
+        !string.IsNullOrEmpty(returnUrl) && returnUrl.StartsWith('/') && !returnUrl.StartsWith("//") && !returnUrl.StartsWith("/\\")
+            ? returnUrl
+            : "/";
+
+    private sealed class LoginInput
+    {
+        [Required(ErrorMessage = "Enter your email.")]
+        [EmailAddress(ErrorMessage = "Enter a valid email address.")]
+        public string Email { get; set; } = string.Empty;
+
+        [Required(ErrorMessage = "Enter your password.")]
+        [DataType(DataType.Password)]
+        public string Password { get; set; } = string.Empty;
+
+        public bool RememberMe { get; set; }
+    }
+}

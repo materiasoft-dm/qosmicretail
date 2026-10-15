@@ -58,6 +58,20 @@ namespace Mercurius.Controllers.Api
             return Ok(lines);
         }
 
+        // The raw file, for saving/sharing. Opened with shared read/write so today's file, which the
+        // logger still has open, can be downloaded too.
+        [HttpGet("{fileName}/download")]
+        public IActionResult Download(string fileName)
+        {
+            var fullPath = Path.GetFullPath(Path.Combine(_logDir, fileName));
+            if (!fullPath.StartsWith(Path.GetFullPath(_logDir) + Path.DirectorySeparatorChar) || !System.IO.File.Exists(fullPath))
+            {
+                return NotFound();
+            }
+            var stream = new FileStream(fullPath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete);
+            return File(stream, "text/plain", Path.GetFileName(fullPath));
+        }
+
         [HttpDelete]
         public IActionResult Clear()
         {

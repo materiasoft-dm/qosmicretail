@@ -13,9 +13,8 @@ using Microsoft.AspNetCore.Mvc;
 
 namespace Mercurius.Controllers.Api
 {
-    // JSON equivalent of AdjustmentsController — the actual stock-mutation side effect
-    // (AdjustmentService.ApplyAsync) stays server-side here exactly as in the MVC controller;
-    // Blazor only ever sees the resulting list, never re-implements the stock math itself.
+    // Stock adjustments. The stock change itself (AdjustmentService.ApplyAsync) happens here on the
+    // server; the page only ever sees the resulting list, never re-implements the stock math.
     [ApiController]
     [Route("api/adjustments")]
     [Authorize]
@@ -30,9 +29,11 @@ namespace Mercurius.Controllers.Api
             _adjustmentService = adjustmentService;
         }
 
+        // Search matches the note, product name or product code. sortBy: date (default) | quantity.
         [HttpGet]
         [Authorize(Policy = Mercurius.Common.ModuleRegistry.Pages.ADJUSTMENTS_INDEX)]
-        public ActionResult<ListResultDto<AdjustmentListItemDto>> Get(string? search = null, int page = 1, int pageSize = 25, CancellationToken ct = default)
+        public ActionResult<ListResultDto<AdjustmentListItemDto>> Get(string? search = null, int page = 1, int pageSize = 25,
+            string? sortBy = null, bool desc = true, CancellationToken ct = default)
         {
             ct.ThrowIfCancellationRequested();
             if (page < 1) page = 1;
@@ -43,28 +44,49 @@ namespace Mercurius.Controllers.Api
             if (!string.IsNullOrWhiteSpace(search))
             {
                 var s = search.Trim().ToLowerInvariant();
-                query = query.Where(a => a.Note != null && a.Note.ToLower().Contains(s));
+                var productIds = _unitOfWork.Query<Product>()
+                    .Where(p => (p.Name != null && p.Name.ToLower().Contains(s)) || (p.ProductCode != null && p.ProductCode.ToLower().Contains(s)))
+                    .Select(p => p.Id);
+                query = query.Where(a => (a.Note != null && a.Note.ToLower().Contains(s)) || productIds.Contains(a.ProductId));
             }
 
             var total = query.Count();
-            var pageItems = query.OrderByDescending(a => a.AdjustmentDate)
-                .Skip((page - 1) * pageSize).Take(pageSize).ToList();
+            // SQLite can't ORDER BY a decimal column, so quantity sorts as a double.
+            IOrderedQueryable<Adjustment> ordered = (sortBy ?? "date").ToLowerInvariant() switch
+            {
+                "quantity" => desc ? query.OrderByDescending(a => (double)a.Quantity) : query.OrderBy(a => (double)a.Quantity),
+                _ => desc ? query.OrderByDescending(a => a.AdjustmentDate) : query.OrderBy(a => a.AdjustmentDate)
+            };
+            var pageItems = ordered.ThenByDescending(a => a.Id).Skip((page - 1) * pageSize).Take(pageSize).ToList();
 
             var reasonIds = pageItems.Select(a => a.ReasonId).Distinct().ToList();
-            var reasonLookup = _unitOfWork.Query<AdjustmentReason>().Where(r => reasonIds.Contains(r.Id)).ToDictionary(r => r.Id, r => r.Name ?? string.Empty);
+            var reasonLookup = _unitOfWork.Query<AdjustmentReason>().Where(r => reasonIds.Contains(r.Id)).ToDictionary(r => r.Id);
+
+            var pageProductIds = pageItems.Select(a => a.ProductId).Distinct().ToList();
+            var productLookup = _unitOfWork.Query<Product>().Where(p => pageProductIds.Contains(p.Id))
+                .Select(p => new { p.Id, p.Name, p.ProductCode }).ToDictionary(p => p.Id);
 
             var refundIds = pageItems.Where(a => a.InvoiceItemRefundId.HasValue).Select(a => a.InvoiceItemRefundId!.Value).Distinct().ToList();
             var invoiceIdLookup = refundIds.Count == 0
                 ? new Dictionary<int, int>()
                 : _unitOfWork.Query<InvoiceItemRefund>().Where(r => refundIds.Contains(r.Id)).ToDictionary(r => r.Id, r => r.InvoiceId);
 
-            var items = pageItems.Select(a => new AdjustmentListItemDto
+            var items = pageItems.Select(a =>
             {
-                Id = a.Id,
-                Date = a.AdjustmentDate,
-                ReasonName = reasonLookup.TryGetValue(a.ReasonId, out var rn) ? rn : string.Empty,
-                Quantity = a.Quantity,
-                InvoiceId = a.InvoiceItemRefundId.HasValue && invoiceIdLookup.TryGetValue(a.InvoiceItemRefundId.Value, out var invId) ? invId : null
+                reasonLookup.TryGetValue(a.ReasonId, out var reason);
+                productLookup.TryGetValue(a.ProductId, out var product);
+                return new AdjustmentListItemDto
+                {
+                    Id = a.Id,
+                    Date = a.AdjustmentDate,
+                    ProductName = product?.Name ?? "(deleted product)",
+                    ProductCode = product?.ProductCode ?? string.Empty,
+                    ReasonName = reason?.Name ?? string.Empty,
+                    IsInbound = reason?.IsInbound ?? false,
+                    Quantity = a.Quantity,
+                    Note = string.IsNullOrWhiteSpace(a.Note) ? null : a.Note,
+                    InvoiceId = a.InvoiceItemRefundId.HasValue && invoiceIdLookup.TryGetValue(a.InvoiceItemRefundId.Value, out var invId) ? invId : null
+                };
             }).ToList();
 
             return Ok(new ListResultDto<AdjustmentListItemDto> { Items = items, Total = total });
@@ -103,17 +125,25 @@ namespace Mercurius.Controllers.Api
                 return BadRequest(new { error = "Product, reason, and a positive quantity are required." });
             }
 
-            var locationId = await Mercurius.ViewComponents.Dashboard.DashboardLocationContext.GetCurrentLocationIdAsync(_unitOfWork, User);
+            var reason = await _unitOfWork.Repository<AdjustmentReason>().GetByIdAsync(request.ReasonId, ct);
+            if (reason == null || !reason.IsActive) return BadRequest(new { error = "Choose a valid reason." });
+            var product = await _unitOfWork.Repository<Product>().GetByIdAsync(request.ProductId, ct);
+            if (product == null) return BadRequest(new { error = "Choose a valid product." });
+
+            var locationId = await Mercurius.Services.CurrentLocation.GetIdAsync(_unitOfWork, User);
             var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+            var now = DateTime.UtcNow;
 
             var adjustment = new Adjustment
             {
                 ProductId = request.ProductId,
                 ReasonId = request.ReasonId,
                 Quantity = request.Quantity,
+                // The (UTC) start of an earlier day the user picked, else now — never the future.
+                AdjustmentDate = request.AdjustmentDate is DateTime picked && picked.ToUniversalTime() < now ? picked.ToUniversalTime() : now,
                 Note = request.Note ?? string.Empty,
                 LocationId = locationId,
-                CreatedDate = DateTime.UtcNow,
+                CreatedDate = now,
                 CreatedBy = Guid.TryParse(userId, out var uid) ? uid : Guid.Empty,
                 IsActive = true
             };

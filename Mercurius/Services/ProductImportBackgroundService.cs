@@ -70,6 +70,12 @@ namespace Mercurius.Services
             _tracker.AppendLog(job.JobId, "Parsing CSV file...");
 
             using var scope = _scopeFactory.CreateScope();
+            // Act as the uploader's tenant: there's no HttpContext here, so without this every
+            // query saw nothing and every created product got no real tenant (invisible).
+            if (job.TenantId > 0)
+            {
+                scope.ServiceProvider.GetRequiredService<ITenantScopeOverride>().UseTenant(job.TenantId);
+            }
             var unitOfWork = scope.ServiceProvider.GetRequiredService<IUnitOfWork>();
 
             // Loyverse (and similar POS) exports decorate several headers with a per-location

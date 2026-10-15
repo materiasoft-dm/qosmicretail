@@ -1,0 +1,57 @@
+@inject UsersApiClient Api
+
+<MudDialog>
+    <DialogContent>
+        <MudText Typo="Typo.body2" Class="mb-2 mud-text-secondary">@UserName</MudText>
+        @foreach (var role in Roles)
+        {
+            <MudCheckBox T="bool" Value="@_roleIds.Contains(role.Id)" ValueChanged="@((bool v) => ToggleRole(role.Id, v))"
+                         Label="@role.Name" Color="Color.Primary" Dense="true" />
+        }
+        @if (_error != null)
+        {
+            <MudAlert Severity="Severity.Error" Class="mt-3">@_error</MudAlert>
+        }
+    </DialogContent>
+    <DialogActions>
+        <MudButton OnClick="Cancel">Cancel</MudButton>
+        <MudButton Color="Color.Primary" Variant="Variant.Filled" Disabled="_busy" OnClick="SaveAsync">Save</MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    [CascadingParameter] private IMudDialogInstance MudDialog { get; set; } = default!;
+    [Parameter] public string UserId { get; set; } = string.Empty;
+    [Parameter] public string UserName { get; set; } = string.Empty;
+    [Parameter] public List<string> SelectedRoleIds { get; set; } = new();
+    [Parameter] public List<RoleDto> Roles { get; set; } = new();
+
+    private HashSet<string> _roleIds = new();
+    private bool _busy;
+    private string? _error;
+
+    protected override void OnInitialized() => _roleIds = new HashSet<string>(SelectedRoleIds);
+
+    private void ToggleRole(string roleId, bool isChecked)
+    {
+        if (isChecked) _roleIds.Add(roleId); else _roleIds.Remove(roleId);
+    }
+
+    private async Task SaveAsync()
+    {
+        _error = null;
+        _busy = true;
+        try
+        {
+            var (success, error) = await Api.AssignRolesAsync(UserId, _roleIds.ToList());
+            if (!success) { _error = error; return; }
+            MudDialog.Close(DialogResult.Ok(true));
+        }
+        finally
+        {
+            _busy = false;
+        }
+    }
+
+    private void Cancel() => MudDialog.Cancel();
+}

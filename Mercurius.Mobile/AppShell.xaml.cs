@@ -18,6 +18,11 @@ public partial class AppShell : Shell
         _syncCoordinator = syncCoordinator;
         Loaded += async (_, _) => await LoadUserLabelAsync();
 
+        // Matches the version/build on the web app's Download Mobile App page (both come from
+        // Mercurius.Mobile.csproj, bumped by publish-downloads.ps1) — how staff tell whether a
+        // terminal is on the latest build.
+        AppVersionLabel.Text = $"Mercurius Mobile · v{AppInfo.VersionString} (build {AppInfo.BuildString})";
+
         // The shell only exists while someone is signed in — that's exactly when background sync
         // (periodic, on reconnect, on resume) should be running.
         _syncCoordinator.Start();

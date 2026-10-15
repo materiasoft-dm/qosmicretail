@@ -1,0 +1,130 @@
+@page "/products/{Id:int}"
+@attribute [Authorize(Policy = ModuleRegistry.Pages.PRODUCTS_INDEX)]
+@inject ProductsApiClient Api
+@inject ISnackbar Snackbar
+@inject IJSRuntime JS
+
+<PageTitle>@(_product?.Name ?? "Product")</PageTitle>
+
+@if (_notFound)
+{
+    <MudAlert Severity="Severity.Warning">That product doesn't exist, or isn't visible to your account.</MudAlert>
+    <MudButton Class="mt-3" Href="products" StartIcon="@Icons.Material.Filled.ArrowBack">Back to products</MudButton>
+}
+else if (_product is null)
+{
+    <MudProgressLinear Indeterminate="true" Color="Color.Primary" />
+}
+else
+{
+    <div class="d-flex justify-space-between align-center flex-wrap gap-2 mb-4">
+        <div class="d-flex align-center gap-3">
+            <MudText Typo="Typo.h4">@_product.Name</MudText>
+            <MudChip T="string" Size="Size.Small" Color="@(_product.IsActive ? Color.Success : Color.Default)">@(_product.IsActive ? "Active" : "Inactive")</MudChip>
+        </div>
+        <div class="d-flex gap-2">
+            <MudButton Variant="Variant.Text" Href="products" StartIcon="@Icons.Material.Filled.ArrowBack">Products</MudButton>
+            <MudButton Variant="Variant.Outlined" Href="@($"medicine-batches/{Id}")" StartIcon="@Icons.Material.Filled.Inventory2">Batches</MudButton>
+            @if (_user.Can(ModuleRegistry.Pages.PRODUCTS_EDIT))
+            {
+                <MudButton Variant="Variant.Filled" Color="Color.Primary" Href="@($"products/{Id}/edit")" StartIcon="@Icons.Material.Filled.Edit">Edit</MudButton>
+            }
+        </div>
+    </div>
+
+    <MudPaper Class="pa-4" Elevation="2" Style="max-width:1000px;">
+        <MudGrid Spacing="3">
+            <MudItem xs="12" sm="6">
+                <MudText Typo="Typo.subtitle2" Class="mb-2">Item photo</MudText>
+                @if (!string.IsNullOrEmpty(_product.ImageUrl))
+                {
+                    <img src="@_product.ImageUrl" alt="@_product.Name" style="@ThumbStyle object-fit:cover;" />
+                }
+                else
+                {
+                    <div class="d-flex align-center justify-center" style="@ThumbStyle">
+                        <MudIcon Icon="@Icons.Material.Outlined.Image" Size="Size.Large" />
+                    </div>
+                }
+            </MudItem>
+            <MudItem xs="12" sm="6">
+                <MudText Typo="Typo.subtitle2" Class="mb-2">QR code</MudText>
+                <div class="d-flex align-center gap-4">
+                    <img src="@QrUrl" alt="QR code" style="width:150px;height:150px;" />
+                    <MudButton Variant="Variant.Outlined" Size="Size.Small" StartIcon="@Icons.Material.Filled.Print" OnClick="PrintQrAsync">Print</MudButton>
+                </div>
+            </MudItem>
+
+            <MudItem xs="12"><MudDivider /></MudItem>
+
+            @Field("SKU", _product.ProductCode)
+            @Field("Barcode", _product.Barcode)
+            @Field("Category", _product.CategoryName)
+            @Field("Cost price", _product.CurrentCostPrice.HasValue ? Money.Format(_product.CurrentCostPrice.Value) : null)
+            @Field("Sale price", _product.CurrentSalePrice.HasValue ? Money.Format(_product.CurrentSalePrice.Value) : null)
+            @Field("Markup", _product.MarkUpPercentage.ToString("0.##") + "%")
+            @Field("Stock", _product.CurrentStock.ToString("0.##"))
+            @Field("Low stock warning", _product.LowStockCount.ToString("0.##"))
+            @Field("Lead time (days)", _product.LeadTimeDays?.ToString())
+            @Field("Model", _product.Model)
+            @Field("Custom warning", _product.CustomWarning)
+            @Field("Remarks", _product.Note)
+            @Field("Created", LocalTime.FormatDateTime(_product.CreateDate))
+            @Field("Last updated", _product.UpdatedDate.HasValue ? LocalTime.FormatDateTime(_product.UpdatedDate.Value) : null)
+
+            <MudItem xs="12">
+                <MudText Typo="Typo.caption" Class="mud-text-secondary">Description</MudText>
+                <MudText Style="white-space:pre-wrap;">@(string.IsNullOrWhiteSpace(_product.Description) ? "â€”" : _product.Description)</MudText>
+            </MudItem>
+
+            @if (_product.CustomFields.Count > 0)
+            {
+                <MudItem xs="12">
+                    <MudDivider Class="mb-2" />
+                    <MudText Typo="Typo.subtitle1">Additional details</MudText>
+                </MudItem>
+                @foreach (var field in _product.CustomFields)
+                {
+                    @Field(field.DisplayLabel, field.FieldType == "checkbox" ? (field.Value == "true" ? "Yes" : "No") : field.Value)
+                }
+            }
+        </MudGrid>
+    </MudPaper>
+}
+
+@code {
+    private const string ThumbStyle = "width:150px;height:150px;border-radius:8px;border:1px solid var(--mud-palette-lines-default);";
+
+    [Parameter] public int Id { get; set; }
+    [CascadingParameter] private Task<AuthenticationState> AuthState { get; set; } = default!;
+
+    private System.Security.Claims.ClaimsPrincipal _user = new();
+    private ProductDetailDto? _product;
+    private bool _notFound;
+
+    private string QrUrl => $"/api/products/{Id}/qrcode";
+
+    protected override async Task OnParametersSetAsync()
+    {
+        _user = (await AuthState).User;
+        if (!RendererInfo.IsInteractive) return; // prerendering: show the loading state; the browser loads the data
+        _product = null;
+        _notFound = false;
+        _product = await Api.GetDetailAsync(Id);
+        _notFound = _product == null;
+    }
+
+    private static RenderFragment Field(string label, string? value) => __builder =>
+    {
+        <MudItem xs="12" sm="6" md="4">
+            <MudText Typo="Typo.caption" Class="mud-text-secondary">@label</MudText>
+            <MudText>@(string.IsNullOrWhiteSpace(value) ? "â€”" : value)</MudText>
+        </MudItem>
+    };
+
+    private async Task PrintQrAsync()
+    {
+        var opened = await JS.InvokeAsync<bool>("mercuriusPrint.printImage", QrUrl, $"{_product?.Name} ({_product?.ProductCode})");
+        if (!opened) Snackbar.Add("Allow pop-ups for this site to print the QR code.", Severity.Warning);
+    }
+}

@@ -1,17 +1,71 @@
-﻿@inherits LayoutComponentBase
+@inherits LayoutComponentBase
+@inject Mercurius.Client.Services.CurrentUserState CurrentUser
+@inject Mercurius.Client.Services.ICurrentUserProfileSource ProfileSource
 @inject Mercurius.Client.Services.PwaService Pwa
+@inject NavigationManager Nav
 
 <MudThemeProvider Theme="MercuriusMudTheme.Theme" />
 <MudPopoverProvider />
 <MudDialogProvider />
 <MudSnackbarProvider />
 
-<div class="page">
+@* data-interactive flips to true once WebAssembly has taken over from the prerendered HTML —
+   until then the page is visible but buttons don't respond yet (the E2E tests wait for it). *@
+<div class="page" data-interactive="@(_interactive ? "true" : "false")">
     <div class="sidebar">
         <NavMenu />
     </div>
 
     <main>
+        <header class="topbar">
+            <div class="topbar-context">
+                @if (!string.IsNullOrEmpty(CurrentUser.User.TenantName))
+                {
+                    <span class="topbar-tenant">@CurrentUser.User.TenantName</span>
+                }
+                @if (!string.IsNullOrEmpty(CurrentUser.User.CurrentLocationName))
+                {
+                    <span class="topbar-branch"><i class="bi bi-shop"></i> @CurrentUser.User.CurrentLocationName</span>
+                }
+            </div>
+            <div class="topbar-actions">
+                <AuthorizeView Policy="@ModuleRegistry.Pages.NEWSALE_CREATE">
+                    <MudButton Href="sell" Variant="Variant.Filled" Color="Color.Primary" Size="Size.Small"
+                               StartIcon="@Icons.Material.Filled.PointOfSale" Class="d-none d-sm-inline-flex">New sale</MudButton>
+                </AuthorizeView>
+                <div class="account-menu">
+                    <button type="button" class="user-chip" id="userMenu" aria-haspopup="menu"
+                            aria-expanded="@(_accountOpen ? "true" : "false")" @onclick="ToggleAccount">
+                        <span class="user-avatar">@Initials</span>
+                        <span class="user-text d-none d-md-flex">
+                            <span class="user-name">@DisplayName</span>
+                            <span class="user-email">@CurrentUser.User.Email</span>
+                        </span>
+                        <i class="bi bi-chevron-down"></i>
+                    </button>
+                    @if (_accountOpen)
+                    {
+                        @* Hand-rolled like the sidebar's branch switcher: this used to be a MudMenu
+                           whose activator never opened (aria-expanded stayed false and the popover
+                           stayed empty), which made "Account settings" and "Log out" unreachable. *@
+                        <div class="account-menu-panel" id="accountMenuPanel">
+                            <a class="account-menu-item" href="account/settings" @onclick="CloseAccount">
+                                <i class="bi bi-person-gear"></i> Account settings
+                            </a>
+                            <div class="account-menu-divider"></div>
+                            @* A real form POST: signing out clears the sign-in cookie on the server. *@
+                            <form action="account/logout" method="post" class="logout-form">
+                                <AntiforgeryToken />
+                                <button type="submit" class="logout-button" id="logoutButton">
+                                    <i class="bi bi-box-arrow-right"></i> Log out
+                                </button>
+                            </form>
+                        </div>
+                    }
+                </div>
+            </div>
+        </header>
+
         <article class="content px-4">
             @Body
         </article>
@@ -19,12 +73,52 @@
 </div>
 
 @code {
+    // Built on the server while prerendering and carried into the browser with the page, so the
+    // shell (tenant, branch, branch switcher) is right on first paint with no extra request.
+    [PersistentState] public Mercurius.Shared.Account.CurrentUserDto? Profile { get; set; }
+
+    private string DisplayName => string.IsNullOrWhiteSpace(CurrentUser.User.FullName) ? CurrentUser.User.Email ?? "" : CurrentUser.User.FullName!;
+
+    private string Initials
+    {
+        get
+        {
+            var parts = DisplayName.Split(new[] { ' ', '@', '.' }, StringSplitOptions.RemoveEmptyEntries);
+            return parts.Length switch
+            {
+                0 => "?",
+                1 => parts[0][..1].ToUpperInvariant(),
+                _ => (parts[0][..1] + parts[1][..1]).ToUpperInvariant()
+            };
+        }
+    }
+
     protected override async Task OnInitializedAsync()
     {
-        // Best-effort: reduces (doesn't eliminate) the chance a browser evicts the offline
-        // product cache / pending-sales queue during a period of inactivity. See NavMenu's
-        // "Install app" button for the other half of this — installed PWAs get stronger
-        // persistence guarantees than a bookmarked tab.
-        await Pwa.RequestPersistentStorageAsync();
+        Profile ??= await ProfileSource.GetAsync();
+        CurrentUser.Set(Profile);
+    }
+
+    private bool _interactive;
+    private bool _accountOpen;
+
+    private void ToggleAccount() => _accountOpen = !_accountOpen;
+    private void CloseAccount() => _accountOpen = false;
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!firstRender) return;
+        _interactive = true;
+        StateHasChanged();
+        try
+        {
+            // Best-effort: reduces (doesn't eliminate) the chance a browser evicts the offline
+            // product cache / pending-sales queue during a period of inactivity.
+            await Pwa.RequestPersistentStorageAsync();
+        }
+        catch (JSException)
+        {
+            // Storage API unavailable (e.g. private browsing) — offline caching still works for now.
+        }
     }
 }

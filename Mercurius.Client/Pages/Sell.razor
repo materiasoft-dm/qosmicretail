@@ -1,5 +1,5 @@
 @page "/sell"
-@attribute [Authorize]
+@attribute [Authorize(Policy = ModuleRegistry.Pages.NEWSALE_CREATE)]
 @using Mercurius.Client.Pages.Dialogs
 @inject ProductsApiClient ProductsApi
 @inject ProductCategoriesApiClient CategoriesApi
@@ -37,8 +37,10 @@
 <MudGrid>
     <MudItem xs="12" md="8">
         <div class="d-flex flex-wrap gap-2 align-items-center mb-3">
-            <MudTextField T="string" Value="_search" ValueChanged="OnSearchChanged" Immediate="true" Placeholder="Search by name or SKU..." Variant="Variant.Outlined"
-                          Adornment="Adornment.Start" AdornmentIcon="@Icons.Material.Filled.Search" Style="max-width:280px" Margin="Margin.Dense" />
+            <MudTextField T="string" @ref="_searchField" Value="_search" ValueChanged="OnSearchChanged" Immediate="true" OnKeyDown="OnSearchKeyDown"
+                          Placeholder="Search, or scan a barcode / SKU and press Enter" Variant="Variant.Outlined" Clearable="true"
+                          Adornment="Adornment.Start" AdornmentIcon="@Icons.Material.Filled.QrCodeScanner" Style="min-width:300px; max-width:420px" Margin="Margin.Dense"
+                          UserAttributes="@(new Dictionary<string, object> { ["id"] = "sellSearch" })" />
             <MudButtonGroup Variant="Variant.Filled" Size="Size.Small">
                 <MudButton Color="@(_isGridView ? Color.Primary : Color.Default)" OnClick="@(() => SetViewMode(true))">Grid</MudButton>
                 <MudButton Color="@(!_isGridView ? Color.Primary : Color.Default)" OnClick="@(() => SetViewMode(false))">List</MudButton>
@@ -103,13 +105,9 @@
 
     <MudItem xs="12" md="4">
         <MudPaper Class="pa-4" Elevation="2" Style="position:sticky; top:20px;">
-            <MudSelect T="int" @bind-Value="_customerId" Label="Customer" Variant="Variant.Outlined" Margin="Margin.Dense" Class="mb-3">
-                <MudSelectItem T="int" Value="0">-- Optional --</MudSelectItem>
-                @foreach (var c in _customers)
-                {
-                    <MudSelectItem T="int" Value="@c.Id">@c.Name</MudSelectItem>
-                }
-            </MudSelect>
+            <MudAutocomplete T="CustomerOptionDto" @bind-Value="_customer" SearchFunc="SearchCustomersAsync" ToStringFunc="@(c => c?.Name ?? string.Empty)"
+                             Label="Customer (optional)" Placeholder="Type a name or phone" Variant="Variant.Outlined" Margin="Margin.Dense" Class="mb-3"
+                             Clearable="true" ResetValueOnEmptyText="true" DebounceInterval="300" MaxItems="50" Dense="true" />
             <MudTextField @bind-Value="_notes" Label="Notes" Variant="Variant.Outlined" Margin="Margin.Dense" Class="mb-3" />
             <MudDivider Class="mb-3" />
             <div class="d-flex justify-content-between align-items-center mb-2">
@@ -133,15 +131,15 @@
                             <div class="flex-grow-1 me-2">
                                 <MudText Class="fw-bold text-truncate">@line.Name</MudText>
                                 <div class="d-flex align-items-center gap-2 mt-1">
-                                    <MudIconButton Icon="@Icons.Material.Filled.Remove" Size="Size.Small" Variant="Variant.Filled" OnClick="@(() => Decrement(line.ProductId))" />
-                                    <MudText>@line.Quantity</MudText>
-                                    <MudIconButton Icon="@Icons.Material.Filled.Add" Size="Size.Small" Variant="Variant.Filled" OnClick="@(() => Increment(line.ProductId))" />
+                                    <MudIconButton Icon="@Icons.Material.Filled.Remove" Size="Size.Small" Variant="Variant.Filled" aria-label="Decrease quantity" OnClick="@(() => Decrement(line.ProductId))" />
+                                    <MudButton Size="Size.Small" Variant="Variant.Outlined" Style="min-width:48px;" aria-label="Edit quantity" OnClick="@(() => EditQuantityAsync(line))">@line.Quantity</MudButton>
+                                    <MudIconButton Icon="@Icons.Material.Filled.Add" Size="Size.Small" Variant="Variant.Filled" aria-label="Increase quantity" OnClick="@(() => Increment(line.ProductId))" />
                                     <MudText Typo="Typo.caption" Color="Color.Secondary" Class="ms-2">@Money.Format(line.Price) ea</MudText>
                                 </div>
                             </div>
                             <div class="text-end">
                                 <MudText Class="fw-bold">@Money.Format(line.Price * line.Quantity)</MudText>
-                                <MudIconButton Icon="@Icons.Material.Filled.Close" Size="Size.Small" Color="Color.Error" OnClick="@(() => RemoveLine(line.ProductId))" />
+                                <MudIconButton Icon="@Icons.Material.Filled.Close" Size="Size.Small" Color="Color.Error" aria-label="Remove line" OnClick="@(() => RemoveLine(line.ProductId))" />
                             </div>
                         </div>
                     }
@@ -166,8 +164,8 @@
 @code {
     private List<ProductListItemDto> _products = new();
     private List<ProductCategoryDto> _categories = new();
-    private List<CustomerOptionDto> _customers = new();
     private bool _loading = true;
+    private MudTextField<string>? _searchField;
     private string _search = string.Empty;
     private int _categoryId;
     private bool _isGridView = true;
@@ -175,7 +173,7 @@
 
     private class CartLine { public int ProductId; public string Name = ""; public decimal Price; public int Quantity; public decimal Stock; public decimal LowStockCount; }
     private List<CartLine> _cart = new();
-    private int _customerId;
+    private CustomerOptionDto? _customer;
     private string _notes = string.Empty;
 
     private bool _usingOfflineCatalog;
@@ -183,6 +181,7 @@
 
     protected override async Task OnInitializedAsync()
     {
+        if (!RendererInfo.IsInteractive) return; // prerendering: show the loading state; the browser loads the data
         try
         {
             var stored = await JS.InvokeAsync<string?>("localStorage.getItem", "sell_view_mode");
@@ -193,12 +192,11 @@
         try
         {
             _categories = (await CategoriesApi.GetAsync()).Items;
-            _customers = await SalesApi.GetCustomersAsync(null);
         }
         catch
         {
-            // Categories/customers are conveniences (filtering, optional tagging) — selling still
-            // works without them, so don't block the page on a failed fetch while offline.
+            // Categories are a convenience (filtering) — selling still works without them, so
+            // don't block the page on a failed fetch while offline.
         }
         await LoadProductsAsync();
         await RefreshPendingCountAsync();
@@ -250,19 +248,21 @@
             if (!string.IsNullOrWhiteSpace(_search))
             {
                 var s = _search.Trim();
-                filtered = filtered.Where(p => p.Name.Contains(s, StringComparison.OrdinalIgnoreCase) || p.ProductCode.Contains(s, StringComparison.OrdinalIgnoreCase));
+                filtered = filtered.Where(p => p.Name.Contains(s, StringComparison.OrdinalIgnoreCase)
+                    || p.ProductCode.Contains(s, StringComparison.OrdinalIgnoreCase)
+                    || (p.Barcode != null && p.Barcode.Contains(s, StringComparison.OrdinalIgnoreCase)));
             }
             _products = filtered.OrderBy(p => p.Name).Take(100)
-                .Select(p => new ProductListItemDto { Id = p.Id, ProductCode = p.ProductCode, Name = p.Name, Category = p.Category, Stock = p.Stock, SalePrice = p.SalePrice, LowStockCount = p.LowStockCount, IsActive = true })
+                .Select(p => new ProductListItemDto { Id = p.Id, ProductCode = p.ProductCode, Barcode = p.Barcode, Name = p.Name, Category = p.Category, Stock = p.Stock, SalePrice = p.SalePrice, LowStockCount = p.LowStockCount, IsActive = true })
                 .ToList();
             _usingOfflineCatalog = true;
         }
         _loading = false;
     }
 
-    private async Task OnSearchChanged(string value)
+    private async Task OnSearchChanged(string? value)
     {
-        _search = value;
+        _search = value ?? string.Empty;
         _debounce?.Cancel();
         _debounce = new CancellationTokenSource();
         var token = _debounce.Token;
@@ -270,13 +270,54 @@
         catch (TaskCanceledException) { }
     }
 
-    private void SelectCategory(int id) { _categoryId = id; _ = LoadProductsAsync(); }
+    // Enter in the search box — what a barcode scanner sends after the code. An exact barcode or
+    // SKU match (or the only product the search finds) goes straight onto the ticket.
+    private async Task OnSearchKeyDown(KeyboardEventArgs e)
+    {
+        if (e.Key is not ("Enter" or "NumpadEnter")) return;
+        var term = _search.Trim();
+        if (term.Length == 0) return;
 
-    private async void SetViewMode(bool grid)
+        _debounce?.Cancel();
+        await LoadProductsAsync();
+        var match = _products.FirstOrDefault(p => string.Equals(p.Barcode, term, StringComparison.OrdinalIgnoreCase))
+            ?? _products.FirstOrDefault(p => string.Equals(p.ProductCode, term, StringComparison.OrdinalIgnoreCase))
+            ?? (_products.Count == 1 ? _products[0] : null);
+        if (match == null)
+        {
+            Snackbar.Add(_products.Count == 0 ? $"No product matches \"{term}\"." : "More than one product matches — tap the one you want.", Severity.Info);
+            return;
+        }
+
+        AddToCart(match);
+        Snackbar.Add($"Added {match.Name}.", Severity.Success, o => o.VisibleStateDuration = 1500);
+        _search = string.Empty;
+        if (_searchField != null) await _searchField.ClearAsync();
+        await LoadProductsAsync();
+    }
+
+    private async Task<IEnumerable<CustomerOptionDto>> SearchCustomersAsync(string? value, CancellationToken token)
+    {
+        try
+        {
+            return await SalesApi.GetCustomersAsync(value, token);
+        }
+        catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException)
+        {
+            return Array.Empty<CustomerOptionDto>(); // offline — a customer is optional
+        }
+    }
+
+    private async Task SelectCategory(int id)
+    {
+        _categoryId = id;
+        await LoadProductsAsync();
+    }
+
+    private async Task SetViewMode(bool grid)
     {
         _isGridView = grid;
-        try { await JS.InvokeVoidAsync("localStorage.setItem", "sell_view_mode", grid ? "grid" : "list"); } catch { }
-        StateHasChanged();
+        try { await JS.InvokeVoidAsync("localStorage.setItem", "sell_view_mode", grid ? "grid" : "list"); } catch (JSException) { }
     }
 
     private int CartQtyFor(int productId) => _cart.FirstOrDefault(l => l.ProductId == productId)?.Quantity ?? 0;
@@ -300,12 +341,29 @@
     private void RemoveLine(int productId) => _cart.RemoveAll(l => l.ProductId == productId);
     private void ClearCart() => _cart.Clear();
 
+    private async Task EditQuantityAsync(CartLine line)
+    {
+        var parameters = new DialogParameters<QuantityDialog>
+        {
+            { d => d.ProductName, line.Name },
+            { d => d.Quantity, line.Quantity },
+            { d => d.Stock, line.Stock }
+        };
+        var dialog = await DialogService.ShowAsync<QuantityDialog>("Quantity", parameters,
+            new DialogOptions { MaxWidth = MaxWidth.ExtraSmall, FullWidth = true });
+        if (await dialog.Result is { Canceled: false, Data: int quantity })
+        {
+            if (quantity <= 0) RemoveLine(line.ProductId);
+            else line.Quantity = quantity;
+        }
+    }
+
     private async Task OpenPayment()
     {
         var parameters = new DialogParameters<PaymentDialog>
         {
             { d => d.Total, CartTotal() },
-            { d => d.CustomerId, _customerId },
+            { d => d.CustomerId, _customer?.Id ?? 0 },
             { d => d.Notes, _notes },
             { d => d.Items, _cart.Select(l => new CartLineRequest { ProductId = l.ProductId, Quantity = l.Quantity }).ToList() }
         };
@@ -316,6 +374,7 @@
         {
             _cart.Clear();
             _notes = string.Empty;
+            _customer = null;
             var outcome = result.Data as SaleOutcome;
             if (outcome is { SavedOffline: true })
             {

@@ -1,5 +1,8 @@
 using Mercurius;
+using Mercurius.Client;
 using Mercurius.Common.Constants;
+using Mercurius.Components;
+using Mercurius.Endpoints;
 using Mercurius.Models;
 using Mercurius.Repo;
 using Mercurius.Repo.IdentityModel;
@@ -9,9 +12,7 @@ using Mercurius.Services;
 using Mercurius.Middleware;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Identity;
-using Microsoft.AspNetCore.Identity.UI.Services;
 using Microsoft.AspNetCore.RateLimiting;
-using Microsoft.AspNetCore.Mvc;
 using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Diagnostics.HealthChecks;
@@ -50,7 +51,14 @@ var sqlServerConnectionString = builder.Configuration.GetConnectionString("SqlSe
 // auto-stamping) rely on — see MULTITENANCY_ARCHITECTURE.md. Registered before AddDbContext so
 // MercuriusDbContext's constructor dependency resolves regardless of registration order (DI
 // doesn't actually require this ordering, but it reads better next to what it's for).
-builder.Services.AddScoped<Mercurius.Repo.Repositories.ICurrentTenantContext, Mercurius.Services.HttpContextCurrentTenantContext>();
+// One instance per scope, exposed under both interfaces — a background job's
+// ITenantScopeOverride.UseTenant(...) must be visible to the ICurrentTenantContext that
+// MercuriusDbContext and EfRepository read in that same scope.
+builder.Services.AddScoped<Mercurius.Services.HttpContextCurrentTenantContext>();
+builder.Services.AddScoped<Mercurius.Repo.Repositories.ICurrentTenantContext>(sp =>
+    sp.GetRequiredService<Mercurius.Services.HttpContextCurrentTenantContext>());
+builder.Services.AddScoped<Mercurius.Services.ITenantScopeOverride>(sp =>
+    sp.GetRequiredService<Mercurius.Services.HttpContextCurrentTenantContext>());
 
 // Audit trail — see Mercurius.Repo/Repositories/Auditing/AuditSaveChangesInterceptor.cs. Every
 // insert/update/delete through EF gets an AuditLog row (who, branch, device, IP, what changed);
@@ -94,9 +102,19 @@ builder.Services.AddScoped<IUnitOfWork>(sp =>
 // ASP.NET CORE IDENTITY (EF Core-backed)
 // ============================================
 
-builder.Services.AddDefaultIdentity<MercuriusUser>(options =>
+// The sign-in cookie is the web app's default scheme; the account pages (Components/Account) and
+// the /account/logout endpoint are the UI for it.
+builder.Services.AddAuthentication(options =>
+{
+    options.DefaultScheme = IdentityConstants.ApplicationScheme;
+    options.DefaultSignInScheme = IdentityConstants.ExternalScheme;
+})
+    .AddIdentityCookies();
+
+builder.Services.AddIdentityCore<MercuriusUser>(options =>
 {
     options.SignIn.RequireConfirmedAccount = false;
+    options.SignIn.RequireConfirmedEmail = false;
     options.Lockout.DefaultLockoutTimeSpan = TimeSpan.FromMinutes(15);
     options.Lockout.MaxFailedAccessAttempts = 5;
     options.Lockout.AllowedForNewUsers = true;
@@ -108,8 +126,39 @@ builder.Services.AddDefaultIdentity<MercuriusUser>(options =>
 })
     .AddRoles<IdentityRole>()
     .AddEntityFrameworkStores<MercuriusDbContext>()
+    .AddSignInManager()
     .AddDefaultTokenProviders()
     .AddClaimsPrincipalFactory<MercuriusClaimsPrincipalFactory>();
+
+builder.Services.ConfigureApplicationCookie(options =>
+{
+    options.LoginPath = "/account/login";
+    options.LogoutPath = "/account/logout";
+    options.AccessDeniedPath = "/account/access-denied";
+
+    // API calls get a status code, never a redirect to an HTML page they can't use: the Blazor
+    // client turns a 401 into "sign in again", and shows a 403 as "no permission".
+    options.Events.OnRedirectToLogin = context =>
+    {
+        if (context.Request.Path.StartsWithSegments("/api"))
+        {
+            context.Response.StatusCode = StatusCodes.Status401Unauthorized;
+            return Task.CompletedTask;
+        }
+        context.Response.Redirect(context.RedirectUri);
+        return Task.CompletedTask;
+    };
+    options.Events.OnRedirectToAccessDenied = context =>
+    {
+        if (context.Request.Path.StartsWithSegments("/api"))
+        {
+            context.Response.StatusCode = StatusCodes.Status403Forbidden;
+            return Task.CompletedTask;
+        }
+        context.Response.Redirect(context.RedirectUri);
+        return Task.CompletedTask;
+    };
+});
 
 // ============================================
 // JWT BEARER AUTH (mobile/API clients)
@@ -139,43 +188,49 @@ builder.Services.AddAuthentication()
     });
 
 // ============================================
-// MVC & RAZOR PAGES
+// API CONTROLLERS & BLAZOR
 // ============================================
 
-builder.Services.AddControllersWithViews(options =>
+builder.Services.AddControllers(options =>
 {
     // The POCOs in Mercurius.Repo.Models use non-nullable `string` properties for many
     // optional fields (Description, Note, CustomWarning, Model, ImageFilename, etc.).
     // With <Nullable>enable</Nullable>, ASP.NET Core's model binder treats every
-    // non-nullable reference as implicitly [Required], which made Edit/Create POSTs
-    // silently fail validation when those fields weren't on the form. Restore the
-    // pre-.NET 6 behaviour: rely on explicit [Required] only.
+    // non-nullable reference as implicitly [Required], which made requests silently fail
+    // validation when those fields weren't sent. Rely on explicit [Required] only.
     options.SuppressImplicitRequiredAttributeForNonNullableReferenceTypes = true;
 });
-builder.Services.AddRazorPages();
 
-// ============================================
-// API VERSIONING
-// ============================================
+// The UI: Mercurius.Client's pages, prerendered here and then run in the browser on WebAssembly.
+// The signed-in user's claims are serialized into each page so the browser knows who's signed in
+// (and what they may see) without asking the server again.
+builder.Services.AddRazorComponents()
+    .AddInteractiveWebAssemblyComponents()
+    .AddAuthenticationStateSerialization(options => options.SerializeAllClaims = true);
 
-builder.Services.AddApiVersioning(options =>
+// The pages' own services, for their server-side prerender. Their HttpClient refuses to call the
+// API (pages fetch data only once running in the browser), and the app shell's profile is built
+// straight from the database instead of over HTTP.
+builder.Services.AddMercuriusClientServices();
+builder.Services.AddScoped(_ => new HttpClient(new Mercurius.Components.PrerenderApiGuardHandler())
 {
-    options.DefaultApiVersion = new ApiVersion(1, 0);
-    options.AssumeDefaultVersionWhenUnspecified = true;
-    options.ReportApiVersions = true;
+    BaseAddress = new Uri("http://prerender.invalid/")
 });
+builder.Services.AddScoped<CurrentUserProfileService>();
+builder.Services.AddScoped<Mercurius.Client.Services.ICurrentUserProfileSource, Mercurius.Components.ServerCurrentUserProfileSource>();
 
 // ============================================
 // APPLICATION SERVICES
 // ============================================
 
-builder.Services.AddTransient<IEmailSender, EmailSender>();
 builder.Services.AddScoped<ILoggerService, LoggerService>();
 builder.Services.AddScoped<Mercurius.Services.BatchPricingService>();
 builder.Services.AddScoped<Mercurius.Services.AdjustmentService>();
+builder.Services.AddScoped<Mercurius.Services.Admin.DataQueryService>();
+builder.Services.AddScoped<Mercurius.Services.Admin.TenantProvisioningService>();
 
 builder.Services.Configure<DatabaseBackupOptions>(builder.Configuration.GetSection("DatabaseBackup"));
-// Registered as a singleton (not just via AddHostedService) so DatabaseBackupsController can
+// Registered as a singleton (not just via AddHostedService) so DatabaseBackupsApiController can
 // inject the concrete type directly (e.g. to read BackupDirectory) alongside the hosting
 // infrastructure starting/stopping the same instance as an IHostedService. Kept registered
 // regardless of provider so the controller's DI resolves either way; only actually scheduled
@@ -197,13 +252,9 @@ builder.Services.AddHostedService<ProductImportBackgroundService>();
 // AUTHORIZATION
 // ============================================
 
-builder.Services.Configure<IdentityOptions>(options =>
-    options.SignIn.RequireConfirmedEmail = false);
-
 builder.Services.AddAuthorization(options =>
 {
-    // Note: No FallbackPolicy - controllers opt-in to auth with [Authorize].
-    // Controllers/actions that need to be public must explicitly use [AllowAnonymous].
+    // Note: No FallbackPolicy - controllers and pages opt in to auth with [Authorize].
     foreach (var module in Mercurius.Common.ModuleRegistry.Modules)
     {
         options.AddPolicy(module, policy => policy.RequireClaim(MercuriusClaimTypes.AccessPages, module));
@@ -218,19 +269,10 @@ builder.Services.AddAuthorization(options =>
 builder.Services.AddHttpContextAccessor();
 
 // ============================================
-// SESSION & SECURITY
+// SECURITY
 // ============================================
 
 builder.Services.AddMemoryCache();
-builder.Services.AddSession(options =>
-{
-    options.IdleTimeout = TimeSpan.FromMinutes(30);
-    options.Cookie.HttpOnly = true;
-    options.Cookie.IsEssential = true;
-    options.Cookie.SecurePolicy = CookieSecurePolicy.SameAsRequest;
-    options.Cookie.SameSite = SameSiteMode.Lax;
-    options.Cookie.Name = ".Mercurius.Session";
-});
 
 builder.Services.AddHsts(options =>
 {
@@ -327,28 +369,33 @@ var app = builder.Build();
 // HTTP REQUEST PIPELINE
 // ============================================
 
-if (!app.Environment.IsDevelopment())
+if (app.Environment.IsDevelopment())
+{
+    app.UseWebAssemblyDebugging();
+}
+else
 {
     app.UseHsts();
 }
 
 app.UseExceptionHandling();
-app.UseRateLimiter();  // Rate limiting
-// app.UseHttpsRedirection(); // Disabled for localhost dev
+app.UseLegacyRedirects();  // old MVC / previous /app URLs → current pages
+app.UseRateLimiter();
+// app.UseHttpsRedirection(); // Disabled: the live host is plain HTTP
 
-// ============================================
-// BLAZOR WEBASSEMBLY (Mercurius.Client), hosted under /app
-// ============================================
-// ASP.NET Core hosted model: this project (Mercurius) serves both the JSON API the client calls
-// and the client's own compiled static assets — no separate deploy/CORS story. Mounted under
-// /app rather than replacing "/" because the frontend conversion is incremental, page by page;
-// the MVC app keeps serving everything else in the meantime. See MULTITENANCY_ARCHITECTURE.md.
-app.UseBlazorFrameworkFiles("/app");
+// A page (not API) request for something that doesn't exist gets the app's "not found" page.
+app.UseWhen(context => !context.Request.Path.StartsWithSegments("/api"),
+    branch => branch.UseStatusCodePagesWithReExecute("/not-found", createScopeForStatusCodePages: true));
+
+// Runtime uploads (wwwroot/ProductImages) aren't known at build time, so MapStaticAssets below
+// can't serve them — the classic static file middleware does.
 app.UseStaticFiles();
-app.UseSession();          // Session MUST be before Authentication
 app.UseRouting();
 app.UseAuthentication();
 app.UseAuthorization();
+app.UseAntiforgery();
+
+app.MapStaticAssets();
 
 app.MapHealthChecks("/health", new Microsoft.AspNetCore.Diagnostics.HealthChecks.HealthCheckOptions
 {
@@ -370,15 +417,14 @@ app.MapHealthChecks("/health", new Microsoft.AspNetCore.Diagnostics.HealthChecks
     }
 });
 
-app.MapControllerRoute(
-    name: "default",
-    pattern: "{controller=Home}/{action=Index}/{id?}");
+app.MapControllers();
+app.MapAccountEndpoints();
 
-app.MapRazorPages();
-
-// Client-side routes within the Blazor app (e.g. /app/products) aren't real server endpoints —
-// fall back to the client's index.html so its own Router can handle them.
-app.MapFallbackToFile("/app/{*path:nonfile}", "app/index.html");
+// The UI. Pages live in Mercurius.Client (prerendered here, then interactive on WebAssembly); the
+// sign-in pages and error page live in this project's Components folder.
+app.MapRazorComponents<App>()
+    .AddInteractiveWebAssemblyRenderMode()
+    .AddAdditionalAssemblies(typeof(Mercurius.Client._Imports).Assembly);
 
 // ============================================
 // DATABASE SCHEMA
@@ -429,16 +475,21 @@ static async Task SaveWithExplicitIdsAsync(MercuriusDbContext dbContext, IUnitOf
     // (confirmed: this exact failure mode, even with the toggle present, until the connection was
     // pinned open explicitly). OpenConnectionAsync/CloseConnectionAsync keep one connection alive
     // across both calls.
+    // A SQL identifier can't be a query parameter, so each seeded table gets its own literal
+    // statement pair (EF's SQL-injection analyzer rejects any concatenated SQL string).
+    var (identityInsertOn, identityInsertOff) = tableName switch
+    {
+        "InvoiceStatuses" => ("SET IDENTITY_INSERT [InvoiceStatuses] ON", "SET IDENTITY_INSERT [InvoiceStatuses] OFF"),
+        "ShipmentArrivalStatuses" => ("SET IDENTITY_INSERT [ShipmentArrivalStatuses] ON", "SET IDENTITY_INSERT [ShipmentArrivalStatuses] OFF"),
+        _ => throw new ArgumentOutOfRangeException(nameof(tableName), tableName, "No explicit-id seeding is set up for this table.")
+    };
+
     await dbContext.Database.OpenConnectionAsync();
     try
     {
-        // Table names here are always one of this file's own hardcoded literals, never external
-        // input — plain concatenation (not an interpolated-string literal) so the analyzer
-        // doesn't flag it as if it were unparameterized user data; a SQL identifier can't be a
-        // query parameter anyway, so ExecuteSqlAsync's parameterization wouldn't apply here.
-        await dbContext.Database.ExecuteSqlRawAsync("SET IDENTITY_INSERT [" + tableName + "] ON");
+        await dbContext.Database.ExecuteSqlRawAsync(identityInsertOn);
         await unitOfWork.SaveChangesAsync();
-        await dbContext.Database.ExecuteSqlRawAsync("SET IDENTITY_INSERT [" + tableName + "] OFF");
+        await dbContext.Database.ExecuteSqlRawAsync(identityInsertOff);
     }
     finally
     {
@@ -605,7 +656,7 @@ async Task SeedDataAsync(WebApplication app)
             var adminUser = await userManager.FindByEmailAsync(adminEmail);
             if (adminUser == null)
             {
-                adminUser = new MercuriusUser { UserName = adminEmail, Email = adminEmail, EmailConfirmed = true, FirstName = "Admin", LastName = "User", TenantId = defaultTenant.Id, IsPlatformAdmin = true };
+                adminUser = new MercuriusUser { UserName = adminEmail, Email = adminEmail, EmailConfirmed = true, FirstName = "Admin", LastName = "User", TenantId = defaultTenant.Id, IsPlatformAdmin = true, IsActive = true };
                 var result = await userManager.CreateAsync(adminUser, adminPassword);
                 if (result.Succeeded)
                 {

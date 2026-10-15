@@ -1,0 +1,118 @@
+@inject LocationsApiClient Api
+
+<MudDialog>
+    <DialogContent>
+        <MudGrid Spacing="2">
+            <MudItem xs="12"><MudTextField @bind-Value="_name" Label="Branch name" Variant="Variant.Outlined" AutoFocus="true" /></MudItem>
+
+            <MudItem xs="12"><MudText Typo="Typo.subtitle2">Dashboard targets</MudText></MudItem>
+            <MudItem xs="12" sm="6">
+                <MudNumericField T="int?" @bind-Value="_dailyTarget" Label="Daily sales target" Variant="Variant.Outlined" Min="0"
+                                 HelperText="Sales per day (blank = 10)" HideSpinButtons="true" />
+            </MudItem>
+            <MudItem xs="12" sm="6">
+                <MudNumericField T="decimal?" @bind-Value="_monthlyTarget" Label="Monthly sales target" Variant="Variant.Outlined" Min="0"
+                                 HelperText="Sales per month (blank = 10)" HideSpinButtons="true" />
+            </MudItem>
+
+            <MudItem xs="12"><MudText Typo="Typo.subtitle2">Address</MudText></MudItem>
+            <MudItem xs="12" sm="6"><MudTextField @bind-Value="_line1" Label="Address line 1" Variant="Variant.Outlined" /></MudItem>
+            <MudItem xs="12" sm="6"><MudTextField @bind-Value="_line2" Label="Address line 2" Variant="Variant.Outlined" /></MudItem>
+            <MudItem xs="12" sm="4"><MudTextField @bind-Value="_city" Label="City / town" Variant="Variant.Outlined" /></MudItem>
+            <MudItem xs="12" sm="4"><MudTextField @bind-Value="_province" Label="Province" Variant="Variant.Outlined" /></MudItem>
+            <MudItem xs="12" sm="4"><MudTextField @bind-Value="_country" Label="Country" Variant="Variant.Outlined" /></MudItem>
+
+            <MudItem xs="12"><MudText Typo="Typo.subtitle2">Contact</MudText></MudItem>
+            <MudItem xs="12" sm="4"><MudTextField @bind-Value="_mobile" Label="Mobile" Variant="Variant.Outlined" /></MudItem>
+            <MudItem xs="12" sm="4"><MudTextField @bind-Value="_phone" Label="Phone" Variant="Variant.Outlined" /></MudItem>
+            <MudItem xs="12" sm="4"><MudTextField @bind-Value="_email" Label="Email" Variant="Variant.Outlined" /></MudItem>
+
+            @if (Existing != null)
+            {
+                <MudItem xs="12">
+                    <MudSwitch @bind-Value="_isActive" Color="Color.Primary" Label="Active" />
+                    <MudText Typo="Typo.caption" Class="d-block">
+                        An inactive branch can't be picked for new sales or devices; its past sales and stock are kept.
+                    </MudText>
+                </MudItem>
+            }
+        </MudGrid>
+        @if (_error != null)
+        {
+            <MudAlert Severity="Severity.Error" Class="mt-2">@_error</MudAlert>
+        }
+    </DialogContent>
+    <DialogActions>
+        <MudButton OnClick="Cancel">Cancel</MudButton>
+        <MudButton Color="Color.Primary" Variant="Variant.Filled" Disabled="_busy" OnClick="Save">@(Existing == null ? "Add branch" : "Save")</MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    [CascadingParameter] private IMudDialogInstance MudDialog { get; set; } = default!;
+
+    // Null to add a new branch.
+    [Parameter] public LocationDto? Existing { get; set; }
+
+    private string _name = string.Empty, _line1 = string.Empty, _line2 = string.Empty, _city = string.Empty,
+        _province = string.Empty, _country = string.Empty, _mobile = string.Empty, _phone = string.Empty, _email = string.Empty;
+    private decimal? _monthlyTarget;
+    private int? _dailyTarget;
+    private bool _isActive = true;
+    private bool _busy;
+    private string? _error;
+
+    protected override void OnInitialized()
+    {
+        if (Existing == null) return;
+        _name = Existing.Name;
+        _line1 = Existing.AddressLine1 ?? string.Empty;
+        _line2 = Existing.AddressLine2 ?? string.Empty;
+        _city = Existing.CityTown ?? string.Empty;
+        _province = Existing.Province ?? string.Empty;
+        _country = Existing.Country ?? string.Empty;
+        _mobile = Existing.MobilePhone ?? string.Empty;
+        _phone = Existing.PhoneNumber ?? string.Empty;
+        _email = Existing.EmailAddress ?? string.Empty;
+        _monthlyTarget = Existing.MonthlyTargetSalesCount;
+        _dailyTarget = Existing.DailySalesTarget;
+        _isActive = Existing.IsActive;
+    }
+
+    private async Task Save()
+    {
+        _error = null;
+        if (string.IsNullOrWhiteSpace(_name)) { _error = "Branch name is required."; return; }
+
+        _busy = true;
+        try
+        {
+            var request = new UpdateLocationRequest
+            {
+                Name = _name,
+                AddressLine1 = _line1,
+                AddressLine2 = _line2,
+                CityTown = _city,
+                Province = _province,
+                Country = _country,
+                MobilePhone = _mobile,
+                PhoneNumber = _phone,
+                EmailAddress = _email,
+                MonthlyTargetSalesCount = _monthlyTarget,
+                DailySalesTarget = _dailyTarget,
+                IsActive = _isActive
+            };
+            var ok = Existing == null
+                ? await Api.CreateAsync(request) != null
+                : await Api.UpdateAsync(Existing.Id, request);
+            if (!ok) { _error = "The branch couldn't be saved."; return; }
+            MudDialog.Close(DialogResult.Ok(true));
+        }
+        finally
+        {
+            _busy = false;
+        }
+    }
+
+    private void Cancel() => MudDialog.Cancel();
+}

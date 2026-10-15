@@ -1,3 +1,4 @@
+using System.Net;
 using System.Net.Http.Json;
 using Mercurius.Shared.Common;
 using Mercurius.Shared.PurchaseOrders;
@@ -12,24 +13,65 @@ namespace Mercurius.Client.Services
         public async Task<ListResultDto<PurchaseOrderListItemDto>> GetAsync() =>
             await _http.GetFromJsonAsync<ListResultDto<PurchaseOrderListItemDto>>("api/purchase-orders") ?? new();
 
-        public async Task<PurchaseOrderDetailDto?> GetDetailAsync(int id) => await _http.GetFromJsonAsync<PurchaseOrderDetailDto>($"api/purchase-orders/{id}");
+        public async Task<PurchaseOrderDetailDto?> GetDetailAsync(int id)
+        {
+            var response = await _http.GetAsync($"api/purchase-orders/{id}");
+            if (response.StatusCode == HttpStatusCode.NotFound) return null;
+            response.EnsureSuccessStatusCode();
+            return await response.Content.ReadFromJsonAsync<PurchaseOrderDetailDto>();
+        }
 
         public async Task<List<SupplierOptionDto>> GetSuppliersAsync() =>
             await _http.GetFromJsonAsync<List<SupplierOptionDto>>("api/purchase-orders/suppliers") ?? new();
 
-        public async Task<List<ProductOptionDto>> GetProductsAsync(string? search) =>
-            await _http.GetFromJsonAsync<List<ProductOptionDto>>("api/purchase-orders/products?search=" + Uri.EscapeDataString(search ?? string.Empty)) ?? new();
+        public async Task<List<ProductOptionDto>> GetProductsAsync(string? search, CancellationToken ct = default) =>
+            await _http.GetFromJsonAsync<List<ProductOptionDto>>("api/purchase-orders/products?search=" + Uri.EscapeDataString(search ?? string.Empty), ct) ?? new();
 
-        public async Task<(bool Success, string? Error)> CreateAsync(CreatePurchaseOrderRequest request)
+        public async Task<(int? Id, string? Error)> CreateAsync(CreatePurchaseOrderRequest request)
         {
             var response = await _http.PostAsJsonAsync("api/purchase-orders", request);
-            if (response.IsSuccessStatusCode) return (true, null);
-            var body = await response.Content.ReadFromJsonAsync<Dictionary<string, string>>();
-            return (false, body != null && body.TryGetValue("error", out var e) ? e : "Failed to create purchase order.");
+            if (!response.IsSuccessStatusCode) return (null, await ReadErrorAsync(response, "Failed to create purchase order."));
+            var body = await response.Content.ReadFromJsonAsync<CreatedOrderDto>();
+            return (body?.Id, null);
         }
 
-        public async Task<bool> ApproveAsync(int id) => (await _http.PostAsync($"api/purchase-orders/{id}/approve", null)).IsSuccessStatusCode;
-        public async Task<bool> MarkSentAsync(int id) => (await _http.PostAsync($"api/purchase-orders/{id}/mark-sent", null)).IsSuccessStatusCode;
-        public async Task<bool> MarkReceivedAsync(int id, bool isComplete) => (await _http.PostAsync($"api/purchase-orders/{id}/mark-received?isComplete={isComplete}", null)).IsSuccessStatusCode;
+        public async Task<(bool Success, string? Error)> UpdateAsync(int id, UpdatePurchaseOrderRequest request)
+        {
+            var response = await _http.PutAsJsonAsync($"api/purchase-orders/{id}", request);
+            if (response.IsSuccessStatusCode) return (true, null);
+            return (false, await ReadErrorAsync(response, "Failed to save purchase order."));
+        }
+
+        public Task<(bool Success, string? Error)> ApproveAsync(int id) => PostTransitionAsync($"api/purchase-orders/{id}/approve");
+        public Task<(bool Success, string? Error)> MarkSentAsync(int id) => PostTransitionAsync($"api/purchase-orders/{id}/mark-sent");
+        public Task<(bool Success, string? Error)> MarkReceivedAsync(int id, bool isComplete) =>
+            PostTransitionAsync($"api/purchase-orders/{id}/mark-received?isComplete={(isComplete ? "true" : "false")}");
+
+        private async Task<(bool Success, string? Error)> PostTransitionAsync(string url)
+        {
+            var response = await _http.PostAsync(url, null);
+            if (response.IsSuccessStatusCode) return (true, null);
+            return (false, await ReadErrorAsync(response, "The order couldn't be updated."));
+        }
+
+        private static async Task<string> ReadErrorAsync(HttpResponseMessage response, string fallback)
+        {
+            if (response.StatusCode == HttpStatusCode.Forbidden) return "You don't have permission to do that.";
+            try
+            {
+                var body = await response.Content.ReadFromJsonAsync<Dictionary<string, object>>();
+                if (body != null && body.TryGetValue("error", out var e) && e != null) return e.ToString() ?? fallback;
+            }
+            catch
+            {
+                // Not a JSON error body.
+            }
+            return fallback;
+        }
+
+        private sealed class CreatedOrderDto
+        {
+            public int Id { get; set; }
+        }
     }
 }

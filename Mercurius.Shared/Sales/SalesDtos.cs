@@ -8,6 +8,10 @@ namespace Mercurius.Shared.Sales
 
     public class CheckoutRequest
     {
+        // Chosen by the till once per sale, so a retried or replayed checkout (the first
+        // response was lost, or the sale was queued offline) finds the sale already made
+        // instead of charging it twice.
+        public Guid? SyncId { get; set; }
         public int CustomerId { get; set; }
         public string? Notes { get; set; }
         public List<CartLineRequest> Items { get; set; } = new();
@@ -36,6 +40,7 @@ namespace Mercurius.Shared.Sales
     {
         public int Id { get; set; }
         public string ProductCode { get; set; } = string.Empty;
+        public string? Barcode { get; set; }
         public string Name { get; set; } = string.Empty;
         public int? CategoryId { get; set; }
         public string? Category { get; set; }
@@ -47,7 +52,6 @@ namespace Mercurius.Shared.Sales
     // A sale rung up while offline, queued client-side and replayed once back online.
     public class OfflineSaleRequest : CheckoutRequest
     {
-        public Guid SyncId { get; set; }
         public DateTime CreatedAtUtc { get; set; }
     }
 }

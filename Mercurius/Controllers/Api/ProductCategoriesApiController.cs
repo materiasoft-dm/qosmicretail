@@ -57,5 +57,25 @@ namespace Mercurius.Controllers.Api
             await _unitOfWork.SaveChangesAsync(ct);
             return Ok(new ProductCategoryDto { Id = category.Id, Name = category.Name, Description = category.Description, IsActive = category.IsActive });
         }
+
+        // IsActive=false is the delete (soft) — the MVC Delete hard-deleted, which also fails
+        // outright once any product references the category (FKs are Restrict).
+        [HttpPut("{id:int}")]
+        public async Task<IActionResult> Update(int id, UpdateProductCategoryRequest request, CancellationToken ct = default)
+        {
+            if (string.IsNullOrWhiteSpace(request.Name)) return BadRequest(new { error = "Name is required." });
+            var category = await _unitOfWork.Repository<ProductCategory>().GetByIdAsync(id, ct);
+            if (category == null) return NotFound();
+
+            var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+            category.Name = request.Name.Trim();
+            category.Description = request.Description ?? string.Empty;
+            category.IsActive = request.IsActive;
+            category.UpdatedDate = DateTime.UtcNow;
+            category.UpdatedBy = Guid.TryParse(userId, out var uid) ? uid : null;
+            await _unitOfWork.Repository<ProductCategory>().UpdateAsync(category, ct);
+            await _unitOfWork.SaveChangesAsync(ct);
+            return NoContent();
+        }
     }
 }

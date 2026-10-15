@@ -1,0 +1,20 @@
+@page "/error"
+@attribute [ExcludeFromInteractiveRouting]
+@layout Account.AccountLayout
+
+<PageTitle>Something went wrong · Mercurius</PageTitle>
+
+<h2 class="auth-title">Something went wrong</h2>
+<p class="auth-subtitle">
+    The request couldn't be completed. It has been logged; if this keeps happening, pass the
+    reference below to whoever supports this site.
+</p>
+@if (!string.IsNullOrEmpty(RequestId))
+{
+    <p class="auth-reference">Reference: <code>@RequestId</code></p>
+}
+<a class="auth-submit auth-link-button" href="">Back to the dashboard</a>
+
+@code {
+    [SupplyParameterFromQuery(Name = "requestId")] private string? RequestId { get; set; }
+}

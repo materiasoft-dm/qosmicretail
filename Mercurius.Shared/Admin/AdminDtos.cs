@@ -28,10 +28,15 @@ namespace Mercurius.Shared.Admin
     {
         public string Id { get; set; } = string.Empty;
         public string UserName { get; set; } = string.Empty;
+        public string Email { get; set; } = string.Empty;
         public string FirstName { get; set; } = string.Empty;
         public string LastName { get; set; } = string.Empty;
         public string Roles { get; set; } = string.Empty;
+        public List<string> RoleIds { get; set; } = new();
         public bool IsActive { get; set; }
+        // Locked out after too many failed sign-ins (until LockoutEnd).
+        public bool IsLockedOut { get; set; }
+        public bool IsCurrentUser { get; set; }
     }
 
     public class SetUserActiveRequest
@@ -42,6 +47,22 @@ namespace Mercurius.Shared.Admin
     public class AssignUserRolesRequest
     {
         public List<string> RoleIds { get; set; } = new();
+    }
+
+    // An admin adds a user to their own tenant and sets the first password.
+    public class CreateUserRequest
+    {
+        public string Email { get; set; } = string.Empty;
+        public string FirstName { get; set; } = string.Empty;
+        public string LastName { get; set; } = string.Empty;
+        public string Password { get; set; } = string.Empty;
+        public List<string> RoleIds { get; set; } = new();
+    }
+
+    // An admin sets a new password for a user who forgot theirs (also clears a lockout).
+    public class ResetUserPasswordRequest
+    {
+        public string NewPassword { get; set; } = string.Empty;
     }
 
     public class LogFileDto

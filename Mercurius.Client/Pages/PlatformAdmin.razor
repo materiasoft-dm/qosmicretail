@@ -1,0 +1,106 @@
+@page "/platform-admin"
+@attribute [Authorize(Policy = "PlatformAdmin")]
+@inject AdminToolsApiClient Api
+@inject ISnackbar Snackbar
+
+<PageTitle>Platform Admin</PageTitle>
+
+<div class="d-flex justify-space-between align-center mb-4">
+    <MudText Typo="Typo.h4">Tenants</MudText>
+    @if (!_showCreate)
+    {
+        <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Filled.Add" OnClick="ShowCreate">New tenant</MudButton>
+    }
+</div>
+
+<MudText Typo="Typo.body2" Class="mud-text-secondary mb-4">
+    Each tenant is a separate business with its own branches, users and data, fully isolated from every other tenant.
+</MudText>
+
+@if (_showCreate)
+{
+    <MudPaper Class="pa-4 mb-4" Elevation="2" Style="max-width:900px;">
+        <MudText Typo="Typo.h6" Class="mb-3">New tenant</MudText>
+        <MudGrid Spacing="2">
+            <MudItem xs="12" md="6"><MudTextField @bind-Value="_request.TenantName" Label="Business name" Variant="Variant.Outlined" Required="true" /></MudItem>
+            <MudItem xs="12" md="6"><MudTextField @bind-Value="_request.FirstLocationName" Label="First branch" Variant="Variant.Outlined" Required="true" /></MudItem>
+            <MudItem xs="12"><MudText Typo="Typo.subtitle2">Its administrator</MudText></MudItem>
+            <MudItem xs="12" md="6"><MudTextField @bind-Value="_request.AdminFirstName" Label="First name" Variant="Variant.Outlined" Required="true" /></MudItem>
+            <MudItem xs="12" md="6"><MudTextField @bind-Value="_request.AdminLastName" Label="Last name" Variant="Variant.Outlined" Required="true" /></MudItem>
+            <MudItem xs="12" md="6"><MudTextField @bind-Value="_request.AdminEmail" Label="Email (sign-in)" InputType="InputType.Email" Variant="Variant.Outlined" Required="true" /></MudItem>
+            <MudItem xs="12" md="6">
+                <MudTextField @bind-Value="_request.AdminPassword" Label="Password" InputType="InputType.Password" Variant="Variant.Outlined" Required="true" autocomplete="new-password" />
+            </MudItem>
+        </MudGrid>
+        @if (_error != null)
+        {
+            <MudAlert Severity="Severity.Error" Class="mt-3">@_error</MudAlert>
+        }
+        <div class="d-flex justify-end gap-2 mt-4">
+            <MudButton OnClick="@(() => _showCreate = false)" Disabled="_busy">Cancel</MudButton>
+            <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="CreateAsync" Disabled="_busy">Create tenant</MudButton>
+        </div>
+    </MudPaper>
+}
+
+<MudPaper Class="pa-2" Elevation="2">
+    <MudTable Items="_tenants" Loading="_tenants == null" Dense="true" Hover="true">
+        <HeaderContent>
+            <MudTh>Id</MudTh>
+            <MudTh>Name</MudTh>
+            <MudTh>Status</MudTh>
+            <MudTh>Created</MudTh>
+        </HeaderContent>
+        <RowTemplate>
+            <MudTd DataLabel="Id">@context.Id</MudTd>
+            <MudTd DataLabel="Name">@context.Name</MudTd>
+            <MudTd DataLabel="Status">
+                <MudChip T="string" Size="Size.Small" Color="@(context.IsActive ? Color.Success : Color.Default)">@(context.IsActive ? "Active" : "Inactive")</MudChip>
+            </MudTd>
+            <MudTd DataLabel="Created">@LocalTime.FormatDate(context.CreatedDate)</MudTd>
+        </RowTemplate>
+    </MudTable>
+</MudPaper>
+
+@code {
+    private List<TenantDto>? _tenants;
+    private bool _showCreate;
+    private bool _busy;
+    private string? _error;
+    private CreateTenantRequestDto _request = new();
+
+    protected override async Task OnInitializedAsync()
+    {
+        if (!RendererInfo.IsInteractive) return; // prerendering: show the loading state; the browser loads the data
+        _tenants = await Api.GetTenantsAsync();
+    }
+
+    private void ShowCreate()
+    {
+        _request = new CreateTenantRequestDto();
+        _error = null;
+        _showCreate = true;
+    }
+
+    private async Task CreateAsync()
+    {
+        _error = null;
+        _busy = true;
+        try
+        {
+            var (tenant, error) = await Api.CreateTenantAsync(_request);
+            if (tenant == null)
+            {
+                _error = error;
+                return;
+            }
+            Snackbar.Add($"Tenant \"{tenant.Name}\" created with admin {_request.AdminEmail}.", Severity.Success);
+            _showCreate = false;
+            _tenants = await Api.GetTenantsAsync();
+        }
+        finally
+        {
+            _busy = false;
+        }
+    }
+}

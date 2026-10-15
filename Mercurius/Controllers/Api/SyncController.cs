@@ -413,7 +413,7 @@ namespace Mercurius.Controllers.Api
                         await _unitOfWork.Query<Location>().AnyAsync(l => l.Id == item.LocationId, ct);
                     var resolvedLocationId = deviceLocationExists
                         ? item.LocationId
-                        : await Mercurius.ViewComponents.Dashboard.DashboardLocationContext.GetCurrentLocationIdAsync(_unitOfWork, User);
+                        : await Mercurius.Services.CurrentLocation.GetIdAsync(_unitOfWork, User);
 
                     var cashierId = await ResolveCashierAsync(item.CashierUserId, ct);
 

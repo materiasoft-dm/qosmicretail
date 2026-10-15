@@ -1,0 +1,96 @@
+@inject UsersApiClient Api
+
+<MudDialog>
+    <DialogContent>
+        <MudGrid Spacing="2">
+            <MudItem xs="12">
+                <MudTextField @bind-Value="_email" Label="Email" InputType="InputType.Email" Variant="Variant.Outlined" AutoFocus="true"
+                              HelperText="They sign in with this address." />
+            </MudItem>
+            <MudItem xs="12" sm="6"><MudTextField @bind-Value="_firstName" Label="First name" Variant="Variant.Outlined" /></MudItem>
+            <MudItem xs="12" sm="6"><MudTextField @bind-Value="_lastName" Label="Last name" Variant="Variant.Outlined" /></MudItem>
+            <MudItem xs="12" sm="6">
+                <MudTextField @bind-Value="_password" Label="Password" Variant="Variant.Outlined"
+                              InputType="@(_showPassword ? InputType.Text : InputType.Password)"
+                              Adornment="Adornment.End" AdornmentIcon="@(_showPassword ? Icons.Material.Filled.VisibilityOff : Icons.Material.Filled.Visibility)"
+                              AdornmentAriaLabel="Show password" OnAdornmentClick="@(() => _showPassword = !_showPassword)" />
+            </MudItem>
+            <MudItem xs="12" sm="6">
+                <MudTextField @bind-Value="_confirmPassword" Label="Confirm password" Variant="Variant.Outlined"
+                              InputType="@(_showPassword ? InputType.Text : InputType.Password)" />
+            </MudItem>
+            <MudItem xs="12">
+                <MudText Typo="Typo.caption" Class="mud-text-secondary">@PasswordRules.Hint</MudText>
+            </MudItem>
+            <MudItem xs="12">
+                <MudText Typo="Typo.subtitle2" Class="mb-1">Roles</MudText>
+                @foreach (var role in Roles)
+                {
+                    <MudCheckBox T="bool" Value="@_roleIds.Contains(role.Id)" ValueChanged="@((bool v) => ToggleRole(role.Id, v))"
+                                 Label="@role.Name" Color="Color.Primary" Dense="true" />
+                }
+            </MudItem>
+        </MudGrid>
+        @if (_error != null)
+        {
+            <MudAlert Severity="Severity.Error" Class="mt-3">@_error</MudAlert>
+        }
+    </DialogContent>
+    <DialogActions>
+        <MudButton OnClick="Cancel">Cancel</MudButton>
+        <MudButton Color="Color.Primary" Variant="Variant.Filled" Disabled="_busy" OnClick="SaveAsync">Add user</MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    [CascadingParameter] private IMudDialogInstance MudDialog { get; set; } = default!;
+    [Parameter] public List<RoleDto> Roles { get; set; } = new();
+
+    private string _email = string.Empty, _firstName = string.Empty, _lastName = string.Empty;
+    private string _password = string.Empty, _confirmPassword = string.Empty;
+    private bool _showPassword;
+    private readonly HashSet<string> _roleIds = new();
+    private bool _busy;
+    private string? _error;
+
+    private void ToggleRole(string roleId, bool isChecked)
+    {
+        if (isChecked) _roleIds.Add(roleId); else _roleIds.Remove(roleId);
+    }
+
+    private async Task SaveAsync()
+    {
+        _error = null;
+        if (string.IsNullOrWhiteSpace(_email) || string.IsNullOrWhiteSpace(_firstName) || string.IsNullOrWhiteSpace(_lastName))
+        {
+            _error = "Email, first name and last name are required.";
+            return;
+        }
+        if (_password != _confirmPassword)
+        {
+            _error = "The passwords don't match.";
+            return;
+        }
+
+        _busy = true;
+        try
+        {
+            var (success, error) = await Api.CreateAsync(new CreateUserRequest
+            {
+                Email = _email.Trim(),
+                FirstName = _firstName.Trim(),
+                LastName = _lastName.Trim(),
+                Password = _password,
+                RoleIds = _roleIds.ToList()
+            });
+            if (!success) { _error = error; return; }
+            MudDialog.Close(DialogResult.Ok(true));
+        }
+        finally
+        {
+            _busy = false;
+        }
+    }
+
+    private void Cancel() => MudDialog.Cancel();
+}

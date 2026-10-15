@@ -17,7 +17,7 @@ public sealed class WindowsAppFixture : IAsyncLifetime
     //   dotnet build -f net10.0-windows10.0.19041.0 -c Debug   (from Mercurius.Mobile/)
     private static readonly string ExePath = Path.GetFullPath(Path.Combine(
         AppContext.BaseDirectory,
-        "..", "..", "..", "..", // .../Mercurius.Mobile.UITests.Windows/bin/Debug/net9.0/ -> repo root
+        "..", "..", "..", "..", // .../Mercurius.Mobile.UITests.Windows/bin/Debug/net10.0/ -> repo root
         "Mercurius.Mobile", "bin", "Debug", "net10.0-windows10.0.19041.0", "win-x64", "Mercurius.Mobile.exe"));
 
     private readonly WinAppDriverServerFixture _server = new();

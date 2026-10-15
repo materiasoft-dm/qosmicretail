@@ -4,7 +4,7 @@ using Xunit;
 
 namespace Mercurius.E2ETests.Tests;
 
-public class AuthTests : MercuriusTestBase
+public class AuthTests : BlazorTestBase
 {
     public AuthTests(MercuriusCollectionFixture fixture) : base(fixture) { }
 
@@ -13,41 +13,49 @@ public class AuthTests : MercuriusTestBase
     {
         await LoginAsAdminAsync();
 
-        Assert.DoesNotContain("/Identity/Account/Login", Page.Url);
-        await Page.Locator("text=Dashboard").First.WaitForAsync(new LocatorWaitForOptions { Timeout = 10000 });
+        Assert.DoesNotContain(LoginPath, Page.Url);
+        await GotoAppAsync("");
+        await Assertions.Expect(Page).ToHaveTitleAsync(
+            new System.Text.RegularExpressions.Regex("Dashboard", System.Text.RegularExpressions.RegexOptions.IgnoreCase));
+        await AssertNoBlazorErrorAsync();
     }
 
     [Fact]
     public async Task Login_WithInvalidPassword_ShowsError()
     {
-        await Page.GotoAsync("/Identity/Account/Login");
-        await Page.FillAsync("#Input_Email", TestServerFixture.AdminEmail);
-        await Page.FillAsync("#Input_Password", "WrongPassword123!");
-        await Page.ClickAsync("#kt_sign_in_submit");
+        await Page.GotoAsync(LoginPath);
+        await Page.FillAsync("#email", TestServerFixture.AdminEmail);
+        await Page.FillAsync("#password", "WrongPassword123!");
+        await Page.ClickAsync("#loginSubmit");
 
-        await Page.Locator("text=Invalid login attempt").WaitForAsync(new LocatorWaitForOptions { Timeout = 10000 });
-        Assert.Contains("/Identity/Account/Login", Page.Url);
+        // The login form posts back to itself and renders its own error banner; it must not
+        // navigate away, and must certainly not sign anyone in.
+        var error = Page.Locator(".auth-alert");
+        await Assertions.Expect(error).ToBeVisibleAsync(new LocatorAssertionsToBeVisibleOptions { Timeout = 15000 });
+        await Assertions.Expect(error).ToContainTextAsync("don't match");
+        Assert.Contains(LoginPath, Page.Url);
+
+        // Still signed out: an app page bounces straight back to the sign-in form.
+        await Page.GotoAsync("/products");
+        await Page.WaitForURLAsync(url => url.Contains(LoginPath), new PageWaitForURLOptions { Timeout = 15000 });
     }
 
     [Fact]
     public async Task Logout_ReturnsToLoginPage()
     {
         await LoginAsAdminAsync();
+        await GotoAppAsync("");
 
-        // The sidebar's logout is a POST form in most Identity-scaffolded layouts; fall back to
-        // navigating directly to the logout endpoint if no visible link is found, since the
-        // point of this test is verifying the session actually ends, not how the button is drawn.
-        var logoutLink = Page.Locator("a:has-text('Logout'), a:has-text('Sign out'), button:has-text('Logout')").First;
-        if (await logoutLink.CountAsync() > 0)
-        {
-            await logoutLink.ClickAsync();
-        }
-        else
-        {
-            await Page.GotoAsync("/Identity/Account/Logout");
-        }
+        // The account menu's "Log out" is a real form POST (antiforgery-protected) that clears the
+        // sign-in cookie on the server. Reaching it through the menu is deliberate: this menu used to
+        // be a MudMenu whose activator never opened, which left "Log out" and "Account settings"
+        // unreachable for every user (see MainLayout).
+        await Page.Locator("#userMenu").ClickAsync();
+        await Page.Locator("#logoutButton").ClickAsync();
+        await Page.WaitForURLAsync(url => url.Contains(LoginPath), new PageWaitForURLOptions { Timeout = 15000 });
 
-        await Page.GotoAsync("/Products");
-        await Page.WaitForURLAsync(url => url.Contains("/Identity/Account/Login"), new PageWaitForURLOptions { Timeout = 10000 });
+        // And the session really is gone — an app page bounces back to sign-in.
+        await Page.GotoAsync("/products");
+        await Page.WaitForURLAsync(url => url.Contains(LoginPath), new PageWaitForURLOptions { Timeout = 15000 });
     }
 }

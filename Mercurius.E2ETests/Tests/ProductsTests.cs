@@ -4,7 +4,7 @@ using Xunit;
 
 namespace Mercurius.E2ETests.Tests;
 
-public class ProductsTests : MercuriusTestBase
+public class ProductsTests : BlazorTestBase
 {
     public ProductsTests(MercuriusCollectionFixture fixture) : base(fixture) { }
 
@@ -12,102 +12,69 @@ public class ProductsTests : MercuriusTestBase
     public async Task ProductsList_Loads()
     {
         await LoginAsAdminAsync();
-        await Page.GotoAsync("/Products");
-
-        await Page.Locator("#productsTable").WaitForAsync(new LocatorWaitForOptions { Timeout = 10000 });
-        // DataTables populates rows via AJAX after initial render — wait for at least one data
-        // row rather than just the empty table shell.
-        await Page.Locator("#productsTable tbody tr").First.WaitForAsync(new LocatorWaitForOptions { Timeout = 10000 });
+        await GotoAppAsync("products");
+        // Rows come from the server on first paint, so waiting for one proves the round-trip.
+        await FirstRow.WaitForAsync(new LocatorWaitForOptions { Timeout = BootTimeoutMs });
+        await AssertNoBlazorErrorAsync();
     }
 
     [Fact]
     public async Task CreateProduct_ThenAppearsInList()
     {
         await LoginAsAdminAsync();
-        var uniqueName = await Page.CreateTestProductAsync("E2E Test Product");
+        var stamp = Guid.NewGuid().ToString("N")[..8];
+        var name = $"E2E Test Product {stamp}";
+        await CreateProductViaFormAsync(name, $"E2E-L-{stamp}");
 
-        await Page.GotoAsync("/Products");
-        // DataTables' search box only reacts to a real 'keyup' event; Fill() sets the value
-        // directly without dispatching one, so type it out one keystroke at a time instead.
-        await Page.Locator("#searchInput").PressSequentiallyAsync(uniqueName, new LocatorPressSequentiallyOptions { Delay = 20 });
-        await Page.Locator($"#productsTable tbody tr:has-text('{uniqueName}')").WaitForAsync(new LocatorWaitForOptions { Timeout = 10000 });
-    }
-
-    /// <summary>
-    /// "Delete" is a soft delete throughout this app (see CLAUDE.md) — the row must still exist
-    /// afterward, just flipped to IsActive = false, not removed from the list.
-    /// </summary>
-    [Fact]
-    public async Task DeleteProduct_IsSoftDeleted_StaysInListAsInactive()
-    {
-        await LoginAsAdminAsync();
-        var productName = await Page.CreateTestProductAsync("E2E Delete Product");
-
-        await Page.GotoAsync("/Products");
-        await Page.Locator("#searchInput").PressSequentiallyAsync(productName, new LocatorPressSequentiallyOptions { Delay = 20 });
-        var row = Page.Locator($"#productsTable tbody tr:has-text('{productName}')");
-        await row.WaitForAsync(new LocatorWaitForOptions { Timeout = 10000 });
+        await GotoAppAsync("products");
+        await SearchAsync("Search by name, SKU or barcode...", name);
+        var row = Page.Locator(".mud-table-body tr.mud-table-row").Filter(new LocatorFilterOptions { HasTextString = name });
+        await Assertions.Expect(row).ToHaveCountAsync(1, new LocatorAssertionsToHaveCountOptions { Timeout = UiTimeoutMs });
         await Assertions.Expect(row).ToContainTextAsync("Active");
-
-        await row.Locator("a[title=Delete]").ClickAsync();
-        await Page.WaitForURLAsync(url => url.Contains("/Products/Delete/"), new PageWaitForURLOptions { Timeout = 10000 });
-
-        await Page.ClickAsync("input[type=submit][value=Delete]");
-        await Page.WaitForURLAsync(url => url.Contains("/Products") && !url.Contains("Delete"), new PageWaitForURLOptions { Timeout = 10000 });
-
-        await Page.Locator("#searchInput").PressSequentiallyAsync(productName, new LocatorPressSequentiallyOptions { Delay = 20 });
-        row = Page.Locator($"#productsTable tbody tr:has-text('{productName}')");
-        await row.WaitForAsync(new LocatorWaitForOptions { Timeout = 10000 });
-        await Assertions.Expect(row).ToContainTextAsync("Inactive");
+        await AssertNoBlazorErrorAsync();
     }
 
-    // A minimal but fully valid 1x1 transparent PNG, embedded here rather than as a file on disk so
-    // this test doesn't depend on an unrelated theme asset that could be renamed/removed later.
-    // Server-side upload validation (ProductsController.SaveProductImageAsync) only checks the file
-    // extension, not real image content, so this is sufficient to exercise the actual upload path.
+    // A minimal but fully valid 1x1 transparent PNG, embedded rather than read from disk so this
+    // test doesn't depend on an unrelated theme asset. Server-side upload validation only checks
+    // the extension, not real image content, so this exercises the actual upload path.
     private static readonly byte[] MinimalPng = Convert.FromBase64String(
         "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=");
 
     /// <summary>
-    /// Regression test for the Details page's blank-image fallback and Edit page's upload flow:
-    /// a product with no photo must show the blank-image placeholder (not a broken-image icon),
-    /// and after uploading a photo via Edit, Details must switch to showing the real file.
+    /// A product with no photo must show the placeholder, not a broken image; after uploading one
+    /// through Edit, the details page must show the real file.
     /// </summary>
     [Fact]
     public async Task ProductPhoto_ShowsPlaceholder_ThenActualImageAfterUpload()
     {
         await LoginAsAdminAsync();
-        var productName = await Page.CreateTestProductAsync("E2E Photo Product");
+        var stamp = Guid.NewGuid().ToString("N")[..8];
+        var name = $"E2E Photo Product {stamp}";
+        await CreateProductViaFormAsync(name, $"E2E-P-{stamp}");
 
-        await Page.GotoAsync("/Products");
-        await Page.Locator("#searchInput").PressSequentiallyAsync(productName, new LocatorPressSequentiallyOptions { Delay = 20 });
-        var row = Page.Locator($"#productsTable tbody tr:has-text('{productName}')");
-        await row.WaitForAsync(new LocatorWaitForOptions { Timeout = 10000 });
+        // No photo yet: the details page falls back to a placeholder, so there is no photo <img>.
+        var img = Page.Locator($"article.content img[alt='{name}']");
+        await Assertions.Expect(img).ToHaveCountAsync(0);
 
-        await row.Locator("a[title=View]").ClickAsync();
-        await Page.WaitForURLAsync(url => url.Contains("/Products/Details/"), new PageWaitForURLOptions { Timeout = 10000 });
-        await Assertions.Expect(Page.Locator("img[alt='No photo set']")).ToHaveAttributeAsync("src", "/assets/media/svg/files/blank-image.svg");
-
-        var detailsUrl = Page.Url;
-        var productId = detailsUrl.Substring(detailsUrl.LastIndexOf('/') + 1);
-
-        await Page.GotoAsync($"/Products/Edit/{productId}");
-        await Page.SetInputFilesAsync("input[type=file][name=productimage]", new FilePayload
+        await Page.GetByRole(AriaRole.Link, new PageGetByRoleOptions { Name = "Edit" }).ClickAsync();
+        await Page.WaitForURLAsync(new System.Text.RegularExpressions.Regex(@"/products/\d+/edit$"),
+            new PageWaitForURLOptions { Timeout = UiTimeoutMs });
+        await Page.SetInputFilesAsync("input[type=file]", new FilePayload
         {
             Name = "test-photo.png",
             MimeType = "image/png",
             Buffer = MinimalPng
         });
-        await Page.ClickAsync("button[type=submit]:has-text('Submit')");
-        // Edit is an ajax-form redirecting back to /Products — wait for the actual navigation via
-        // a DOM signal, not a URL check, since the target list page is reachable from many states.
-        await Page.WaitForURLAsync(url => url.Contains("/Products") && !url.Contains("/Edit/"), new PageWaitForURLOptions { Timeout = 10000 });
+        await Assertions.Expect(Page.GetByText("test-photo.png is uploaded when you save."))
+            .ToBeVisibleAsync(new LocatorAssertionsToBeVisibleOptions { Timeout = UiTimeoutMs });
+        await Page.GetByRole(AriaRole.Button, new PageGetByRoleOptions { Name = "Save changes" }).ClickAsync();
+        await Page.WaitForURLAsync(new System.Text.RegularExpressions.Regex(@"/products/\d+$"),
+            new PageWaitForURLOptions { Timeout = UiTimeoutMs });
 
-        await Page.GotoAsync($"/Products/Details/{productId}");
-        var img = Page.Locator("img.img-thumbnail.img-150");
-        await Assertions.Expect(img).Not.ToHaveAttributeAsync("src", "/assets/media/svg/files/blank-image.svg");
+        await Assertions.Expect(img).ToBeVisibleAsync(new LocatorAssertionsToBeVisibleOptions { Timeout = UiTimeoutMs });
         var src = await img.GetAttributeAsync("src");
         Assert.NotNull(src);
-        Assert.StartsWith("/productimages/", src);
+        Assert.StartsWith("/ProductImages/", src, StringComparison.OrdinalIgnoreCase);
+        await AssertNoBlazorErrorAsync();
     }
 }

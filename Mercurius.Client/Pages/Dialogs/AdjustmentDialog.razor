@@ -1,0 +1,93 @@
+@inject AdjustmentsApiClient Api
+
+<MudDialog>
+    <DialogContent>
+        <MudGrid Spacing="2">
+            <MudItem xs="12">
+                <MudAutocomplete T="ProductOptionDto" @bind-Value="_product" SearchFunc="SearchProductsAsync" ToStringFunc="DescribeProduct"
+                                 Label="Product" Placeholder="Type a name or SKU" Variant="Variant.Outlined" AutoFocus="true"
+                                 DebounceInterval="300" MaxItems="50" ResetValueOnEmptyText="true" Dense="true" />
+            </MudItem>
+            <MudItem xs="12" sm="6">
+                <MudSelect T="int" @bind-Value="_reasonId" Label="Reason" Variant="Variant.Outlined">
+                    <MudSelectItem T="int" Value="0">-- Reason --</MudSelectItem>
+                    @foreach (var r in _reasons)
+                    {
+                        <MudSelectItem T="int" Value="@r.Id">@r.Name (@(r.IsInbound ? "adds stock" : "removes stock"))</MudSelectItem>
+                    }
+                </MudSelect>
+            </MudItem>
+            <MudItem xs="6" sm="3">
+                <MudNumericField T="decimal" @bind-Value="_quantity" Min="0" Format="0.##" Label="Quantity" Variant="Variant.Outlined" HideSpinButtons="true" />
+            </MudItem>
+            <MudItem xs="6" sm="3">
+                <MudDatePicker @bind-Date="_date" Label="Date" DateFormat="yyyy-MM-dd" Variant="Variant.Outlined" MaxDate="DateTime.Today" />
+            </MudItem>
+            <MudItem xs="12"><MudTextField @bind-Value="_note" Label="Note" Variant="Variant.Outlined" /></MudItem>
+        </MudGrid>
+        @if (_error != null)
+        {
+            <MudAlert Severity="Severity.Error" Class="mt-3">@_error</MudAlert>
+        }
+    </DialogContent>
+    <DialogActions>
+        <MudButton OnClick="Cancel">Cancel</MudButton>
+        <MudButton Color="Color.Primary" Variant="Variant.Filled" Disabled="_busy" OnClick="SaveAsync">Save</MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    [CascadingParameter] private IMudDialogInstance MudDialog { get; set; } = default!;
+
+    private List<AdjustmentReasonOptionDto> _reasons = new();
+    private ProductOptionDto? _product;
+    private int _reasonId;
+    private decimal _quantity;
+    private DateTime? _date = DateTime.Today;
+    private string _note = string.Empty;
+    private bool _busy;
+    private string? _error;
+
+    protected override async Task OnInitializedAsync() => _reasons = await Api.GetReasonsAsync();
+
+    private async Task<IEnumerable<ProductOptionDto>> SearchProductsAsync(string? value, CancellationToken token) =>
+        await Api.GetProductsAsync(value, token);
+
+    private static string DescribeProduct(ProductOptionDto? product) =>
+        product == null ? string.Empty : $"{product.Name} ({product.ProductCode})";
+
+    private async Task SaveAsync()
+    {
+        _error = null;
+        if (_product == null || _reasonId <= 0 || _quantity <= 0)
+        {
+            _error = "Product, reason, and a positive quantity are required.";
+            return;
+        }
+
+        _busy = true;
+        try
+        {
+            // Today means "now" (keeps the time of day); an earlier day is recorded as the start of
+            // that day here, as a UTC instant like every other timestamp.
+            var (success, error) = await Api.CreateAsync(new CreateAdjustmentRequest
+            {
+                ProductId = _product.Id,
+                ReasonId = _reasonId,
+                Quantity = _quantity,
+                AdjustmentDate = _date.HasValue && _date.Value.Date != DateTime.Today
+                    ? DateTime.SpecifyKind(_date.Value.Date, DateTimeKind.Local).ToUniversalTime()
+                    : null,
+                Note = _note
+            });
+            if (!success) { _error = error; return; }
+            MudDialog.Close(DialogResult.Ok(true));
+        }
+        finally
+        {
+            _busy = false;
+        }
+    }
+
+    private void Cancel() => MudDialog.Cancel();
+}

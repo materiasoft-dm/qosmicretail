@@ -25,7 +25,10 @@ public class TestServerFixture : IAsyncLifetime
     public async Task InitializeAsync()
     {
         _mercuriusDir = FindMercuriusProjectDir();
-        var dllPath = Path.Combine(_mercuriusDir, "bin", "Debug", "net9.0", "Mercurius.dll");
+        // Same target framework folder as this test assembly (bin/Debug/<tfm>/) — both projects
+        // move to a new .NET together.
+        var targetFramework = new DirectoryInfo(AppContext.BaseDirectory.TrimEnd(Path.DirectorySeparatorChar)).Name;
+        var dllPath = Path.Combine(_mercuriusDir, "bin", "Debug", targetFramework, "Mercurius.dll");
         if (!File.Exists(dllPath))
         {
             throw new InvalidOperationException(
@@ -76,6 +79,10 @@ public class TestServerFixture : IAsyncLifetime
         var completed = await Task.WhenAny(readyTcs.Task, timeout);
         if (completed == timeout)
         {
+            // xUnit only calls DisposeAsync when InitializeAsync succeeded, so a failed start would
+            // otherwise leave this process running — holding Mercurius.dll open (which then fails the
+            // next `dotnet build` with MSB3027) and the day's log file locked. Kill it here.
+            await StopAsync();
             throw new InvalidOperationException(
                 $"Mercurius server did not start within 60s. Output so far:\n{outputLog}");
         }
@@ -87,6 +94,20 @@ public class TestServerFixture : IAsyncLifetime
 
     public async Task DisposeAsync()
     {
+        await StopAsync();
+
+        foreach (var pattern in new[] { $"{_dbName}.sqlite", $"{_dbName}.sqlite-shm", $"{_dbName}.sqlite-wal" })
+        {
+            var path = Path.Combine(_mercuriusDir, pattern);
+            try { if (File.Exists(path)) File.Delete(path); } catch { /* best-effort cleanup */ }
+        }
+
+        await Task.CompletedTask;
+    }
+
+    /// <summary>Terminates the test server, if it's still running.</summary>
+    private async Task StopAsync()
+    {
         try
         {
             if (_process != null && !_process.HasExited)
@@ -96,12 +117,10 @@ public class TestServerFixture : IAsyncLifetime
             }
         }
         catch { /* best-effort cleanup */ }
-        _process?.Dispose();
-
-        foreach (var pattern in new[] { $"{_dbName}.sqlite", $"{_dbName}.sqlite-shm", $"{_dbName}.sqlite-wal" })
+        finally
         {
-            var path = Path.Combine(_mercuriusDir, pattern);
-            try { if (File.Exists(path)) File.Delete(path); } catch { /* best-effort cleanup */ }
+            _process?.Dispose();
+            _process = null;
         }
 
         await Task.CompletedTask;

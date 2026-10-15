@@ -28,9 +28,9 @@ namespace Mercurius.Tests.Integration
             var options = new DbContextOptionsBuilder<MercuriusDbContext>()
                 .UseSqlite(_connection)
                 .Options;
-            _context = new MercuriusDbContext(options);
+            _context = new MercuriusDbContext(options, TestTenantContext.Instance);
             _context.Database.EnsureCreated();
-            _unitOfWork = new EfUnitOfWork(_context);
+            _unitOfWork = new EfUnitOfWork(_context, TestTenantContext.Instance);
         }
 
         public void Dispose()

@@ -27,9 +27,9 @@ namespace Mercurius.Tests.Repositories
             var options = new DbContextOptionsBuilder<MercuriusDbContext>()
                 .UseSqlite(_connection)
                 .Options;
-            _context = new MercuriusDbContext(options);
+            _context = new MercuriusDbContext(options, TestTenantContext.Instance);
             _context.Database.EnsureCreated();
-            _repository = new EfRepository<Product>(_context);
+            _repository = new EfRepository<Product>(_context, TestTenantContext.Instance);
         }
 
         public void Dispose()

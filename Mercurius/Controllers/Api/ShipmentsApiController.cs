@@ -12,9 +12,9 @@ using Microsoft.AspNetCore.Mvc;
 
 namespace Mercurius.Controllers.Api
 {
-    // JSON equivalent of ShipmentController — mirrors it exactly: PO options are limited to
-    // Approved/OrderSent orders, and a new shipment starts at the "Pending" status (Id 1, per
-    // Program.cs's seeded ShipmentArrivalStatuses).
+    // Shipments received against purchase orders. PO options are limited to Approved/OrderSent
+    // orders; a new shipment defaults to the "Pending" status (Id 1, per Program.cs's seeded
+    // ShipmentArrivalStatuses) and to today's date.
     [ApiController]
     [Route("api/shipments")]
     [Authorize]
@@ -77,11 +77,23 @@ namespace Mercurius.Controllers.Api
             return Ok(items);
         }
 
+        [HttpGet("statuses")]
+        [Authorize(Policy = Mercurius.Common.ModuleRegistry.Pages.SHIPMENT_CREATE)]
+        public ActionResult<List<ShipmentStatusDto>> GetStatuses() =>
+            Ok(_unitOfWork.Query<ShipmentArrivalStatus>().Where(s => s.IsActive).OrderBy(s => s.Id)
+                .Select(s => new ShipmentStatusDto { Id = s.Id, Name = s.Name ?? string.Empty }).ToList());
+
         [HttpPost]
         [Authorize(Policy = Mercurius.Common.ModuleRegistry.Pages.SHIPMENT_CREATE)]
         public async Task<IActionResult> Create(CreateShipmentRequest request, CancellationToken ct = default)
         {
-            var locationId = await Mercurius.ViewComponents.Dashboard.DashboardLocationContext.GetCurrentLocationIdAsync(_unitOfWork, User);
+            var locationId = await Mercurius.Services.CurrentLocation.GetIdAsync(_unitOfWork, User);
+
+            var statusId = request.StatusId ?? PendingStatusId;
+            if (!_unitOfWork.Query<ShipmentArrivalStatus>().Any(s => s.Id == statusId))
+            {
+                return BadRequest(new { error = "Choose a valid status." });
+            }
 
             var shipment = new ShipmentArrival
             {
@@ -89,8 +101,9 @@ namespace Mercurius.Controllers.Api
                 PurchaseOrderId = request.PurchaseOrderId,
                 TrackingNumber = request.TrackingNumber ?? string.Empty,
                 Notes = request.Notes ?? string.Empty,
-                ShipmentArrivalStatusId = PendingStatusId,
-                ShipmentArrivalDate = DateTime.UtcNow,
+                ShipmentArrivalStatusId = statusId,
+                // The (UTC) start of the day the user picked, else now.
+                ShipmentArrivalDate = request.ArrivalDate?.ToUniversalTime() ?? DateTime.UtcNow,
                 LocationId = locationId,
                 CreatedDate = DateTime.UtcNow,
                 IsActive = true

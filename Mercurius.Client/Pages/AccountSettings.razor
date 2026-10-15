@@ -1,0 +1,118 @@
+@page "/account/settings"
+@attribute [Authorize]
+@inject AccountApiClient Api
+@inject ISnackbar Snackbar
+
+<PageTitle>Account settings</PageTitle>
+
+<MudText Typo="Typo.h4" Class="mb-4">Account settings</MudText>
+
+@if (_profile == null)
+{
+    <MudProgressLinear Indeterminate="true" Color="Color.Primary" />
+}
+else
+{
+    <MudGrid>
+        <MudItem xs="12" md="6">
+            <MudPaper Class="pa-4" Elevation="2">
+                <MudText Typo="Typo.h6" Class="mb-1">Your details</MudText>
+                <MudText Typo="Typo.body2" Class="mud-text-secondary mb-4">Signed in as @_profile.Email</MudText>
+                <MudTextField @bind-Value="_firstName" Label="First name" Variant="Variant.Outlined" Class="mb-3" />
+                <MudTextField @bind-Value="_lastName" Label="Last name" Variant="Variant.Outlined" Class="mb-3" />
+                <MudTextField @bind-Value="_phone" Label="Phone number" Variant="Variant.Outlined" Class="mb-3" />
+                @if (_profileError != null)
+                {
+                    <MudAlert Severity="Severity.Error" Class="mb-3">@_profileError</MudAlert>
+                }
+                <div class="d-flex justify-end">
+                    <MudButton Variant="Variant.Filled" Color="Color.Primary" Disabled="_busy" OnClick="SaveProfileAsync">Save details</MudButton>
+                </div>
+            </MudPaper>
+        </MudItem>
+        <MudItem xs="12" md="6">
+            <MudPaper Class="pa-4" Elevation="2">
+                <MudText Typo="Typo.h6" Class="mb-1">Change password</MudText>
+                <MudText Typo="Typo.body2" Class="mud-text-secondary mb-4">@PasswordRules.Hint</MudText>
+                <MudTextField @bind-Value="_currentPassword" Label="Current password" InputType="InputType.Password" Variant="Variant.Outlined" Class="mb-3" autocomplete="current-password" />
+                <MudTextField @bind-Value="_newPassword" Label="New password" InputType="InputType.Password" Variant="Variant.Outlined" Class="mb-3" autocomplete="new-password" />
+                <MudTextField @bind-Value="_confirmPassword" Label="Confirm new password" InputType="InputType.Password" Variant="Variant.Outlined" Class="mb-3" autocomplete="new-password" />
+                @if (_passwordError != null)
+                {
+                    <MudAlert Severity="Severity.Error" Class="mb-3">@_passwordError</MudAlert>
+                }
+                <div class="d-flex justify-end">
+                    <MudButton Variant="Variant.Filled" Color="Color.Primary" Disabled="_busy" OnClick="ChangePasswordAsync">Change password</MudButton>
+                </div>
+            </MudPaper>
+        </MudItem>
+    </MudGrid>
+}
+
+@code {
+    private AccountProfileDto? _profile;
+    private string _firstName = string.Empty, _lastName = string.Empty, _phone = string.Empty;
+    private string _currentPassword = string.Empty, _newPassword = string.Empty, _confirmPassword = string.Empty;
+    private string? _profileError, _passwordError;
+    private bool _busy;
+
+    protected override async Task OnInitializedAsync()
+    {
+        if (!RendererInfo.IsInteractive) return;
+        _profile = await Api.GetProfileAsync();
+        if (_profile != null)
+        {
+            _firstName = _profile.FirstName ?? string.Empty;
+            _lastName = _profile.LastName ?? string.Empty;
+            _phone = _profile.PhoneNumber ?? string.Empty;
+        }
+    }
+
+    private async Task SaveProfileAsync()
+    {
+        _profileError = null;
+        _busy = true;
+        try
+        {
+            var (success, error) = await Api.UpdateProfileAsync(new UpdateAccountProfileRequest { FirstName = _firstName, LastName = _lastName, PhoneNumber = _phone });
+            if (success) Snackbar.Add("Your details were saved.", Severity.Success);
+            else _profileError = error;
+        }
+        finally
+        {
+            _busy = false;
+        }
+    }
+
+    private async Task ChangePasswordAsync()
+    {
+        _passwordError = null;
+        if (string.IsNullOrEmpty(_currentPassword) || string.IsNullOrEmpty(_newPassword))
+        {
+            _passwordError = "Enter your current password and a new one.";
+            return;
+        }
+        if (_newPassword != _confirmPassword)
+        {
+            _passwordError = "The new passwords don't match.";
+            return;
+        }
+
+        _busy = true;
+        try
+        {
+            var (success, error) = await Api.ChangePasswordAsync(new ChangePasswordRequest { CurrentPassword = _currentPassword, NewPassword = _newPassword });
+            if (!success)
+            {
+                _passwordError = error;
+                return;
+            }
+            _currentPassword = _newPassword = _confirmPassword = string.Empty;
+            Snackbar.Add("Your password was changed.", Severity.Success);
+        }
+        finally
+        {
+            _busy = false;
+        }
+    }
+}

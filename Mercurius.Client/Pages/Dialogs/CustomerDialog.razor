@@ -1,0 +1,116 @@
+@inject CustomersApiClient Api
+
+<MudDialog>
+    <DialogContent>
+        @if (_loading)
+        {
+            <MudProgressLinear Indeterminate="true" Color="Color.Primary" />
+        }
+        else
+        {
+            <MudGrid Spacing="2">
+                <MudItem xs="12" sm="4"><MudTextField @bind-Value="_model.FirstName" Label="First name" Required="true" Variant="Variant.Outlined" AutoFocus="true" /></MudItem>
+                <MudItem xs="12" sm="4"><MudTextField @bind-Value="_model.MiddleName" Label="Middle name" Variant="Variant.Outlined" /></MudItem>
+                <MudItem xs="12" sm="4"><MudTextField @bind-Value="_model.LastName" Label="Last name" Required="true" Variant="Variant.Outlined" /></MudItem>
+                <MudItem xs="4"><MudNumericField @bind-Value="_model.Age" Label="Age" Min="0" Max="150" Variant="Variant.Outlined" HideSpinButtons="true" /></MudItem>
+                <MudItem xs="4">
+                    <MudSelect T="string" @bind-Value="_model.Gender" Label="Gender" Variant="Variant.Outlined" Clearable="true">
+                        <MudSelectItem T="string" Value="@("Male")">Male</MudSelectItem>
+                        <MudSelectItem T="string" Value="@("Female")">Female</MudSelectItem>
+                    </MudSelect>
+                </MudItem>
+                <MudItem xs="4">
+                    <MudSelect T="string" @bind-Value="_model.BloodType" Label="Blood type" Variant="Variant.Outlined" Clearable="true">
+                        @foreach (var type in BloodTypes)
+                        {
+                            <MudSelectItem T="string" Value="@type">@type</MudSelectItem>
+                        }
+                    </MudSelect>
+                </MudItem>
+                <MudItem xs="12" sm="6"><MudTextField @bind-Value="_model.ContactNumber" Label="Contact number" Variant="Variant.Outlined" /></MudItem>
+                <MudItem xs="12" sm="6"><MudTextField @bind-Value="_model.EmailAddress" Label="Email" InputType="InputType.Email" Variant="Variant.Outlined" /></MudItem>
+                <MudItem xs="12" sm="6"><MudTextField @bind-Value="_model.Tinnumber" Label="TIN / ID number" Variant="Variant.Outlined" /></MudItem>
+                <MudItem xs="12" sm="6"><MudTextField @bind-Value="_model.Allergies" Label="Allergies" Placeholder="e.g. Penicillin" Variant="Variant.Outlined" /></MudItem>
+                <MudItem xs="12"><MudTextField @bind-Value="_model.MedicalHistory" Label="Medical history" Lines="3" Variant="Variant.Outlined" /></MudItem>
+                @if (CustomerId.HasValue && CanDeactivate)
+                {
+                    <MudItem xs="12">
+                        <MudSwitch @bind-Value="_model.IsActive" Color="Color.Primary" Label="@(_model.IsActive ? "Active" : "Inactive (kept on record, not offered at checkout)")" />
+                    </MudItem>
+                }
+            </MudGrid>
+            @if (_error != null)
+            {
+                <MudAlert Severity="Severity.Error" Class="mt-3">@_error</MudAlert>
+            }
+        }
+    </DialogContent>
+    <DialogActions>
+        <MudButton OnClick="Cancel">Cancel</MudButton>
+        <MudButton Color="Color.Primary" Variant="Variant.Filled" Disabled="_busy || _loading" OnClick="SaveAsync">
+            @(CustomerId.HasValue ? "Save changes" : "Add customer")
+        </MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    private static readonly string[] BloodTypes = { "A+", "A-", "B+", "B-", "AB+", "AB-", "O+", "O-" };
+
+    [CascadingParameter] private IMudDialogInstance MudDialog { get; set; } = default!;
+
+    // Null to add a new customer.
+    [Parameter] public int? CustomerId { get; set; }
+
+    [Parameter] public bool CanDeactivate { get; set; }
+
+    private SaveCustomerRequest _model = new();
+    private bool _loading;
+    private bool _busy;
+    private string? _error;
+
+    protected override async Task OnInitializedAsync()
+    {
+        if (!CustomerId.HasValue) return;
+        _loading = true;
+        var existing = await Api.GetDetailAsync(CustomerId.Value);
+        if (existing == null)
+        {
+            _error = "That customer no longer exists.";
+        }
+        else
+        {
+            _model = existing;
+        }
+        _loading = false;
+    }
+
+    private async Task SaveAsync()
+    {
+        _error = null;
+        if (string.IsNullOrWhiteSpace(_model.FirstName) || string.IsNullOrWhiteSpace(_model.LastName))
+        {
+            _error = "First and last name are required.";
+            return;
+        }
+
+        _busy = true;
+        try
+        {
+            var (success, error) = CustomerId.HasValue
+                ? await Api.UpdateAsync(CustomerId.Value, _model)
+                : await Api.CreateAsync(_model);
+            if (!success)
+            {
+                _error = error;
+                return;
+            }
+            MudDialog.Close(DialogResult.Ok(true));
+        }
+        finally
+        {
+            _busy = false;
+        }
+    }
+
+    private void Cancel() => MudDialog.Cancel();
+}

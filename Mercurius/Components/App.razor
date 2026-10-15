@@ -1,0 +1,60 @@
+@* The HTML document for every page. The app itself (Mercurius.Client) is prerendered here, then
+   runs interactively in the browser on WebAssembly; the account pages are plain server-rendered
+   forms (see Account/_Imports.razor). *@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <base href="/" />
+    <ResourcePreloader />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" />
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" />
+    <link rel="stylesheet" href="@Assets["css/bootstrap/bootstrap.min.css"]" />
+    <link rel="stylesheet" href="@Assets["_content/MudBlazor/MudBlazor.min.css"]" />
+    <link rel="stylesheet" href="@Assets["css/app.css"]" />
+    <link rel="stylesheet" href="@Assets["Mercurius.styles.css"]" />
+    <link rel="icon" type="image/png" href="@Assets["favicon.png"]" />
+    <link rel="manifest" href="manifest.webmanifest" />
+    <link rel="apple-touch-icon" sizes="512x512" href="@Assets["icon-512.png"]" />
+    <meta name="theme-color" content="#0f172a" />
+    <ImportMap />
+    <HeadOutlet @rendermode="PageRenderMode" />
+</head>
+
+<body>
+    <Routes @rendermode="PageRenderMode" />
+
+    <div id="blazor-error-ui" data-nosnippet>
+        An unexpected error has occurred.
+        <a href="." class="reload">Reload</a>
+        <span class="dismiss">🗙</span>
+    </div>
+
+    <script src="@Assets["_framework/blazor.web.js"]"></script>
+    <script src="@Assets["_content/MudBlazor/MudBlazor.min.js"]"></script>
+    <script src="@Assets["js/offlineStore.js"]"></script>
+    <script src="@Assets["js/pwaHelpers.js"]"></script>
+    <script src="@Assets["js/printHelpers.js"]"></script>
+    <script>
+        // Service workers only exist in a secure context (HTTPS, or localhost) — the object is
+        // simply undefined elsewhere (e.g. a plain-HTTP host) and would otherwise throw on load.
+        if ('serviceWorker' in navigator) {
+            navigator.serviceWorker.register('service-worker.js');
+        }
+    </script>
+</body>
+
+</html>
+
+@code {
+    [CascadingParameter] private HttpContext HttpContext { get; set; } = default!;
+
+    // Account pages opt out of interactivity ([ExcludeFromInteractiveRouting]) — they're plain
+    // server-rendered forms that set the sign-in cookie. Everything else runs on WebAssembly.
+    private IComponentRenderMode? PageRenderMode =>
+        HttpContext.AcceptsInteractiveRouting() ? InteractiveWebAssembly : null;
+}

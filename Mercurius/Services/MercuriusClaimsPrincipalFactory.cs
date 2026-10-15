@@ -25,6 +25,12 @@ namespace Mercurius.Services
             // The tenant boundary itself — read by ICurrentTenantContext (Mercurius.Repo) to
             // drive MercuriusDbContext's global query filter. See MULTITENANCY_ARCHITECTURE.md.
             identity.AddClaim(new Claim(Mercurius.Common.Constants.MercuriusClaimTypes.TenantId, user.TenantId.ToString()));
+            // The name the app shows for this person (top bar, audit summaries).
+            var displayName = $"{user.FirstName} {user.LastName}".Trim();
+            if (!string.IsNullOrEmpty(displayName))
+            {
+                identity.AddClaim(new Claim(ClaimTypes.GivenName, displayName));
+            }
             if (user.IsPlatformAdmin)
             {
                 identity.AddClaim(new Claim(Mercurius.Common.Constants.MercuriusClaimTypes.IsPlatformAdmin, "true"));

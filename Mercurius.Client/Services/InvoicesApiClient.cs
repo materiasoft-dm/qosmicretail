@@ -12,10 +12,13 @@ namespace Mercurius.Client.Services
             _http = http;
         }
 
-        public async Task<InvoiceListResultDto> GetAsync(string? search, int page, int pageSize)
+        // sortBy: number | date | due | status | paid (see InvoicesApiController.Get).
+        public async Task<InvoiceListResultDto> GetAsync(string? search, int page, int pageSize,
+            string? sortBy = null, bool desc = true, CancellationToken ct = default)
         {
-            var url = $"api/invoice-list?search={Uri.EscapeDataString(search ?? string.Empty)}&page={page}&pageSize={pageSize}";
-            var result = await _http.GetFromJsonAsync<InvoiceListResultDto>(url);
+            var url = $"api/invoice-list?search={Uri.EscapeDataString(search ?? string.Empty)}&page={page}&pageSize={pageSize}"
+                + $"&sortBy={Uri.EscapeDataString(sortBy ?? string.Empty)}&desc={(desc ? "true" : "false")}";
+            var result = await _http.GetFromJsonAsync<InvoiceListResultDto>(url, ct);
             return result ?? new InvoiceListResultDto();
         }
 
@@ -24,9 +27,7 @@ namespace Mercurius.Client.Services
         public async Task<(bool Success, string? Error)> CreateRefundAsync(CreateRefundRequest request)
         {
             var response = await _http.PostAsJsonAsync("api/invoice-list/refund", request);
-            if (response.IsSuccessStatusCode) return (true, null);
-            var body = await response.Content.ReadFromJsonAsync<Dictionary<string, string>>();
-            return (false, body != null && body.TryGetValue("error", out var e) ? e : "Refund failed.");
+            return response.IsSuccessStatusCode ? (true, null) : (false, await ApiErrors.ReadAsync(response, "Refund failed."));
         }
     }
 }

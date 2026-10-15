@@ -1,0 +1,50 @@
+<MudDialog>
+    <DialogContent>
+        <MudText Typo="Typo.subtitle1" Class="mb-3">@ProductName</MudText>
+        <div class="d-flex align-center gap-2">
+            <MudIconButton Icon="@Icons.Material.Filled.Remove" Variant="Variant.Filled" aria-label="Decrease quantity" Disabled="@(_quantity <= 1)"
+                           OnClick="@(() => Step(-1))" />
+            <MudNumericField T="int" @bind-Value="_quantity" Min="1" Label="Quantity" Variant="Variant.Outlined" HideSpinButtons="true"
+                             Immediate="true" AutoFocus="true" OnKeyDown="OnKeyDown" UserAttributes="@(new Dictionary<string, object> { ["id"] = "quantityInput" })" />
+            <MudIconButton Icon="@Icons.Material.Filled.Add" Variant="Variant.Filled" aria-label="Increase quantity" OnClick="@(() => Step(1))" />
+        </div>
+        @if (Stock.HasValue && _quantity > Stock.Value)
+        {
+            <MudAlert Severity="Severity.Warning" Dense="true" Class="mt-3">
+                Only @Stock.Value.ToString("0.##") in stock — the sale will still go through and be flagged for review.
+            </MudAlert>
+        }
+    </DialogContent>
+    <DialogActions>
+        <MudButton Color="Color.Error" StartIcon="@Icons.Material.Filled.Delete" OnClick="Remove">Remove</MudButton>
+        <MudSpacer />
+        <MudButton OnClick="Cancel">Cancel</MudButton>
+        <MudButton Color="Color.Primary" Variant="Variant.Filled" OnClick="Ok">OK</MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    [CascadingParameter] private IMudDialogInstance MudDialog { get; set; } = default!;
+
+    [Parameter] public string ProductName { get; set; } = string.Empty;
+    [Parameter] public int Quantity { get; set; } = 1;
+    [Parameter] public decimal? Stock { get; set; }
+
+    private int _quantity;
+
+    protected override void OnInitialized() => _quantity = Math.Max(1, Quantity);
+
+    private void Step(int delta) => _quantity = Math.Max(1, _quantity + delta);
+
+    private void OnKeyDown(KeyboardEventArgs e)
+    {
+        if (e.Key is "Enter" or "NumpadEnter") Ok();
+    }
+
+    // The dialog's result is the new quantity; 0 removes the line.
+    private void Ok() => MudDialog.Close(DialogResult.Ok(Math.Max(1, _quantity)));
+
+    private void Remove() => MudDialog.Close(DialogResult.Ok(0));
+
+    private void Cancel() => MudDialog.Cancel();
+}

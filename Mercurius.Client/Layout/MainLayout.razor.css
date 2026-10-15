@@ -6,11 +6,159 @@
 
 main {
     flex: 1;
+    min-width: 0;
 }
 
 .sidebar {
     background-image: linear-gradient(180deg, #0f172a 0%, #1e1b3a 100%);
 }
+
+.topbar {
+    position: sticky;
+    top: 0;
+    z-index: 1000;
+    height: 3.5rem;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+    padding: 0 1rem;
+    background: var(--mud-palette-surface);
+    border-bottom: 1px solid var(--mud-palette-lines-default);
+}
+
+.topbar-context {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    min-width: 0;
+    font-size: 0.85rem;
+}
+
+.topbar-tenant {
+    font-weight: 600;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.topbar-branch {
+    color: var(--mud-palette-text-secondary);
+    white-space: nowrap;
+}
+
+.topbar-actions {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+}
+
+.user-chip {
+    display: flex;
+    align-items: center;
+    gap: 0.6rem;
+    padding: 0.25rem 0.5rem;
+    border: none;
+    border-radius: 999px;
+    background: transparent;
+    color: inherit;
+    cursor: pointer;
+}
+
+/* The account dropdown: anchored under the chip, same shape as the sidebar's branch switcher. */
+.account-menu {
+    position: relative;
+}
+
+.account-menu-panel {
+    position: absolute;
+    top: calc(100% + 0.35rem);
+    right: 0;
+    z-index: 40;
+    min-width: 13rem;
+    padding: 0.25rem;
+    border-radius: 0.6rem;
+    background: var(--mud-palette-surface);
+    border: 1px solid var(--mud-palette-lines-default);
+    box-shadow: 0 10px 30px rgba(15, 23, 42, 0.18);
+}
+
+.account-menu-item {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    padding: 0.5rem 1rem;
+    border-radius: 0.45rem;
+    color: inherit;
+    text-decoration: none;
+    font-size: 0.9rem;
+}
+
+.account-menu-item:hover {
+    background: var(--mud-palette-action-default-hover);
+    color: inherit;
+}
+
+.account-menu-divider {
+    height: 1px;
+    margin: 0.25rem 0;
+    background: var(--mud-palette-lines-default);
+}
+
+    .user-chip:hover {
+        background: var(--mud-palette-action-default-hover);
+    }
+
+.user-avatar {
+    width: 2rem;
+    height: 2rem;
+    border-radius: 50%;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    background: var(--mud-palette-primary);
+    color: var(--mud-palette-primary-text);
+    font-size: 0.8rem;
+    font-weight: 700;
+}
+
+.user-text {
+    flex-direction: column;
+    align-items: flex-start;
+    line-height: 1.15;
+}
+
+.user-name {
+    font-size: 0.85rem;
+    font-weight: 600;
+}
+
+.user-email {
+    font-size: 0.72rem;
+    color: var(--mud-palette-text-secondary);
+}
+
+.logout-form {
+    margin: 0;
+}
+
+.logout-button {
+    width: 100%;
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    padding: 0.5rem 1rem;
+    border: none;
+    background: transparent;
+    color: var(--mud-palette-error);
+    font: inherit;
+    text-align: left;
+    cursor: pointer;
+}
+
+    .logout-button:hover {
+        background: var(--mud-palette-action-default-hover);
+    }
 
 @media (min-width: 992px) {
     .page {
@@ -24,9 +172,20 @@ main {
         top: 0;
     }
 
+    .topbar {
+        padding: 0 1.5rem 0 2rem;
+    }
+
     article {
         padding-left: 2rem !important;
         padding-right: 1.5rem !important;
         padding-top: 1.5rem;
+    }
+}
+
+@media (max-width: 991.98px) {
+    /* On phones/tablets the sidebar's own top bar (brand + menu toggle) sits above this one. */
+    .topbar {
+        top: 3.5rem;
     }
 }
