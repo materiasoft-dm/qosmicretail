@@ -109,6 +109,12 @@
                                 <input id="Create_ProductCode" name="ProductCode" class="form-control form-control-sm" required maxlength="100" />
                             </div>
                             <div class="col-md-6">
+                                <label class="form-label" for="Create_Barcode">Barcode</label>
+                                <!-- A USB/Bluetooth scanner types the code then presses Enter — swallow the Enter so it doesn't submit the form early. -->
+                                <input id="Create_Barcode" name="Barcode" class="form-control form-control-sm" maxlength="64" placeholder="Click here and scan" autocomplete="off"
+                                       onkeydown="if (event.key === 'Enter') event.preventDefault();" />
+                            </div>
+                            <div class="col-md-6">
                                 <label class="form-label" for="Create_ProductCategoryId">Category</label>
                                 <select id="Create_ProductCategoryId" name="ProductCategoryId" class="form-select form-select-sm" asp-items="ViewBag.ProductCategoryId">
                                     <option value="">-- Select category --</option>

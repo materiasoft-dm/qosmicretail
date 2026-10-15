@@ -42,4 +42,19 @@ public class AuthApiService
             return new AuthResult { Success = false, ErrorMessage = $"Couldn't reach the server: {ex.Message}" };
         }
     }
+
+    // Tells the server this user signed out, purely for its audit trail. Best-effort with a short
+    // timeout — signing out must still work offline, it just won't be recorded then.
+    public async Task NotifyLogoutAsync()
+    {
+        try
+        {
+            using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(5));
+            await _httpClient.PostAsync("api/auth/logout", null, cts.Token);
+        }
+        catch
+        {
+            // Offline or server unreachable — not worth blocking sign-out over.
+        }
+    }
 }

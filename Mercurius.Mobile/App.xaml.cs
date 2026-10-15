@@ -25,6 +25,11 @@ public partial class App : Application
 		window.MinimumWidth = 1100;
 		window.MinimumHeight = 700;
 
+		// Returning to the app (tablet woken, app switched back to) is a natural moment to catch
+		// up on other terminals' sales and push anything queued while it was backgrounded.
+		window.Resumed += (_, _) =>
+			IPlatformApplication.Current?.Services.GetService<SyncCoordinator>()?.OnAppResumed();
+
 		window.Created += async (_, _) =>
 		{
 			var sessionService = IPlatformApplication.Current!.Services.GetRequiredService<SessionService>();

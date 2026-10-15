@@ -96,6 +96,11 @@
                     <input type="text" asp-for="ProductCode" class="form-control form-control-sm" placeholder="SKU" />
                 </div>
                 <div class="col">
+                    <label class="form-label">Barcode</label>
+                    <input type="text" asp-for="Barcode" class="form-control form-control-sm" maxlength="64" placeholder="Click here and scan" autocomplete="off"
+                           onkeydown="if (event.key === 'Enter') event.preventDefault();" />
+                </div>
+                <div class="col">
                     <label class="required form-label">Current Cost Price</label>
                     <input type="number" class="form-control form-control-sm" placeholder="Input Current Cost" asp-for="CurrentCostPrice" id="txt-cost" />
                 </div>

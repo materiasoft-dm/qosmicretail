@@ -52,8 +52,25 @@ var sqlServerConnectionString = builder.Configuration.GetConnectionString("SqlSe
 // doesn't actually require this ordering, but it reads better next to what it's for).
 builder.Services.AddScoped<Mercurius.Repo.Repositories.ICurrentTenantContext, Mercurius.Services.HttpContextCurrentTenantContext>();
 
-builder.Services.AddDbContext<MercuriusDbContext>(options =>
+// Audit trail — see Mercurius.Repo/Repositories/Auditing/AuditSaveChangesInterceptor.cs. Every
+// insert/update/delete through EF gets an AuditLog row (who, branch, device, IP, what changed);
+// IAuditLogger covers events with no data change of their own (sign-in/out, raw SQL console).
+builder.Services.AddScoped<Mercurius.Services.Auditing.HttpAuditContextProvider>();
+builder.Services.AddScoped<Mercurius.Repo.Repositories.Auditing.IAuditContextProvider>(sp =>
+    sp.GetRequiredService<Mercurius.Services.Auditing.HttpAuditContextProvider>());
+builder.Services.AddScoped<Mercurius.Repo.Repositories.Auditing.AuditSaveChangesInterceptor>();
+builder.Services.AddScoped<Mercurius.Services.Auditing.IAuditLogger, Mercurius.Services.Auditing.AuditLogger>();
+
+builder.Services.AddDbContext<MercuriusDbContext>((sp, options) =>
 {
+    // Scoped interceptor (per request) — AddDbContext's options are scoped by default, so
+    // resolving it here gives each DbContext its own instance.
+    // Order matters: the invoice change-stamp runs first so the audit interceptor sees (and
+    // records) the UpdatedDate it sets.
+    options.AddInterceptors(
+        new Mercurius.Repo.Repositories.Auditing.InvoiceChangeStampInterceptor(),
+        sp.GetRequiredService<Mercurius.Repo.Repositories.Auditing.AuditSaveChangesInterceptor>());
+
     if (useSqlServer)
     {
         // A separate migrations assembly/history from SQLite's — the two providers' migrations

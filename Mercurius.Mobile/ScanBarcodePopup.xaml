@@ -1,0 +1,67 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<toolkit:Popup xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
+               xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+               xmlns:toolkit="http://schemas.microsoft.com/dotnet/2022/maui/toolkit"
+               xmlns:zxing="clr-namespace:ZXing.Net.Maui.Controls;assembly=ZXing.Net.MAUI.Controls"
+               x:Class="Mercurius.Mobile.ScanBarcodePopup"
+               Size="340,560"
+               Color="Transparent"
+               CanBeDismissedByTappingOutsideOfPopup="False">
+
+    <Border StrokeShape="RoundRectangle 16"
+            Stroke="{StaticResource Gray100}"
+            BackgroundColor="{StaticResource White}"
+            Padding="16"
+            StrokeThickness="1">
+        <Grid RowDefinitions="Auto,*,Auto,Auto,Auto" RowSpacing="12">
+
+            <Label Grid.Row="0" Text="Scan barcode" FontSize="16" FontAttributes="Bold"
+                   TextColor="{StaticResource MidnightBlue}" HorizontalOptions="Center" />
+
+            <!-- Camera preview. No background behind it on purpose: on Android the preview can be a
+                 SurfaceView, which shows through a "hole" in its window — an opaque view drawn over
+                 this area would hide it. -->
+            <Grid Grid.Row="1">
+                <zxing:CameraBarcodeReaderView x:Name="CameraView"
+                                               AutomationId="BarcodeCameraView"
+                                               IsDetecting="True"
+                                               BarcodesDetected="OnBarcodesDetected" />
+                <!-- Aiming guide -->
+                <BoxView HeightRequest="2" Color="#E53935" Opacity="0.8"
+                         VerticalOptions="Center" Margin="24,0" InputTransparent="True" />
+            </Grid>
+
+            <Label Grid.Row="2" Text="Point the camera at the product's barcode"
+                   FontSize="12" TextColor="{StaticResource Gray400}" HorizontalOptions="Center" />
+
+            <!-- Fallback for a damaged/unreadable barcode: type the digits printed under it. -->
+            <Grid Grid.Row="3" ColumnDefinitions="*,Auto" ColumnSpacing="8">
+                <Border StrokeShape="RoundRectangle 10" Stroke="{StaticResource Gray100}"
+                        BackgroundColor="#F5F6F8" Padding="12,0" HeightRequest="42">
+                    <Entry x:Name="ManualBarcodeEntry" AutomationId="ManualBarcodeEntry"
+                           Placeholder="Can't scan? Type the barcode"
+                           Keyboard="Numeric"
+                           VerticalOptions="Center"
+                           ReturnType="Done"
+                           Completed="OnManualEntrySubmitted" />
+                </Border>
+                <Button Grid.Column="1" AutomationId="ManualBarcodeUseButton" Text="Use"
+                        HeightRequest="42" Padding="16,0"
+                        Clicked="OnManualEntrySubmitted" />
+            </Grid>
+
+            <Grid Grid.Row="4" ColumnDefinitions="*,*" ColumnSpacing="10">
+                <Button x:Name="TorchButton" AutomationId="BarcodeTorchButton" Text="Flashlight"
+                        HeightRequest="44"
+                        BackgroundColor="{StaticResource Gray100}"
+                        TextColor="{StaticResource Gray500}"
+                        Clicked="OnTorchClicked" />
+                <Button Grid.Column="1" AutomationId="BarcodeScanCancelButton" Text="Cancel"
+                        HeightRequest="44"
+                        BackgroundColor="{StaticResource Gray100}"
+                        TextColor="{StaticResource Gray500}"
+                        Clicked="OnCancelClicked" />
+            </Grid>
+        </Grid>
+    </Border>
+</toolkit:Popup>

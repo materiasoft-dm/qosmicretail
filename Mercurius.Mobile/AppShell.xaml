@@ -7,7 +7,49 @@
     Title="Mercurius"
     FlyoutBehavior="{OnIdiom Phone=Flyout, Tablet=Locked, Desktop=Locked, Default=Flyout}"
     FlyoutWidth="272"
-    FlyoutBackgroundColor="{StaticResource Secondary}">
+    FlyoutBackgroundColor="{StaticResource Secondary}"
+    Shell.NavBarIsVisible="{OnIdiom Phone=True, Tablet=False, Desktop=False, Default=True}">
+
+    <!-- Android-only sidebar row templates (applied in AppShell.xaml.cs). Without them Android
+         falls back to its stock light-theme flyout rows — dark text meant for a white background —
+         which were nearly invisible on this navy sidebar. Windows keeps its native rows (they
+         already read fine there, and the Windows UI tests locate them by their native shape). -->
+    <Shell.Resources>
+        <DataTemplate x:Key="AndroidFlyoutItemTemplate">
+            <Grid Padding="28,0" HeightRequest="52">
+                <VisualStateManager.VisualStateGroups>
+                    <VisualStateGroupList>
+                        <VisualStateGroup x:Name="CommonStates">
+                            <VisualState x:Name="Normal">
+                                <VisualState.Setters>
+                                    <Setter Property="BackgroundColor" Value="Transparent" />
+                                </VisualState.Setters>
+                            </VisualState>
+                            <VisualState x:Name="Selected">
+                                <VisualState.Setters>
+                                    <Setter Property="BackgroundColor" Value="#242840" />
+                                    <Setter TargetName="FlyoutItemLabel" Property="Label.TextColor" Value="{StaticResource Primary}" />
+                                </VisualState.Setters>
+                            </VisualState>
+                        </VisualStateGroup>
+                    </VisualStateGroupList>
+                </VisualStateManager.VisualStateGroups>
+                <Label x:Name="FlyoutItemLabel" Text="{Binding Title}" x:DataType="BaseShellItem"
+                       TextColor="{StaticResource White}" FontSize="15" FontAttributes="Bold"
+                       VerticalOptions="Center" />
+            </Grid>
+        </DataTemplate>
+
+        <DataTemplate x:Key="AndroidMenuItemTemplate">
+            <Grid Padding="28,0" HeightRequest="52">
+                <!-- Shell wraps each MenuItem in a MenuShellItem, which exposes the MenuItem's Text
+                     as Title — binding to MenuItem.Text here rendered an empty row. -->
+                <Label Text="{Binding Title}" x:DataType="BaseShellItem"
+                       TextColor="{StaticResource SecondaryDarkText}" FontSize="15"
+                       VerticalOptions="Center" />
+            </Grid>
+        </DataTemplate>
+    </Shell.Resources>
 
     <Shell.FlyoutHeader>
         <VerticalStackLayout Padding="24,48,24,20" Spacing="0" BackgroundColor="{StaticResource Secondary}">
@@ -59,6 +101,10 @@
 
     <FlyoutItem Title="Products" Route="ProductsPage">
         <ShellContent ContentTemplate="{DataTemplate local:ProductsPage}" Route="ProductsPage" />
+    </FlyoutItem>
+
+    <FlyoutItem Title="Settings" Route="SettingsPage">
+        <ShellContent ContentTemplate="{DataTemplate local:SettingsPage}" Route="SettingsPage" />
     </FlyoutItem>
 
     <MenuItem Text="Log Out" AutomationId="LogOutMenuItem" Clicked="OnLogoutClicked" />

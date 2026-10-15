@@ -27,17 +27,28 @@ namespace Mercurius.Controllers.Admin
         private readonly MercuriusDbContext _context;
         private readonly IConfiguration _configuration;
         private readonly ILogger<DataQueryController> _logger;
+        private readonly Mercurius.Services.Auditing.IAuditLogger _auditLogger;
 
         public DataQueryController(
             IHttpContextAccessor httpContextAccessor,
             MercuriusDbContext context,
             IConfiguration configuration,
-            ILogger<DataQueryController> logger)
+            ILogger<DataQueryController> logger,
+            Mercurius.Services.Auditing.IAuditLogger auditLogger)
             : base(httpContextAccessor)
         {
             _context = context;
             _configuration = configuration;
             _logger = logger;
+            _auditLogger = auditLogger;
+        }
+
+        // Raw SQL bypasses EF's change tracker, so AuditSaveChangesInterceptor never sees what it
+        // changed — the statement itself is the audit record.
+        private static string Preview(string? sql)
+        {
+            var oneLine = System.Text.RegularExpressions.Regex.Replace(sql ?? "", @"\s+", " ").Trim();
+            return oneLine.Length > 200 ? oneLine.Substring(0, 199) + "…" : oneLine;
         }
 
         public IActionResult Index(CancellationToken ct = default)
@@ -62,6 +73,8 @@ namespace Mercurius.Controllers.Admin
             if (string.IsNullOrEmpty(configuredKey) || !FixedTimeEquals(request.ApiKey ?? "", configuredKey))
             {
                 _logger.LogWarning("DataQuery: rejected — invalid API key. User: {User}", User.Identity?.Name);
+                await _auditLogger.LogAsync(Mercurius.Services.Auditing.AuditActions.DataQueryRejected,
+                    $"Raw SQL console: rejected (invalid key): {Preview(request.Sql)}", new { sql = request.Sql });
                 return Unauthorized(new { error = "Invalid API key." });
             }
 
@@ -112,12 +125,17 @@ namespace Mercurius.Controllers.Admin
 
                 _logger.LogWarning("DataQuery: succeeded for {User}. Rows returned: {RowCount}, RecordsAffected: {RecordsAffected}",
                     User.Identity?.Name, rows.Count, recordsAffected);
+                await _auditLogger.LogAsync(Mercurius.Services.Auditing.AuditActions.DataQueryExecuted,
+                    $"Raw SQL console ({recordsAffected} row(s) affected, {rows.Count} returned): {Preview(request.Sql)}",
+                    new { sql = request.Sql, recordsAffected, rowsReturned = rows.Count });
 
                 return Json(new { columns, rows, recordsAffected });
             }
             catch (Exception ex)
             {
                 _logger.LogError(ex, "DataQuery: failed for {User}", User.Identity?.Name);
+                await _auditLogger.LogAsync(Mercurius.Services.Auditing.AuditActions.DataQueryFailed,
+                    $"Raw SQL console failed: {Preview(request.Sql)}", new { sql = request.Sql, error = ex.Message });
                 return BadRequest(new { error = ex.Message });
             }
         }

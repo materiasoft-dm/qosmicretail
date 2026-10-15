@@ -1,0 +1,146 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<toolkit:Popup xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
+               xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+               xmlns:toolkit="http://schemas.microsoft.com/dotnet/2022/maui/toolkit"
+               x:Class="Mercurius.Mobile.AddProductPopup"
+               Size="420,640"
+               Color="Transparent">
+
+    <Border StrokeShape="RoundRectangle 16"
+            Stroke="{StaticResource Gray100}"
+            BackgroundColor="{StaticResource White}"
+            Padding="24"
+            StrokeThickness="1">
+        <Border.Shadow>
+            <Shadow Brush="Black" Opacity="0.15" Radius="12" Offset="0,4" />
+        </Border.Shadow>
+
+        <Grid RowDefinitions="Auto,*,Auto" RowSpacing="14">
+
+            <Label Grid.Row="0" x:Name="TitleLabel" Text="Add Product" FontSize="18" FontAttributes="Bold"
+                   TextColor="{StaticResource MidnightBlue}" />
+
+            <ScrollView Grid.Row="1">
+                <VerticalStackLayout Spacing="12">
+
+                    <VerticalStackLayout Spacing="4">
+                        <Label Text="Name *" FontSize="12" TextColor="{StaticResource Gray400}" />
+                        <Border StrokeShape="RoundRectangle 10" Stroke="{StaticResource Gray100}"
+                                BackgroundColor="#F5F6F8" Padding="12,0" HeightRequest="42">
+                            <Entry x:Name="NameEntry" AutomationId="NewProductNameEntry"
+                                   Placeholder="e.g. Paracetamol 500mg" VerticalOptions="Center" />
+                        </Border>
+                    </VerticalStackLayout>
+
+                    <VerticalStackLayout Spacing="4">
+                        <Label Text="SKU / Product code *" FontSize="12" TextColor="{StaticResource Gray400}" />
+                        <Border StrokeShape="RoundRectangle 10" Stroke="{StaticResource Gray100}"
+                                BackgroundColor="#F5F6F8" Padding="12,0" HeightRequest="42">
+                            <Entry x:Name="CodeEntry" AutomationId="NewProductCodeEntry"
+                                   Placeholder="e.g. PARA-500" VerticalOptions="Center" />
+                        </Border>
+                    </VerticalStackLayout>
+
+                    <VerticalStackLayout Spacing="4">
+                        <Label Text="Barcode" FontSize="12" TextColor="{StaticResource Gray400}" />
+                        <Grid ColumnDefinitions="*,Auto" ColumnSpacing="8">
+                            <Border StrokeShape="RoundRectangle 10" Stroke="{StaticResource Gray100}"
+                                    BackgroundColor="#F5F6F8" Padding="12,0" HeightRequest="42">
+                                <Entry x:Name="BarcodeEntry" AutomationId="NewProductBarcodeEntry"
+                                       Placeholder="Tap here, then scan the product's barcode"
+                                       VerticalOptions="Center" />
+                            </Border>
+                            <!-- Camera scan — phones/tablets only (see BarcodeScanner.IsCameraScanAvailable). -->
+                            <Button Grid.Column="1" x:Name="ScanBarcodeButton" AutomationId="NewProductScanBarcodeButton"
+                                    Text="Scan" HeightRequest="42" Padding="14,0"
+                                    IsVisible="False"
+                                    Clicked="OnScanBarcodeClicked" />
+                        </Grid>
+                    </VerticalStackLayout>
+
+                    <VerticalStackLayout Spacing="4">
+                        <Label Text="Category" FontSize="12" TextColor="{StaticResource Gray400}" />
+                        <Border StrokeShape="RoundRectangle 10" Stroke="{StaticResource Gray100}"
+                                BackgroundColor="#F5F6F8" Padding="12,0" HeightRequest="42">
+                            <Entry x:Name="CategoryEntry" AutomationId="NewProductCategoryEntry"
+                                   Placeholder="Type to search, or enter a new category"
+                                   VerticalOptions="Center"
+                                   TextChanged="OnCategoryTextChanged" />
+                        </Border>
+                        <!-- Existing categories matching what's typed; tapping one fills the field. -->
+                        <CollectionView x:Name="CategorySuggestionsView"
+                                        AutomationId="NewProductCategorySuggestions"
+                                        IsVisible="False"
+                                        HeightRequest="120"
+                                        SelectionMode="None">
+                            <CollectionView.ItemTemplate>
+                                <DataTemplate x:DataType="x:String">
+                                    <Grid Padding="10,8">
+                                        <Grid.GestureRecognizers>
+                                            <TapGestureRecognizer Tapped="OnCategorySuggestionTapped" CommandParameter="{Binding .}" />
+                                        </Grid.GestureRecognizers>
+                                        <Label Text="{Binding .}" FontSize="13" TextColor="{StaticResource MidnightBlue}" />
+                                    </Grid>
+                                </DataTemplate>
+                            </CollectionView.ItemTemplate>
+                        </CollectionView>
+                    </VerticalStackLayout>
+
+                    <Grid ColumnDefinitions="*,*" ColumnSpacing="12">
+                        <VerticalStackLayout Grid.Column="0" Spacing="4">
+                            <Label Text="Cost price (₱)" FontSize="12" TextColor="{StaticResource Gray400}" />
+                            <Border StrokeShape="RoundRectangle 10" Stroke="{StaticResource Gray100}"
+                                    BackgroundColor="#F5F6F8" Padding="12,0" HeightRequest="42">
+                                <Entry x:Name="CostEntry" AutomationId="NewProductCostEntry"
+                                       Keyboard="Numeric" Placeholder="0.00" VerticalOptions="Center" />
+                            </Border>
+                        </VerticalStackLayout>
+                        <VerticalStackLayout Grid.Column="1" Spacing="4">
+                            <Label Text="Sale price (₱) *" FontSize="12" TextColor="{StaticResource Gray400}" />
+                            <Border StrokeShape="RoundRectangle 10" Stroke="{StaticResource Gray100}"
+                                    BackgroundColor="#F5F6F8" Padding="12,0" HeightRequest="42">
+                                <Entry x:Name="PriceEntry" AutomationId="NewProductPriceEntry"
+                                       Keyboard="Numeric" Placeholder="0.00" VerticalOptions="Center" />
+                            </Border>
+                        </VerticalStackLayout>
+                    </Grid>
+
+                    <Grid ColumnDefinitions="*,*" ColumnSpacing="12">
+                        <VerticalStackLayout Grid.Column="0" Spacing="4">
+                            <Label x:Name="StockLabel" Text="Initial stock" FontSize="12" TextColor="{StaticResource Gray400}" />
+                            <Border StrokeShape="RoundRectangle 10" Stroke="{StaticResource Gray100}"
+                                    BackgroundColor="#F5F6F8" Padding="12,0" HeightRequest="42">
+                                <Entry x:Name="StockEntry" AutomationId="NewProductStockEntry"
+                                       Keyboard="Numeric" Placeholder="0" VerticalOptions="Center" />
+                            </Border>
+                        </VerticalStackLayout>
+                        <VerticalStackLayout Grid.Column="1" Spacing="4">
+                            <Label Text="Low-stock alert at" FontSize="12" TextColor="{StaticResource Gray400}" />
+                            <Border StrokeShape="RoundRectangle 10" Stroke="{StaticResource Gray100}"
+                                    BackgroundColor="#F5F6F8" Padding="12,0" HeightRequest="42">
+                                <Entry x:Name="LowStockEntry" AutomationId="NewProductLowStockEntry"
+                                       Keyboard="Numeric" Placeholder="0" VerticalOptions="Center" />
+                            </Border>
+                        </VerticalStackLayout>
+                    </Grid>
+
+                    <Label x:Name="StockHintLabel" IsVisible="False" FontSize="11" TextColor="{StaticResource Gray400}"
+                           Text="Stock can't be edited here — it changes through sales, adjustments, and shipments." />
+
+                    <Label x:Name="ErrorLabel" AutomationId="NewProductErrorLabel"
+                           IsVisible="False" FontSize="13" TextColor="#D32F2F" />
+                </VerticalStackLayout>
+            </ScrollView>
+
+            <Grid Grid.Row="2" ColumnDefinitions="*,*" ColumnSpacing="10">
+                <Button AutomationId="NewProductCancelButton" Text="Cancel" HeightRequest="44"
+                        BackgroundColor="{StaticResource Gray100}"
+                        TextColor="{StaticResource Gray500}"
+                        Clicked="OnCancelClicked" />
+                <Button Grid.Column="1" x:Name="SaveButton" AutomationId="NewProductSaveButton" Text="Save Product"
+                        HeightRequest="44" FontAttributes="Bold"
+                        Clicked="OnSaveClicked" />
+            </Grid>
+        </Grid>
+    </Border>
+</toolkit:Popup>

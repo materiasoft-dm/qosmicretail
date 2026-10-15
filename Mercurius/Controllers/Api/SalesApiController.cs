@@ -119,7 +119,11 @@ namespace Mercurius.Controllers.Api
                 InvoiceNumber = $"INV-{DateTime.UtcNow:yyyyMMddHHmmssfff}",
                 Notes = resolvedNotes,
                 PaidAmount = request.AmountReceived,
-                CreatedDate = DateTime.UtcNow
+                CreatedDate = DateTime.UtcNow,
+                // Cashier + origin, shown on every mobile terminal's Receipts list (the Blazor app
+                // is the web app, so it reports as Web too).
+                CreatedBy = Guid.TryParse(User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value, out var cashierId) ? cashierId : Guid.Empty,
+                SourceChannel = "Web"
             };
 
             var productIds = request.Items.Select(i => i.ProductId).Distinct().ToList();

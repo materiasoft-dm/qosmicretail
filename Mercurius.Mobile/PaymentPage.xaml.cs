@@ -1,11 +1,17 @@
+using CommunityToolkit.Maui.Views;
 using Mercurius.Mobile.Models;
 
 namespace Mercurius.Mobile;
 
-public partial class PaymentPage : ContentPage
+// A CommunityToolkit.Maui Popup, not a modal ContentPage — this used to be pushed/popped via
+// Navigation.PushModalAsync/PopModalAsync, which fatally crashes the Windows build (confirmed:
+// 0xc000027b inside Microsoft.ui.xaml.dll on PopModalAsync, a known unresolved upstream MAUI/WinUI3
+// bug — https://github.com/microsoft/microsoft-ui-xaml/issues/10897). QuantityPopup and
+// CategoryPickerPopup already used the Popup pattern successfully elsewhere in this app, so this
+// follows the same shape instead of trying to work around PopModalAsync itself.
+public partial class PaymentPage : Popup
 {
     private readonly decimal _totalDue;
-    private TaskCompletionSource<PaymentResult?>? _tcs;
 
     public PaymentPage(decimal totalDue)
     {
@@ -13,16 +19,6 @@ public partial class PaymentPage : ContentPage
         _totalDue = totalDue;
         TotalDueLabel.Text = $"₱{totalDue:N2}";
         BuildQuickAmounts();
-    }
-
-    // Pushes this page modally and awaits the cashier's choice — Cash (with an amount that
-    // covers the total) or Card. Returns null if they back out without completing payment.
-    public async Task<PaymentResult?> ShowAsync(INavigation navigation)
-    {
-        _tcs = new TaskCompletionSource<PaymentResult?>();
-        await navigation.PushModalAsync(new NavigationPage(this) { BarBackgroundColor = Colors.Transparent });
-        var result = await _tcs.Task;
-        return result;
     }
 
     private void BuildQuickAmounts()
@@ -73,7 +69,7 @@ public partial class PaymentPage : ContentPage
         }
     }
 
-    private async void OnChargeCashClicked(object? sender, EventArgs e)
+    private void OnChargeCashClicked(object? sender, EventArgs e)
     {
         var received = decimal.TryParse(CashReceivedEntry.Text, out var r) ? r : _totalDue;
         var result = new PaymentResult
@@ -82,11 +78,10 @@ public partial class PaymentPage : ContentPage
             AmountReceived = received,
             Change = received - _totalDue
         };
-        await Navigation.PopModalAsync();
-        _tcs?.TrySetResult(result);
+        Close(result);
     }
 
-    private async void OnChargeCardClicked(object? sender, EventArgs e)
+    private void OnChargeCardClicked(object? sender, EventArgs e)
     {
         var result = new PaymentResult
         {
@@ -94,13 +89,11 @@ public partial class PaymentPage : ContentPage
             AmountReceived = _totalDue,
             Change = 0
         };
-        await Navigation.PopModalAsync();
-        _tcs?.TrySetResult(result);
+        Close(result);
     }
 
-    private async void OnCancelTapped(object? sender, EventArgs e)
+    private void OnCancelTapped(object? sender, EventArgs e)
     {
-        await Navigation.PopModalAsync();
-        _tcs?.TrySetResult(null);
+        Close(null);
     }
 }

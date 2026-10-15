@@ -87,7 +87,11 @@ namespace Mercurius.Controllers
                 InvoiceNumber = $"INV-{DateTime.UtcNow:yyyyMMddHHmmssfff}",
                 Notes = resolvedNotes,
                 PaidAmount = amountReceived,
-                CreatedDate = DateTime.UtcNow
+                CreatedDate = DateTime.UtcNow,
+                // Cashier + origin, shown on every mobile terminal's Receipts list. CreatedBy was
+                // never set before, so web sales had no recorded cashier at all.
+                CreatedBy = Guid.TryParse(User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value, out var cashierId) ? cashierId : Guid.Empty,
+                SourceChannel = "Web"
             };
 
             // Fetch all products first (before transaction to avoid lock issues)

@@ -56,6 +56,7 @@ namespace Mercurius.Repo.Repositories
         public DbSet<UserCurrentLocation> UserCurrentLocations => Set<UserCurrentLocation>();
         public DbSet<UserDashboardLayout> UserDashboardLayouts => Set<UserDashboardLayout>();
         public DbSet<ZeroStockSaleAuditLog> ZeroStockSaleAuditLogs => Set<ZeroStockSaleAuditLog>();
+        public DbSet<AuditLog> AuditLogs => Set<AuditLog>();
 
         protected override void OnModelCreating(ModelBuilder builder)
         {
@@ -69,6 +70,9 @@ namespace Mercurius.Repo.Repositories
             builder.Entity<Product>().HasIndex(p => p.IsActive);
             builder.Entity<Product>().HasIndex(p => p.CurrentStock);
             builder.Entity<Product>().HasIndex(p => p.SyncId).IsUnique();
+            // Not unique: products are tenant-scoped, and two tenants can legitimately stock the
+            // same manufacturer barcode.
+            builder.Entity<Product>().HasIndex(p => p.Barcode);
 
             builder.Entity<Invoice>().HasIndex(i => i.InvoiceNumber).IsUnique();
             builder.Entity<Invoice>().HasIndex(i => i.CustomerId);
@@ -110,6 +114,12 @@ namespace Mercurius.Repo.Repositories
             builder.Entity<ZeroStockSaleAuditLog>().HasIndex(z => z.ProductId);
             builder.Entity<ZeroStockSaleAuditLog>().HasIndex(z => z.InvoiceId);
             builder.Entity<ZeroStockSaleAuditLog>().HasIndex(z => z.SaleDate);
+
+            // The Audit Trail page always filters by tenant and sorts newest-first.
+            builder.Entity<AuditLog>().HasIndex(a => new { a.TenantId, a.TimestampUtc });
+            builder.Entity<AuditLog>().HasIndex(a => a.UserId);
+            builder.Entity<AuditLog>().HasIndex(a => new { a.EntityType, a.EntityId });
+            builder.Entity<AuditLog>().HasIndex(a => a.CorrelationId);
 
             builder.Entity<InvoiceItemRefund>().HasIndex(r => r.InvoiceId);
             builder.Entity<InvoiceItemRefund>().HasIndex(r => r.InvoiceItemId);

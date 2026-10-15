@@ -317,6 +317,17 @@
                                     <span class="menu-title">System Logs</span>
                                 </a>
                             </div>
+                            @if (Model.CanViewAuditTrail)
+                            {
+                                <div class="menu-item">
+                                    <a class="menu-link" href="/AuditTrail">
+                                        <span class="menu-bullet">
+                                            <span class="bullet bullet-dot"></span>
+                                        </span>
+                                        <span class="menu-title">Audit Trail</span>
+                                    </a>
+                                </div>
+                            }
                             @if (User.HasClaim(Mercurius.Common.Constants.MercuriusClaimTypes.AccessPages, Mercurius.Common.ModuleRegistry.Pages.CONFIG_CATEGORY_FIELDS))
                             {
                                 <div class="menu-item">

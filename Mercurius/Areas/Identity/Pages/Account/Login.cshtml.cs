@@ -26,11 +26,23 @@ namespace Mercurius.Areas.Identity.Pages.Account
     {
         private readonly SignInManager<MercuriusUser> _signInManager;
         private readonly ILogger<LoginModel> _logger;
+        private readonly Mercurius.Services.Auditing.IAuditLogger _auditLogger;
 
-        public LoginModel(SignInManager<MercuriusUser> signInManager, ILogger<LoginModel> logger)
+        public LoginModel(SignInManager<MercuriusUser> signInManager, ILogger<LoginModel> logger, Mercurius.Services.Auditing.IAuditLogger auditLogger)
         {
             _signInManager = signInManager;
             _logger = logger;
+            _auditLogger = auditLogger;
+        }
+
+        private async Task AuditLoginAsync(string action, string summary)
+        {
+            // HttpContext.User is still anonymous at this point, so name the actor explicitly —
+            // or, for an unknown email, record just what was typed.
+            var user = await _signInManager.UserManager.FindByEmailAsync(Input.Email);
+            var actor = new Mercurius.Services.Auditing.AuditActor(user?.Id, user?.Email ?? Input.Email, user?.TenantId);
+            await _auditLogger.LogAsync(action, summary, new { email = Input.Email, channel = "Web" }, actor,
+                entityType: user != null ? "MercuriusUser" : null, entityId: user?.Id);
         }
 
         /// <summary>
@@ -123,6 +135,7 @@ namespace Mercurius.Areas.Identity.Pages.Account
                 {
                     // Role claims are merged into the principal by MercuriusClaimsPrincipalFactory at sign-in.
                     _logger.LogInformation("User logged in.");
+                    await AuditLoginAsync(Mercurius.Services.Auditing.AuditActions.LoginSucceeded, $"Signed in to the web app as {Input.Email}");
                     return LocalRedirect(returnUrl);
                 }
                 if (result.RequiresTwoFactor)
@@ -132,10 +145,12 @@ namespace Mercurius.Areas.Identity.Pages.Account
                 if (result.IsLockedOut)
                 {
                     _logger.LogWarning("User account locked out.");
+                    await AuditLoginAsync(Mercurius.Services.Auditing.AuditActions.LockedOut, $"Web sign-in blocked — account locked out: {Input.Email}");
                     return RedirectToPage("./Lockout");
                 }
                 else
                 {
+                    await AuditLoginAsync(Mercurius.Services.Auditing.AuditActions.LoginFailed, $"Failed web sign-in attempt for {Input.Email}");
                     ModelState.AddModelError(string.Empty, "Invalid login attempt.");
                     return Page();
                 }

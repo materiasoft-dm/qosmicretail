@@ -86,7 +86,9 @@ public class SalesPageTests : MercuriusMobileTestBase
         Assert.True(ExistsById("ProductsGridView"));
         Assert.False(ExistsById("ProductsListView"));
 
-        Tap("ViewToggleButton");
+        // The toggle is a two-segment switch (Tiles | List) now, not one button whose icon flips —
+        // each segment has its own id and selects that mode explicitly rather than toggling.
+        Tap("ListViewButton");
         Thread.Sleep(300);
 
         Assert.False(ExistsById("ProductsGridView"));
@@ -95,8 +97,8 @@ public class SalesPageTests : MercuriusMobileTestBase
         Assert.Equal("₱25.00", ById("ProductPrice_E2E-ALPHA-001").Text);
         Assert.Contains("0", ById("ProductStock_E2E-BETA-002").Text);
 
-        // Toggle back — leave the page in its default (grid) state for later tests.
-        Tap("ViewToggleButton");
+        // Switch back — leave the page in its default (grid) state for later tests.
+        Tap("TileViewButton");
         Thread.Sleep(300);
         Assert.True(ExistsById("ProductsGridView"));
         Assert.False(ExistsById("ProductsListView"));

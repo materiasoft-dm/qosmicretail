@@ -2,6 +2,7 @@
 <ContentPage xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
              xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
              xmlns:data="clr-namespace:Mercurius.Mobile.Data"
+             xmlns:controls="clr-namespace:Mercurius.Mobile.Controls"
              x:Class="Mercurius.Mobile.ProductsPage"
              Title="Products">
 
@@ -9,12 +10,27 @@
 
         <!-- Header -->
         <Grid Grid.Row="0" ColumnDefinitions="*,Auto" BackgroundColor="{StaticResource Secondary}" Padding="32,26">
-            <VerticalStackLayout Grid.Column="0" Spacing="2">
-                <Label Text="Products" FontSize="24" FontAttributes="Bold" TextColor="{StaticResource White}" />
-                <Label x:Name="SyncStatusLabel" FontSize="13" TextColor="{StaticResource SecondaryDarkText}" />
-            </VerticalStackLayout>
-            <Border Grid.Column="1"
-                    StrokeShape="RoundRectangle 10"
+            <HorizontalStackLayout Grid.Column="0" Spacing="12">
+                <controls:MenuButton />
+                <VerticalStackLayout Spacing="2" VerticalOptions="Center">
+                    <Label Text="Products" FontSize="24" FontAttributes="Bold" TextColor="{StaticResource White}" />
+                    <Label x:Name="SyncStatusLabel" FontSize="13" TextColor="{StaticResource SecondaryDarkText}" />
+                </VerticalStackLayout>
+            </HorizontalStackLayout>
+            <HorizontalStackLayout Grid.Column="1" Spacing="12" VerticalOptions="Center">
+            <Button AutomationId="AddProductButton"
+                    Text="＋ Add Product"
+                    BackgroundColor="Transparent"
+                    TextColor="{StaticResource White}"
+                    BorderColor="{StaticResource Primary}"
+                    BorderWidth="1"
+                    CornerRadius="10"
+                    FontAttributes="Bold"
+                    Padding="18,0"
+                    HeightRequest="44"
+                    VerticalOptions="Center"
+                    Clicked="OnAddProductClicked" />
+            <Border StrokeShape="RoundRectangle 10"
                     Stroke="Transparent"
                     BackgroundColor="{StaticResource Primary}"
                     Padding="18,0"
@@ -26,6 +42,7 @@
                                        Color="{StaticResource White}"
                                        WidthRequest="16" HeightRequest="16" VerticalOptions="Center" />
                     <Button x:Name="SyncButton" Grid.Column="1"
+                            AutomationId="ProductsSyncButton"
                             Text="Sync Now"
                             BackgroundColor="Transparent"
                             TextColor="{StaticResource White}"
@@ -37,6 +54,7 @@
                             Clicked="OnSyncButtonClicked" />
                 </Grid>
             </Border>
+            </HorizontalStackLayout>
         </Grid>
 
         <ScrollView Grid.Row="1">
@@ -54,6 +72,7 @@
                             HorizontalOptions="Start">
                         <Grid ColumnDefinitions="*,Auto">
                             <Entry x:Name="SearchEntry"
+                                   AutomationId="ProductsPageSearchEntry"
                                    Grid.Column="0"
                                    Placeholder="Search by name, SKU, or category"
                                    TextColor="{StaticResource MidnightBlue}"
@@ -75,7 +94,7 @@
                             Padding="14,0"
                             HeightRequest="30"
                             VerticalOptions="Center">
-                        <Label x:Name="ProductCountBadge" Text="0 items" FontSize="12" FontAttributes="Bold"
+                        <Label x:Name="ProductCountBadge" AutomationId="ProductCountBadge" Text="0 items" FontSize="12" FontAttributes="Bold"
                                TextColor="{StaticResource Gray500}" VerticalOptions="Center" />
                     </Border>
                 </Grid>
@@ -112,6 +131,10 @@
                                     <CollectionView.ItemTemplate>
                                         <DataTemplate x:DataType="data:LocalProduct">
                                             <Grid>
+                                                <!-- Tap a row to edit that product. -->
+                                                <Grid.GestureRecognizers>
+                                                    <TapGestureRecognizer Tapped="OnProductRowTapped" CommandParameter="{Binding .}" />
+                                                </Grid.GestureRecognizers>
                                                 <Grid.RowDefinitions>
                                                     <RowDefinition Height="Auto" />
                                                     <RowDefinition Height="Auto" />

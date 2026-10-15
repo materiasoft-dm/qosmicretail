@@ -83,6 +83,7 @@ namespace Mercurius.Common
                     ModuleRegistry.Pages.ADMIN_ROLES_MANAGEMENT,
                     ModuleRegistry.Pages.ADMIN_USERS_MANAGEMENT,
                     ModuleRegistry.Pages.ADMIN_DATA_QUERY,
+                    ModuleRegistry.Pages.ADMIN_AUDIT_TRAIL,
                     ModuleRegistry.Pages.WHOLESALE_INDEX,
                     ModuleRegistry.Pages.WHOLESALE_DELETE,
             ModuleRegistry.Pages.WHOLESALE_VIEW
@@ -166,6 +167,7 @@ namespace Mercurius.Common
             public const string ADMIN_USERS_MANAGEMENT = "ADMIN - User management";
             public const string ADMIN_ROLES_MANAGEMENT = "ADMIN - Roles management";
             public const string ADMIN_DATA_QUERY = "ADMIN - Data Query";
+            public const string ADMIN_AUDIT_TRAIL = "ADMIN - Audit Trail";
 
             public const string WHOLESALE_INDEX = "Whole Sale List Page";
             public const string WHOLESALE_DELETE = "Whole Sale Delete";

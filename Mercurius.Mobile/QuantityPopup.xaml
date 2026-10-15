@@ -1,0 +1,107 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<toolkit:Popup xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
+               xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+               xmlns:toolkit="http://schemas.microsoft.com/dotnet/2022/maui/toolkit"
+               x:Class="Mercurius.Mobile.QuantityPopup"
+               Size="320,340"
+               Color="Transparent">
+
+    <Border StrokeShape="RoundRectangle 16"
+            Stroke="{StaticResource Gray100}"
+            BackgroundColor="{StaticResource White}"
+            Padding="24"
+            StrokeThickness="1">
+        <Border.Shadow>
+            <Shadow Brush="Black" Opacity="0.15" Radius="12" Offset="0,4" />
+        </Border.Shadow>
+        <VerticalStackLayout Spacing="18">
+
+            <Label x:Name="ItemNameLabel"
+                   FontSize="16" FontAttributes="Bold"
+                   TextColor="{StaticResource MidnightBlue}"
+                   HorizontalOptions="Center"
+                   HorizontalTextAlignment="Center"
+                   LineBreakMode="TailTruncation" MaxLines="2" />
+
+            <Label Text="Quantity"
+                   FontSize="12" TextColor="{StaticResource Gray400}"
+                   HorizontalOptions="Center" />
+
+            <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="12" HorizontalOptions="Center">
+                <Border Grid.Column="0"
+                        StrokeShape="RoundRectangle 10"
+                        Stroke="{StaticResource Gray100}"
+                        BackgroundColor="#F5F6F8"
+                        WidthRequest="46" HeightRequest="46" Padding="0">
+                    <Button x:Name="MinusButton"
+                            AutomationId="QtyMinusButton"
+                            Text="&#8722;"
+                            FontSize="22"
+                            Padding="0"
+                            BackgroundColor="Transparent"
+                            TextColor="{StaticResource Gray500}"
+                            MinimumWidthRequest="0" MinimumHeightRequest="0"
+                            Clicked="OnMinusClicked" />
+                </Border>
+
+                <Border Grid.Column="1"
+                        StrokeShape="RoundRectangle 10"
+                        Stroke="{StaticResource Gray100}"
+                        BackgroundColor="{StaticResource White}"
+                        WidthRequest="90" HeightRequest="46" Padding="0">
+                    <Entry x:Name="QuantityEntry"
+                           AutomationId="QuantityEntry"
+                           Keyboard="Numeric"
+                           Text="1"
+                           FontSize="18" FontAttributes="Bold"
+                           TextColor="{StaticResource MidnightBlue}"
+                           HorizontalTextAlignment="Center"
+                           VerticalOptions="Center"
+                           Margin="8,0" />
+                </Border>
+
+                <Border Grid.Column="2"
+                        StrokeShape="RoundRectangle 10"
+                        Stroke="{StaticResource Gray100}"
+                        BackgroundColor="#F5F6F8"
+                        WidthRequest="46" HeightRequest="46" Padding="0">
+                    <Button x:Name="PlusButton"
+                            AutomationId="QtyPlusButton"
+                            Text="+"
+                            FontSize="22"
+                            Padding="0"
+                            BackgroundColor="Transparent"
+                            TextColor="{StaticResource Gray500}"
+                            MinimumWidthRequest="0" MinimumHeightRequest="0"
+                            Clicked="OnPlusClicked" />
+                </Border>
+            </Grid>
+
+            <Grid ColumnDefinitions="*,*" ColumnSpacing="10">
+                <Button x:Name="CancelButton"
+                        AutomationId="QtyCancelButton"
+                        Text="Cancel"
+                        HeightRequest="44"
+                        BackgroundColor="{StaticResource Gray100}"
+                        TextColor="{StaticResource Gray500}"
+                        Clicked="OnCancelClicked" />
+                <Button Grid.Column="1"
+                        x:Name="OkButton"
+                        AutomationId="QtyOkButton"
+                        Text="OK"
+                        HeightRequest="44"
+                        FontAttributes="Bold"
+                        Clicked="OnOkClicked" />
+            </Grid>
+
+            <Button x:Name="RemoveButton"
+                    AutomationId="QtyRemoveButton"
+                    Text="Remove Item"
+                    HeightRequest="44"
+                    BackgroundColor="#FDECEA"
+                    TextColor="#D32F2F"
+                    FontAttributes="Bold"
+                    Clicked="OnRemoveClicked" />
+        </VerticalStackLayout>
+    </Border>
+</toolkit:Popup>

@@ -49,8 +49,13 @@ namespace Mercurius.ViewComponents
                                   CheckAccessModule(Common.ModuleRegistry.Pages.CONFIG_SUPPLIERS) ||
                                   CheckAccessModule(Common.ModuleRegistry.Pages.CONFIG_ADJUSTMENT_REASONS) ||
                                   CheckAccessModule(Common.ModuleRegistry.Pages.CONFIG_REFUND_REASONS) ||
-                                  CheckAccessModule(Common.ModuleRegistry.Pages.CONFIG_DATABASE_BACKUPS),
-                CanViewUserList = isSuperAdmin || CheckAccessModule(Common.ModuleRegistry.Pages.ADMIN_USERS_MANAGEMENT)
+                                  CheckAccessModule(Common.ModuleRegistry.Pages.CONFIG_DATABASE_BACKUPS) ||
+                                  CheckAccessModule(Common.ModuleRegistry.Pages.ADMIN_AUDIT_TRAIL),
+                CanViewUserList = isSuperAdmin || CheckAccessModule(Common.ModuleRegistry.Pages.ADMIN_USERS_MANAGEMENT),
+                // Claim only — not the isSuperAdmin shortcut the links above use — so revoking the
+                // permission from a role actually hides the link. Administrator still gets it by
+                // default via startup seeding (every ModuleRegistry entry is granted to that role).
+                CanViewAuditTrail = CheckAccessModule(Common.ModuleRegistry.Pages.ADMIN_AUDIT_TRAIL)
             };
 
             return View(model);
@@ -82,5 +87,6 @@ namespace Mercurius.ViewComponents
         public bool CanViewAdjustmentReasons { get; set; }
         public bool CanViewRefundReasons { get; set; }
         public bool CanViewDatabaseBackups { get; set; }
+        public bool CanViewAuditTrail { get; set; }
     }
 }

@@ -81,7 +81,11 @@ inconsistent, surprise restriction. `Api/SyncController` (`[Authorize(Authentica
 JwtBearerDefaults.AuthenticationScheme)]`) exposes `GET .../pull?since=<utc timestamp>` and `POST
 .../push` for `products` and `invoices`:
 
-- **Products** fully support create-or-update via push (matched by `SyncId`).
+- **Products** fully support create-or-update via push (matched by `SyncId`) — the mobile app's
+  Products page can add and edit products. On *update*, `CurrentStock` from the device is ignored
+  (a device's copy can be stale; stock only moves via sales/adjustments/shipments); it's only
+  accepted on create, as opening stock. `Barcode`: `null` in a push means "keep the server's"
+  (older app builds), `""` means "cleared".
 - **Invoices** are create-once/idempotent by `SyncId` — a synced sale is a completed financial
   record; re-pushing the same `SyncId` is a safe no-op rather than overwriting it. Edits to a
   submitted sale should go through a refund/void flow, not sync. `PushInvoices` mirrors
@@ -103,6 +107,35 @@ JwtBearerDefaults.AuthenticationScheme)]`) exposes `GET .../pull?since=<utc time
 No refresh-token flow exists yet (access tokens are simply long-lived, `Jwt:AccessTokenDays`); add one
 if/when token revocation or shorter lifetimes become a real requirement.
 
+**Invoice push guarantees** (`PushInvoices`): each sale is its own transaction (a failed line rolls the
+whole sale back — previously the header committed first, and since a re-push of an existing SyncId is a
+no-op, a failed line was lost forever); a line whose product isn't on the server yet fails the sale
+(retryable) instead of being silently dropped; invoice numbers are computed per sale with a SyncId
+suffix (`INV-<ms>-XXXX`) — one timestamp per batch used to give every sale in an offline backlog the same
+number, violating the unique index and failing them all, forever. `EfUnitOfWork.RollbackTransactionAsync`
+also clears the change tracker so a rolled-back sale isn't re-attempted by the next save. The device may
+send `CashierUserId` (who rang it up); it's only trusted if that user is in the pusher's tenant.
+
+**Receipts pull** (`GET api/sync/receipts/pull?cursor&fromDate&take`): every sale in the tenant (all
+terminals + web), display-ready (branch/cashier/channel/terminal names, line items with product names and
+refunded quantities). Keyset-paged on (last-modified, Id) — a plain timestamp cursor either skips rows
+sharing the boundary timestamp or loops on them. `InvoiceChangeStampInterceptor` (registered before the
+audit interceptor) bumps `Invoice.UpdatedDate` whenever the invoice, its items, or its refund rows change —
+refunds never touched it before, so devices pulling "changed since" would never have seen them.
+`Invoice.SourceChannel`/`SourceDeviceId`/`SourceDeviceName` record where a sale was rung up (web
+checkouts also now record `CreatedBy`, which they never did).
+
+**Mobile sync strategy** (`Mercurius.Mobile/Services/SyncCoordinator.cs`): every trigger — login,
+checkout, Receipts page, a 2-minute timer, connectivity regained, app resumed — goes through one
+single-flight pass: push products → push sales → pull products → pull receipts (30-day window, cursor
+persisted per page, synced rows older than the window pruned). Pages must not call `SyncService`
+directly (concurrent passes can double-push). Local `Sales` is one table for this device's sales and
+everyone else's, keyed by SyncId: a pulled copy overwrites the local one and marks it synced (recovering
+pushes whose response was lost); unsynced rows are never overwritten, pruned, or deleted — logout
+(`ClearAllAsync`) keeps them, and `AppShell` warns before logging out with anything unsent.
+Android Back on a top-level page backgrounds the app instead of finishing the activity (finishing crashed
+MAUI when a text field was focused, and closing a till on one stray press is wrong anyway).
+
 ### Mobile selling flow (`SalesPage`, `PaymentPage`, `ReceiptsPage`)
 
 The mobile app's point-of-sale screen (`SalesPage`, the first Shell flyout item — the app now
@@ -116,8 +149,10 @@ rows in the same transaction, so the tile grid reflects the sale immediately —
 best-effort calls `SyncService.SyncSalesAsync()` to push it. If that fails (offline, server down),
 the sale simply stays in the local queue (`LocalSale.IsSynced == false`) and is retried on the next
 sync attempt from anywhere in the app; nothing about checkout itself requires connectivity.
-`ReceiptsPage` lists every local sale (synced or not, with a status badge) and its line items —
-useful for confirming what's still waiting to reach the server. Server-side stock/batch bookkeeping
+`ReceiptsPage` lists every sale the device knows about — its own (including ones still waiting to
+upload) plus every other terminal's and the web's, pulled via the receipts endpoint below — filterable
+by scope (this device / this branch / all branches), period, and search, with refund/void status and
+where each sale came from (terminal names are set per device in Settings). Server-side stock/batch bookkeeping
 for a pushed sale lives in `SyncController.PushInvoices` (see above), not in the mobile client.
 
 `LoginPage.xaml.cs` calls `SyncService.SyncProductsAsync()` right after a successful login, before
@@ -309,9 +344,214 @@ something that looks wrong):
   delays between rapid cart taps (`Thread.Sleep(1500)` in `CartTests`) reduce but don't eliminate
   it. A real fix means finding why that Grid's rows collapse, not just waiting longer.
 
+### Windows mobile end-to-end tests (`Mercurius.Mobile.UITests.Windows`)
+
+WinAppDriver drives the actual `Mercurius.Mobile` Windows build (WinUI3, `net10.0-windows10.0.19041.0`)
+— the Windows counterpart to `Mercurius.Mobile.UITests`' Appium/UiAutomator2 suite, covering the
+same flows (login/logout, search, cart, checkout + sync, grid/list toggle). Unlike the Android
+suite, `WindowsAppFixture` launches a genuinely fresh process every run (`AppiumOptions.App` points
+straight at the built `.exe`) rather than attaching to an already-running, manually-launched
+instance — there's no Fast-Deployment/`pm clear` complication on this platform, so a cold launch is
+just the standard thing to do.
+
+**One-time setup**:
+1. `winget install --id Microsoft.WindowsApplicationDriver` (needs interactive UAC approval — if it
+   hangs, that's why; approve the prompt or run from an already-elevated shell).
+2. Enable Windows **Developer Mode**: Settings → Privacy & security → For developers → toggle
+   "Developer Mode" on (also needs UAC approval; can't be flipped from an unelevated shell). Without
+   this, WinAppDriver starts and immediately exits with `Failed to initialize: 0x80004005` — confirmed
+   by actually trying to run this suite: `%TEMP%\mercurius-winappdriver-server.log` read
+   `Developer mode is not enabled. Enable it through Settings and restart Windows Application Driver`.
+   There is no unelevated or scripted workaround for this step.
+
+**Before running**: build the app first — this suite only launches whatever's already on disk, it
+doesn't build/deploy (mirrors the Android suite execing an already-built app, and
+`Mercurius.E2ETests` execing an already-built `Mercurius.dll`):
+```
+dotnet build -f net10.0-windows10.0.19041.0 -c Debug   # from Mercurius.Mobile/
+```
+Then, from `Mercurius.Mobile.UITests.Windows/`: `dotnet test` (or
+`--filter "FullyQualifiedName~ClassName"` for one class).
+
+**Pointing the app at a local dev server for controlled test data**: unlike the Android emulator
+(which needs the `10.0.2.2` host-loopback alias), the Windows build runs natively on the same
+machine as the dev server, so `Mercurius.Mobile/Configuration/ApiConfig.cs`'s `BaseUrl` can just be
+set to `http://localhost:5094` — no `0.0.0.0` binding or network-security-config exception needed.
+**Revert `BaseUrl` back to the live URL before shipping**, same caveat as the Android suite.
+
+**Deterministic test data**: this suite exercises the same two seeded products as the Android suite
+(`E2E Widget Alpha`/`E2E-ALPHA-001` and `E2E Widget Beta`/`E2E-BETA-002` — see that section above for
+exact values and the baseline-reset SQL). If both suites are being run against the same dev server,
+re-run that reset between suites too — `CheckoutAndSyncTests` performs one real sale in both.
+
+**Differences from the Android suite worth knowing** (see `MercuriusMobileWindowsTestBase`'s class
+comment for the full reasoning):
+- `AutomationId` maps straight through to WinUI3's own `AutomationId` for ordinary static XAML
+  elements — no `resource-id` concatenation or `content-desc` confusion the way Android needed.
+  This does NOT hold for every element; see the CollectionView/Border gotchas below.
+- No on-screen keyboard to occlude fields, so `SetText`/`Tap` don't need Android's
+  `HideKeyboard()`/`IsKeyboardShown()` dance.
+- No hamburger/drawer — `AppShell.xaml` sets `FlyoutBehavior=Locked` for the Desktop idiom, so the
+  sidebar is always visible and `NavigateTo` just clicks the flyout item by text directly.
+- The cart's `CartTests` drives `QuantityPopup` (tap a cart line → +/-/OK/Remove Item in the modal)
+  rather than per-line `Increment_`/`Decrement_`/`Remove_` steppers — `SalesPage.xaml`'s cart UI
+  moved to this popup-per-line model on both platforms; the Android suite's `CartTests.cs` was
+  brought in line with the same change.
+
+**Current state**: 18/20 tests passing consistently as of the run this section was last updated
+from. The remaining two are both downstream of the same external WinUI3 instability described
+below (one catches the crash mid-test as `Currently selected window has been closed`, the other is
+almost certainly the same run running slow/degraded in the window just before a crash) — not a new
+class of bug. Re-running usually clears both.
+
+**Gotchas found actually running this suite** (each confirmed against a real WinAppDriver session,
+not assumed — the fixes are in `Infrastructure/`, but the reasoning is worth knowing before
+"fixing" something that looks wrong):
+- **`Appium.WebDriver` must stay pinned below v5.** From v5 on, the .NET client is strict-W3C and
+  vendor-prefixes every non-standard capability (`App` → `appium:app`). WinAppDriver 1.2.2009.02003
+  (the current Microsoft release) only recognizes the unprefixed `app`/`appTopLevelWindow` keys and
+  rejects `appium:app` with `Bad capabilities. Specify either app or appTopLevelWindow to create a
+  session`. `4.4.5` is the last version whose `AddAdditionalCapability` sends capabilities
+  unprefixed — confirmed by dumping the actual capabilities dictionary each version builds. This
+  also means `WindowsDriver` is the older generic `WindowsDriver<WindowsElement>`, not the v6
+  non-generic form.
+- **`WinAppDriverServerFixture` must redirect the child's stdin.** WinAppDriver.exe blocks on a
+  console `ReadLine()` ("Press ENTER to exit.") to know when to shut down. Without
+  `RedirectStandardInput = true` in its `ProcessStartInfo`, it inherits the test runner's stdin —
+  which, under a non-interactive runner, is already at EOF — so that read returns immediately and
+  WinAppDriver exits right after printing "listening for requests", before the fixture's first
+  readiness poll ever lands.
+- **A WinUI `ContentDialog`'s own host window shares its title's Name.** The logout confirmation
+  (`DisplayAlertAsync("Log Out", ..., "Log Out", "Cancel")`) put FOUR elements named "Log Out" in
+  the tree — the dialog's own top-level window, its title text, the actual button, and (still
+  present off to the side) the flyout `MenuItem` that opened it — with the WINDOW first in document
+  order. A plain `WaitForText("Log Out").Click()` clicks that inert window and the dialog never
+  closes, silently blocking every test that runs afterward in the shared session. Fixed with
+  `WaitForButtonText`, which scopes to `@LocalizedControlType='button'`.
+- **`SendKeys` can silently no-op with no settle delay.** A diagnostic screenshot from a downstream
+  timeout showed a search field still genuinely empty (blinking caret, no characters) after a plain
+  `Click()` + `Clear()` + `SendKeys()` — a known WinAppDriver flakiness where `SendKeys` arriving
+  before the control finishes processing the preceding focus/click is dropped rather than queued.
+  `SetText` now adds a settle delay and verifies+retries (mirroring Android's `SetText`). The
+  verification itself has its own gotcha: a password `Entry`'s `Text` comes back as masked bullet
+  characters, and `GetAttribute("IsPassword")` does NOT reflect that on the live element-attribute
+  endpoint the way the static PageSource dump does (always reads back empty/false there) — so
+  verification falls back to a length-only check whenever the exact match fails, rather than trying
+  to detect password fields.
+- **A `CollectionView` item's own root element loses its bound `AutomationId` entirely on Windows,
+  in the MAUI version this app uses (10.0.20).** Confirmed by parsing a page-source dump as XML and
+  walking the tree: `ProductsListView`'s two real, correctly-rendered children came back as
+  `Microsoft.Maui.Controls.Platform.ItemTemplateContext` nodes with `AutomationId=""` — even though
+  the XAML binds one (`AutomationId="{Binding ProductCode, StringFormat='ProductTile_{0}'}"`, etc.).
+  Content NESTED inside that root keeps its own AutomationId fine (`ProductPrice_*`,
+  `ProductStock_*`, `Quantity_*`, `CartLineTotal_*` all work exactly as written) — only the item's
+  own outer wrapper (`ProductTile_*`, `CartLine_*`, `ClinicOption_*`) doesn't forward one. A fix
+  for this is in progress upstream ([dotnet/maui#38723](https://github.com/dotnet/maui/pull/38723),
+  still `[WIP]`/draft as of when this was investigated, targeting a future MAUI 11) — nothing
+  available in any shipped release today. Two ways to work around it, both now used in this suite:
+  1. **Tap a nested id instead of the root**, wherever one already exists (a click anywhere inside
+     the item's bounds still fires the root's own `TapGestureRecognizer` — this isn't a hack so
+     much as picking a different, working point inside the same clickable area). E.g.
+     `CartTests`/`CheckoutAndSyncTests`/`CheckoutTests` tap `ProductStock_*`/`CartLineTotal_*`, not
+     `ProductTile_*`/`CartLine_*`.
+  2. **Positional indexing into the container**, where no nested id exists at all (e.g. Settings'
+     clinic rows, whose only content is an unlabeled `Label`). `MercuriusMobileWindowsTestBase`'s
+     `CollectionItems(containerAutomationId)` / `CollectionItem(containerAutomationId, index)` get
+     the container's direct children by XPath position (`./*`) and return real, clickable elements
+     with correct bounds — no manual pixel math needed. `SettingsPageTests` uses this to find/tap
+     the first clinic row and read its name from its own child element's `Text`.
+- **A `Border` wrapping a single `Label` can *also* lose its own `AutomationId`, independent of the
+  CollectionView issue above.** `SalesPage.xaml`'s Tiles/List toggle (`TileViewButton`/
+  `ListViewButton`, both plain static XAML, not inside any `CollectionView`) hit the exact same
+  symptom — confirmed via the same page-source-as-XML technique: neither AutomationId appears
+  anywhere in the tree, while the wrapped Labels' own text-derived Names (`"▦ Tiles"`, `"☰ List"`)
+  do. Worked around the same way as case 1 above — `TapText("▦ Tiles")`/`TapText("☰ List")` instead
+  of `Tap("TileViewButton")`/`Tap("ListViewButton")`. Worth checking for on any OTHER
+  Border-wrapping-single-child element that isn't findable by its bound AutomationId — this isn't
+  necessarily CollectionView-specific.
+- **`ApiConfig.BaseUrl` pointed at the live site has none of this suite's fixture data — and
+  neither does the local dev server have data some OTHER hand-written test might assume.**
+  Confirmed via a read-only Admin Data Query API call against the live site:
+  `SELECT ... WHERE ProductCode IN ('E2E-ALPHA-001','E2E-BETA-002')` returned zero rows there.
+  Symmetrically, `CheckoutTests.cs` originally targeted a real live-catalog product ("Amoxicillin
+  250mg Capsule" / `AMOX-250`) that turned out not to exist on the LOCAL dev server either (same
+  query technique, zero rows) — once this suite standardized on the local server for controlled
+  data, that test just timed out forever waiting for a tile that could never appear. Converted it
+  to use `E2E-ALPHA-001` like the rest of the suite. Point `BaseUrl` at the local dev server (see
+  above), confirm/seed the fixture products there, and don't assume a product literally seen once
+  in a screenshot is available in whichever configuration is currently running.
+- **Selling the same fixture product from more than one test class means exact-stock assertions
+  race on execution order.** Once `CheckoutTests.cs` was also converted to sell
+  `E2E-ALPHA-001` (alongside `CheckoutAndSyncTests`), a hard-coded `Assert.Contains("49", ...)`
+  broke depending on which class's sale landed first. Fixed by asserting direction (stock strictly
+  decreased) instead of an exact value — same pattern `SalesPageTests` already used for the same
+  reason, now widened from a 2-value tolerance (50 or 49) to a 3-value range (48–50).
+- **View mode (Tiles/List) is persisted via `Preferences`, which survives process relaunches —
+  including `WindowsAppFixture`'s crash-recovery ones.** A run that leaves the app in List view
+  (e.g. an interrupted `ViewToggle` test) means every subsequent run starts in List view too, not
+  just later tests in the same run. `SalesPageTests.ClearSearch()` now force-switches back to Tiles
+  at the start of every test rather than assuming the default.
+- **The launched window isn't reliably maximized.** A diagnostic screenshot showed the app at a
+  small default size with the Windows taskbar visible below it — and `SalesPage`'s Tiles/List
+  toggle footer, at the bottom of the products panel, was pushed entirely out of the rendered
+  viewport (not just off-screen-but-scrollable; `WaitForId` genuinely couldn't find it). This
+  matters more than it might on a simpler page because the local dev server's synced catalog is
+  large — the developer's whole real product list, hundreds of rows (see the Android E2E section's
+  same observation) — making the page tall enough for window size to matter.
+  `WindowsAppFixture.LaunchSession()` now calls `Driver.Manage().Window.Maximize()` right after
+  creating the session, on both the initial launch and every crash-recovery relaunch.
+- **A real, external, cumulative WinUI3 instability — confirmed, partially mitigated, not fully
+  fixable from here.** Multiple full-suite runs hit a native crash in `Microsoft.ui.xaml.dll`
+  itself (Windows Event Log: `Faulting module name: Microsoft.UI.Xaml.dll`, exception code
+  `0xc000027b`, confirmed via `Get-WinEvent`, not inferred), killing `Mercurius.Mobile.exe` outright
+  partway through a run. It is NOT tied to one specific action — the exact same crash offset
+  recurred even after removing the one confirmed API misuse that matched it (see the `PaymentPage`
+  entry below), and it lands at a fairly consistent point in a run (after roughly a dozen-plus
+  popup/dialog/navigation interactions have accumulated), consistent with a leaked native
+  reference count tipping over rather than one bad call — matches the "bad refcount... during popup
+  destruction" root-cause language in a related upstream report
+  ([microsoft/microsoft-ui-xaml#10279](https://github.com/microsoft/microsoft-ui-xaml/issues/10279)).
+  `WindowsAppFixture.EnsureSessionAlive()` (called at the start of every test, via
+  `MercuriusMobileWindowsTestBase`'s constructor) detects a dead session and relaunches against the
+  same still-running WinAppDriver server, which is what took this suite from cascading to a full
+  stop (4/20) to a stable majority passing (18/20) — but it can't save a test that happens to be
+  *running* when the crash lands mid-test, or a test running in the degraded window just before one.
+  Expect an occasional `Currently selected window has been closed` or unusually slow test near the
+  middle-to-end of a full run; a re-run of just that test almost always passes. If this ever needs
+  a real fix rather than a mitigation, start from PR #38723 (the same in-progress upstream MAUI fix
+  referenced above, which also touches Windows CollectionView/popup handling) — no released version
+  has it yet.
+- **One confirmed, real production bug fixed along the way**: `PaymentPage` used
+  `Navigation.PushModalAsync`/`PopModalAsync`, which is a documented, still-open upstream bug
+  ([microsoft/microsoft-ui-xaml#10897](https://github.com/microsoft/microsoft-ui-xaml/issues/10897))
+  that fatally crashes MAUI apps on Windows when closing a modal page this way — this would have
+  crashed for a real cashier tapping Cancel or completing a cash/card sale, not just under test
+  automation. Converted to a `CommunityToolkit.Maui.Views.Popup`, matching the already-working
+  pattern `QuantityPopup`/`CategoryPickerPopup` already used elsewhere in this same file's
+  neighborhood. This did NOT turn out to be the (sole) cause of the broader crash above — the same
+  crash signature persisted afterward — but it's a legitimate fix in its own right regardless.
+
 ### FIFO batch pricing (`BatchPricingService`)
 
 `MedicineBatch` rows (created via `MedicineBatchesController`, one per stock receipt) each carry their own `UnitCost`/`UnitSalePrice`. A new shipment at a different price is just a new batch queued behind older stock — `SalesController.NewSale` calls `BatchPricingService.FindFulfillingBatchAsync` to pick, oldest first, the first batch whose `RemainingQuantity` alone covers the full line quantity; if the oldest batch falls short, the *whole* line is priced and drawn from the next batch that can cover it rather than splitting across two batches' ledgers (a deliberate simplification, confirmed with the product owner). `InvoiceItem.MedicineBatchId` records which batch a line was actually priced/deducted from, for refund credit and lot-recall tracing. Products with no batches at all (most non-drug items) fall back to `Product.CurrentSalePrice`/`CurrentCostPrice` unchanged — this feature is purely additive. `BatchPricingService.RefreshActivePriceAsync` keeps those flat fields in sync with whichever batch is now the oldest non-depleted one, so every screen that reads them (Products list, DataTables, the mobile sync API) keeps working without knowing batches exist.
+
+### Audit trail (`AuditLog`, Settings → Audit Trail)
+
+Every insert/update/delete through EF is recorded automatically by
+`Mercurius.Repo/Repositories/Auditing/AuditSaveChangesInterceptor` (registered per-request in
+`Program.cs`'s `AddDbContext`) — no controller needs to remember to log. Each row carries who
+(user id/email), branch (the mobile device's clinic via `X-Location-Id`, else the user's
+`UserCurrentLocation`), source (Web/MobileApp/Api/System), device (mobile `X-Device-*` headers),
+IP, user agent, request path, and a request id (`TraceIdentifier`, so all rows from one sale can be
+pulled up together), plus a JSON diff of what changed (secrets masked). Updates that change no
+values are skipped; `IsActive` true→false is labeled `Deactivated` (this codebase soft-deletes).
+Things with no EF write of their own are logged explicitly via `IAuditLogger`: web/Blazor/mobile
+sign-in (success, failure, lockout), sign-out, and every raw-SQL console statement
+(`DataQueryController` — raw SQL and `ExecuteUpdate`/`ExecuteDelete` bypass the interceptor).
+`AuditLog` is intentionally *not* `ITenantScoped` (failed sign-ins for unknown emails have no
+tenant); `AuditTrailController` filters by tenant explicitly. Viewing is gated by the
+`ADMIN - Audit Trail` permission, grantable/revocable per role in Roles management. Reads are not
+audited.
 
 ### Repository pattern — controllers never touch `DbContext` directly
 
