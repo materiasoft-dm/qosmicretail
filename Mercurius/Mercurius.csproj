@@ -28,16 +28,18 @@
 
   <ItemGroup>
     <PackageReference Include="CsvHelper" Version="33.1.0" />
-    <PackageReference Include="Microsoft.AspNetCore.Authentication.JwtBearer" Version="10.0.12" />
-    <PackageReference Include="Microsoft.AspNetCore.Components.WebAssembly.Server" Version="10.0.12" />
-    <PackageReference Include="Microsoft.EntityFrameworkCore.Sqlite" Version="10.0.12" />
-    <PackageReference Include="Microsoft.EntityFrameworkCore.SqlServer" Version="10.0.12" />
-    <PackageReference Include="Microsoft.EntityFrameworkCore.Design" Version="10.0.12">
+    <PackageReference Include="Microsoft.AspNetCore.Authentication.JwtBearer" Version="10.0.13" />
+    <PackageReference Include="Microsoft.AspNetCore.Components.WebAssembly.Server" Version="10.0.13" />
+    <PackageReference Include="Microsoft.EntityFrameworkCore.Sqlite" Version="10.0.13" />
+    <PackageReference Include="Microsoft.EntityFrameworkCore.SqlServer" Version="10.0.13" />
+    <PackageReference Include="Microsoft.EntityFrameworkCore.Design" Version="10.0.13">
       <PrivateAssets>all</PrivateAssets>
       <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
     </PackageReference>
     <PackageReference Include="Net.Codecrete.QrCodeGenerator" Version="3.2.1" />
     <PackageReference Include="System.IdentityModel.Tokens.Jwt" Version="8.23.0" />
+    <!-- Pins Microsoft.Data.SqlClient's transitive copy (9.0.11) past known vulnerabilities. -->
+    <PackageReference Include="System.Security.Cryptography.Pkcs" Version="10.0.13" />
   </ItemGroup>
 
   <ItemGroup>
