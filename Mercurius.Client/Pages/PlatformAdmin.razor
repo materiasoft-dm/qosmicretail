@@ -1,7 +1,9 @@
 @page "/platform-admin"
 @attribute [Authorize(Policy = "PlatformAdmin")]
+@using Mercurius.Client.Pages.Dialogs
 @inject AdminToolsApiClient Api
 @inject ISnackbar Snackbar
+@inject IDialogService DialogService
 
 <PageTitle>Platform Admin</PageTitle>
 
@@ -24,9 +26,11 @@
         <MudGrid Spacing="2">
             <MudItem xs="12" md="6"><MudTextField @bind-Value="_request.TenantName" Label="Business name" Variant="Variant.Outlined" Required="true" /></MudItem>
             <MudItem xs="12" md="6"><MudTextField @bind-Value="_request.FirstLocationName" Label="First branch" Variant="Variant.Outlined" Required="true" /></MudItem>
-            <MudItem xs="12"><MudText Typo="Typo.subtitle2">Its administrator</MudText></MudItem>
-            <MudItem xs="12" md="6"><MudTextField @bind-Value="_request.AdminFirstName" Label="First name" Variant="Variant.Outlined" Required="true" /></MudItem>
-            <MudItem xs="12" md="6"><MudTextField @bind-Value="_request.AdminLastName" Label="Last name" Variant="Variant.Outlined" Required="true" /></MudItem>
+            <MudItem xs="12" md="8"><MudTextField @bind-Value="_request.Address" Label="Address" Variant="Variant.Outlined" MaxLength="500" /></MudItem>
+            <MudItem xs="12" md="4">
+                <MudTextField @bind-Value="_request.ContactNumber" Label="Contact number" Variant="Variant.Outlined" MaxLength="50" InputType="InputType.Telephone" />
+            </MudItem>
+            <MudItem xs="12"><MudText Typo="Typo.subtitle2">Administrator sign-in</MudText></MudItem>
             <MudItem xs="12" md="6"><MudTextField @bind-Value="_request.AdminEmail" Label="Email (sign-in)" InputType="InputType.Email" Variant="Variant.Outlined" Required="true" /></MudItem>
             <MudItem xs="12" md="6">
                 <MudTextField @bind-Value="_request.AdminPassword" Label="Password" InputType="InputType.Password" Variant="Variant.Outlined" Required="true" autocomplete="new-password" />
@@ -48,12 +52,20 @@
         <HeaderContent>
             <MudTh>Id</MudTh>
             <MudTh>Name</MudTh>
+            <MudTh>Contact number</MudTh>
+            <MudTh Style="text-align:right;">Branches</MudTh>
+            <MudTh Style="text-align:right;">Users</MudTh>
             <MudTh>Status</MudTh>
             <MudTh>Created</MudTh>
         </HeaderContent>
         <RowTemplate>
             <MudTd DataLabel="Id">@context.Id</MudTd>
-            <MudTd DataLabel="Name">@context.Name</MudTd>
+            <MudTd DataLabel="Name">
+                <button type="button" class="tenant-link" @onclick="@(() => OpenTenantAsync(context))">@context.Name</button>
+            </MudTd>
+            <MudTd DataLabel="Contact number">@(string.IsNullOrWhiteSpace(context.ContactNumber) ? "—" : context.ContactNumber)</MudTd>
+            <MudTd DataLabel="Branches" Style="text-align:right;">@context.BranchCount</MudTd>
+            <MudTd DataLabel="Users" Style="text-align:right;">@context.UserCount</MudTd>
             <MudTd DataLabel="Status">
                 <MudChip T="string" Size="Size.Small" Color="@(context.IsActive ? Color.Success : Color.Default)">@(context.IsActive ? "Active" : "Inactive")</MudChip>
             </MudTd>
@@ -73,6 +85,15 @@
     {
         if (!RendererInfo.IsInteractive) return; // prerendering: show the loading state; the browser loads the data
         _tenants = await Api.GetTenantsAsync();
+    }
+
+    private async Task OpenTenantAsync(TenantDto tenant)
+    {
+        var parameters = new DialogParameters<TenantDialog> { { d => d.Tenant, tenant } };
+        var dialog = await DialogService.ShowAsync<TenantDialog>("Tenant details", parameters,
+            new DialogOptions { MaxWidth = MaxWidth.Small, FullWidth = true, CloseButton = true });
+        var result = await dialog.Result;
+        if (result is { Canceled: false }) _tenants = await Api.GetTenantsAsync();
     }
 
     private void ShowCreate()

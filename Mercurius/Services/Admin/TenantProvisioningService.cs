@@ -38,7 +38,7 @@ namespace Mercurius.Services.Admin
         }
 
         public async Task<TenantProvisioningResult> CreateAsync(string tenantName, string firstLocationName,
-            string adminEmail, string adminFirstName, string adminLastName, string adminPassword, CancellationToken ct)
+            string? tenantAddress, string? tenantContactNumber, string adminEmail, string adminPassword, CancellationToken ct)
         {
             if (await _userManager.FindByEmailAsync(adminEmail) != null)
             {
@@ -48,7 +48,14 @@ namespace Mercurius.Services.Admin
             await _unitOfWork.BeginTransactionAsync(ct);
             try
             {
-                var tenant = new Tenant { Name = tenantName.Trim(), IsActive = true, CreatedDate = DateTime.UtcNow };
+                var tenant = new Tenant
+                {
+                    Name = tenantName.Trim(),
+                    Address = string.IsNullOrWhiteSpace(tenantAddress) ? null : tenantAddress.Trim(),
+                    ContactNumber = string.IsNullOrWhiteSpace(tenantContactNumber) ? null : tenantContactNumber.Trim(),
+                    IsActive = true,
+                    CreatedDate = DateTime.UtcNow
+                };
                 await _unitOfWork.Repository<Tenant>().AddAsync(tenant, ct);
                 await _unitOfWork.SaveChangesAsync(ct);
 
@@ -75,8 +82,9 @@ namespace Mercurius.Services.Admin
                     UserName = adminEmail,
                     Email = adminEmail,
                     EmailConfirmed = true,
-                    FirstName = adminFirstName,
-                    LastName = adminLastName,
+                    // Same as the seeded default admin; they can change it under Account settings.
+                    FirstName = "Admin",
+                    LastName = "User",
                     TenantId = tenant.Id
                 };
                 var createResult = await _userManager.CreateAsync(adminUser, adminPassword);

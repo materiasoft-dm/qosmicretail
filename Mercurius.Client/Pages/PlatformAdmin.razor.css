@@ -1,0 +1,22 @@
+/* Tenant names open their details dialog. A real button, so it works from the keyboard too. */
+.tenant-link {
+    padding: 0;
+    border: none;
+    background: none;
+    font: inherit;
+    font-weight: 600;
+    color: var(--mud-palette-primary);
+    text-align: left;
+    cursor: pointer;
+}
+
+    .tenant-link:hover {
+        text-decoration: underline;
+        text-underline-offset: 3px;
+    }
+
+    .tenant-link:focus-visible {
+        outline: none;
+        border-radius: 4px;
+        box-shadow: 0 0 0 3px rgba(56, 189, 248, .35);
+    }

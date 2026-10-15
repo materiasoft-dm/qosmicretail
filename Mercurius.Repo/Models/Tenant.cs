@@ -15,6 +15,13 @@ namespace Mercurius.Repo.Models
         [Required]
         public string Name { get; set; }
 
+        // The business's own details (shown and edited on the Tenants page). Optional.
+        [StringLength(500)]
+        public string? Address { get; set; }
+
+        [StringLength(50)]
+        public string? ContactNumber { get; set; }
+
         public bool IsActive { get; set; } = true;
 
         public DateTime CreatedDate { get; set; }

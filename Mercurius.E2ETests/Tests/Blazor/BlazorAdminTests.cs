@@ -96,8 +96,8 @@ public class BlazorAdminTests : BlazorTestBase
         await Page.GetByRole(AriaRole.Button, new PageGetByRoleOptions { Name = "New tenant" }).ClickAsync();
         await FillFieldAsync("Business name", business);
         await FillFieldAsync("First branch", $"Branch {stamp}");
-        await FillFieldAsync("First name", "Tenant");
-        await FillFieldAsync("Last name", "Admin");
+        await FillFieldAsync("Address", "12 Rizal Ave, Manila");
+        await FillFieldAsync("Contact number", "0917 555 0101");
         await FillFieldAsync("Email (sign-in)", email);
         await FillFieldAsync("Password", password);
         await Page.GetByRole(AriaRole.Button, new PageGetByRoleOptions { Name = "Create tenant" }).ClickAsync();
@@ -124,6 +124,51 @@ public class BlazorAdminTests : BlazorTestBase
         // And the app's own chrome doesn't offer Tenants to a non-platform admin.
         await GotoAppAsync("");
         await Assertions.Expect(Page.Locator(".sidebar-nav").GetByText("Tenants", new LocatorGetByTextOptions { Exact = true })).ToHaveCountAsync(0);
+        await AssertNoBlazorErrorAsync();
+    }
+
+    /// <summary>
+    /// Clicking a tenant's name opens its details (read-only, with Edit and Close); Edit turns the
+    /// dialog into a form, and saving updates both the dialog and the list.
+    /// </summary>
+    [Fact]
+    public async Task PlatformAdmin_TenantDetails_ShowAndEdit()
+    {
+        await LoginAsAdminAsync();
+        var stamp = Stamp();
+        var business = $"E2E Details Pharmacy {stamp}";
+
+        await GotoAppAsync("platform-admin");
+        await Page.GetByRole(AriaRole.Button, new PageGetByRoleOptions { Name = "New tenant" }).ClickAsync();
+        await FillFieldAsync("Business name", business);
+        await FillFieldAsync("First branch", $"Branch {stamp}");
+        await FillFieldAsync("Address", "1 Old Street");
+        await FillFieldAsync("Contact number", "0917 000 0000");
+        await FillFieldAsync("Email (sign-in)", $"details-{stamp}@example.com");
+        await FillFieldAsync("Password", "Tenant@12345");
+        await Page.GetByRole(AriaRole.Button, new PageGetByRoleOptions { Name = "Create tenant" }).ClickAsync();
+
+        var link = Page.Locator("button.tenant-link", new PageLocatorOptions { HasTextString = business });
+        await link.ClickAsync(new LocatorClickOptions { Timeout = UiTimeoutMs });
+        var dialog = Page.Locator(".mud-dialog");
+        await Assertions.Expect(dialog).ToContainTextAsync("1 Old Street", new LocatorAssertionsToContainTextOptions { Timeout = UiTimeoutMs });
+        await Assertions.Expect(dialog).ToContainTextAsync("0917 000 0000");
+        await Assertions.Expect(dialog.Locator(".mud-dialog-actions").GetByRole(AriaRole.Button, new LocatorGetByRoleOptions { Name = "Close", Exact = true })).ToBeVisibleAsync();
+
+        await dialog.GetByRole(AriaRole.Button, new LocatorGetByRoleOptions { Name = "Edit", Exact = true }).ClickAsync();
+        await FillFieldAsync(Page.Locator("#tenantAddress"), "99 New Avenue, Cebu");
+        await FillFieldAsync(Page.Locator("#tenantContact"), "0918 123 4567");
+        await dialog.GetByRole(AriaRole.Button, new LocatorGetByRoleOptions { Name = "Save changes" }).ClickAsync();
+
+        // Back to the read-only view, showing the saved values.
+        await Assertions.Expect(dialog).ToContainTextAsync("99 New Avenue, Cebu", new LocatorAssertionsToContainTextOptions { Timeout = UiTimeoutMs });
+        await Assertions.Expect(dialog).ToContainTextAsync("0918 123 4567");
+        await dialog.Locator(".mud-dialog-actions").GetByRole(AriaRole.Button, new LocatorGetByRoleOptions { Name = "Close", Exact = true }).ClickAsync();
+        await Assertions.Expect(dialog).ToHaveCountAsync(0, new LocatorAssertionsToHaveCountOptions { Timeout = UiTimeoutMs });
+
+        // The list reloaded with the new contact number.
+        await Assertions.Expect(Rows.Filter(new LocatorFilterOptions { HasTextString = business })).ToContainTextAsync("0918 123 4567",
+            new LocatorAssertionsToContainTextOptions { Timeout = UiTimeoutMs });
         await AssertNoBlazorErrorAsync();
     }
 

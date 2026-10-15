@@ -5,6 +5,7 @@ using System.Linq;
 using System.Net.Mail;
 using System.Threading;
 using System.Threading.Tasks;
+using Mercurius.Repo.Models;
 using Mercurius.Repo.Repositories;
 using Mercurius.Services;
 using Mercurius.Services.Admin;
@@ -115,33 +116,83 @@ namespace Mercurius.Controllers.Api
         [HttpGet]
         public async Task<ActionResult<List<TenantDto>>> Get(CancellationToken ct = default)
         {
-            var tenants = await _dbContext.Tenants.IgnoreQueryFilters().OrderBy(t => t.Id)
-                .Select(t => new TenantDto { Id = t.Id, Name = t.Name, IsActive = t.IsActive, CreatedDate = t.CreatedDate })
-                .ToListAsync(ct);
-            return Ok(tenants);
+            var tenants = await _dbContext.Tenants.IgnoreQueryFilters().OrderBy(t => t.Id).ToListAsync(ct);
+            // Counts per tenant in one grouped query each (locations are tenant-filtered, hence
+            // IgnoreQueryFilters; users aren't filtered at all).
+            var branchCounts = await _dbContext.Locations.IgnoreQueryFilters()
+                .GroupBy(l => l.TenantId).Select(g => new { TenantId = g.Key, Count = g.Count() })
+                .ToDictionaryAsync(x => x.TenantId, x => x.Count, ct);
+            var userCounts = await _dbContext.Users
+                .GroupBy(u => u.TenantId).Select(g => new { TenantId = g.Key, Count = g.Count() })
+                .ToDictionaryAsync(x => x.TenantId, x => x.Count, ct);
+
+            return Ok(tenants.Select(t => ToDto(t,
+                branchCounts.TryGetValue(t.Id, out var branches) ? branches : 0,
+                userCounts.TryGetValue(t.Id, out var users) ? users : 0)).ToList());
         }
 
         [HttpPost]
         public async Task<IActionResult> Create(CreateTenantRequestDto request, CancellationToken ct = default)
         {
             if (string.IsNullOrWhiteSpace(request.TenantName) || string.IsNullOrWhiteSpace(request.FirstLocationName)
-                || string.IsNullOrWhiteSpace(request.AdminFirstName) || string.IsNullOrWhiteSpace(request.AdminLastName)
                 || string.IsNullOrWhiteSpace(request.AdminPassword))
             {
-                return BadRequest(new { error = "All fields are required." });
+                return BadRequest(new { error = "Business name, first branch, admin email and password are required." });
             }
             if (!MailAddress.TryCreate(request.AdminEmail?.Trim(), out _))
             {
                 return BadRequest(new { error = "Enter a valid admin email address." });
             }
+            var detailsError = ValidateDetails(request.Address, request.ContactNumber);
+            if (detailsError != null) return BadRequest(new { error = detailsError });
 
             var result = await _provisioning.CreateAsync(request.TenantName, request.FirstLocationName,
-                request.AdminEmail!.Trim(), request.AdminFirstName.Trim(), request.AdminLastName.Trim(), request.AdminPassword, ct);
+                request.Address, request.ContactNumber, request.AdminEmail!.Trim(), request.AdminPassword, ct);
             if (!result.Succeeded)
             {
                 return BadRequest(new { error = string.Join(" ", result.Errors) });
             }
-            return Ok(new TenantDto { Id = result.Tenant!.Id, Name = result.Tenant.Name, IsActive = result.Tenant.IsActive, CreatedDate = result.Tenant.CreatedDate });
+            return Ok(ToDto(result.Tenant!, branchCount: 1, userCount: 1));
         }
+
+        [HttpPut("{id:int}")]
+        public async Task<ActionResult<TenantDto>> Update(int id, UpdateTenantRequestDto request, CancellationToken ct = default)
+        {
+            if (string.IsNullOrWhiteSpace(request.Name))
+            {
+                return BadRequest(new { error = "Business name is required." });
+            }
+            var detailsError = ValidateDetails(request.Address, request.ContactNumber);
+            if (detailsError != null) return BadRequest(new { error = detailsError });
+
+            var tenant = await _dbContext.Tenants.IgnoreQueryFilters().FirstOrDefaultAsync(t => t.Id == id, ct);
+            if (tenant == null) return NotFound();
+
+            tenant.Name = request.Name.Trim();
+            tenant.Address = string.IsNullOrWhiteSpace(request.Address) ? null : request.Address.Trim();
+            tenant.ContactNumber = string.IsNullOrWhiteSpace(request.ContactNumber) ? null : request.ContactNumber.Trim();
+            await _dbContext.SaveChangesAsync(ct);
+
+            var branches = await _dbContext.Locations.IgnoreQueryFilters().CountAsync(l => l.TenantId == id, ct);
+            var users = await _dbContext.Users.CountAsync(u => u.TenantId == id, ct);
+            return Ok(ToDto(tenant, branches, users));
+        }
+
+        private static string? ValidateDetails(string? address, string? contactNumber) =>
+            address?.Trim().Length > 500 ? "The address can be at most 500 characters."
+            : contactNumber?.Trim().Length > 50 ? "The contact number can be at most 50 characters."
+            : null;
+
+        private static TenantDto ToDto(Tenant t, int branchCount, int userCount) => new()
+        {
+            Id = t.Id,
+            Name = t.Name,
+            Address = t.Address,
+            ContactNumber = t.ContactNumber,
+            IsActive = t.IsActive,
+            CreatedDate = t.CreatedDate,
+            BranchCount = branchCount,
+            UserCount = userCount
+        };
     }
 }

@@ -35,17 +35,29 @@ namespace Mercurius.Shared.Admin
     {
         public int Id { get; set; }
         public string Name { get; set; } = string.Empty;
+        public string? Address { get; set; }
+        public string? ContactNumber { get; set; }
         public bool IsActive { get; set; }
         public DateTime CreatedDate { get; set; }
+        public int BranchCount { get; set; }
+        public int UserCount { get; set; }
     }
 
     public class CreateTenantRequestDto
     {
         public string TenantName { get; set; } = string.Empty;
         public string FirstLocationName { get; set; } = "Main Branch";
+        public string? Address { get; set; }
+        public string? ContactNumber { get; set; }
         public string AdminEmail { get; set; } = string.Empty;
-        public string AdminFirstName { get; set; } = string.Empty;
-        public string AdminLastName { get; set; } = string.Empty;
         public string AdminPassword { get; set; } = string.Empty;
+    }
+
+    // Editing a tenant's own details from its details dialog on the Tenants page.
+    public class UpdateTenantRequestDto
+    {
+        public string Name { get; set; } = string.Empty;
+        public string? Address { get; set; }
+        public string? ContactNumber { get; set; }
     }
 }
