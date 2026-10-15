@@ -123,6 +123,10 @@ builder.Services.AddIdentityCore<MercuriusUser>(options =>
     options.Password.RequireUppercase = true;
     options.Password.RequireNonAlphanumeric = true;
     options.Password.RequiredLength = 8;
+    // The classic site's Identity UI (AddDefaultUI) set this, so every migration and the live
+    // schema have 128-character AspNetUserLogins/AspNetUserTokens key columns. Without it the
+    // model defaults to 450, and Migrate() would refuse to start over the pending model change.
+    options.Stores.MaxLengthForKeys = 128;
 })
     .AddRoles<IdentityRole>()
     .AddEntityFrameworkStores<MercuriusDbContext>()
