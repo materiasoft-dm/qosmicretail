@@ -121,8 +121,12 @@ public class BlazorAdminTests : BlazorTestBase
         Assert.Contains("/account/access-denied", Page.Url);
         Assert.Contains("ReturnUrl", Page.Url);
 
-        // And the app's own chrome doesn't offer Tenants to a non-platform admin.
-        await GotoAppAsync("");
+        // And the app doesn't offer Tenants to a non-platform admin: not in the sidebar, and not
+        // among the Settings page's cards (where the platform admin reaches it).
+        await GotoAppAsync("settings");
+        await Assertions.Expect(Page.Locator("article.content").GetByText("My account", new LocatorGetByTextOptions { Exact = true }))
+            .ToBeVisibleAsync(new LocatorAssertionsToBeVisibleOptions { Timeout = UiTimeoutMs });
+        await Assertions.Expect(Page.Locator("article.content").GetByText("Tenants", new LocatorGetByTextOptions { Exact = true })).ToHaveCountAsync(0);
         await Assertions.Expect(Page.Locator(".sidebar-nav").GetByText("Tenants", new LocatorGetByTextOptions { Exact = true })).ToHaveCountAsync(0);
         await AssertNoBlazorErrorAsync();
     }
