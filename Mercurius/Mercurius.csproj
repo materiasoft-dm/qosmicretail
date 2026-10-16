@@ -20,6 +20,13 @@
     <None Include="Downloads\**" CopyToPublishDirectory="PreserveNewest" />
   </ItemGroup>
 
+  <!-- Data Protection keys (Program.cs) belong to the machine that made them: never publish a
+       local key ring over the server's. -->
+  <ItemGroup>
+    <Content Remove="App_Data\**" />
+    <None Remove="App_Data\**" />
+  </ItemGroup>
+
   <!-- Product photos are uploaded at runtime on each server. Never publish a machine's local
        copies (e.g. test uploads) over the live site's. -->
   <ItemGroup>

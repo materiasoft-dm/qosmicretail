@@ -16,6 +16,9 @@ identity.db
 # Logs
 **/logs/
 
+# Data Protection keys (Program.cs) — secrets that encrypt sign-in cookies; each server keeps its own.
+**/App_Data/
+
 # Downloadable POS app builds (Mercurius.Mobile/publish-downloads.ps1) — ~100 MB each, far too big
 # for git; served by DownloadsController and shipped by publishing from the machine that built them.
 Mercurius/Downloads/
