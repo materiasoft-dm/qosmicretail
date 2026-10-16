@@ -46,6 +46,11 @@ public class SalesTests : BlazorTestBase
         await Assertions.Expect(Page.GetByText("Ticket is empty")).ToBeVisibleAsync(new LocatorAssertionsToBeVisibleOptions { Timeout = UiTimeoutMs });
         var toast = await WaitForToastAsync();
         Assert.Contains("Sale complete.", toast);
+
+        // A paid sale is saved as Completed (it used to be left as "Draft" forever). The newest
+        // invoice is the first row of the date-sorted list.
+        await GotoAppAsync("invoices");
+        await Assertions.Expect(FirstRow).ToContainTextAsync("Completed", new LocatorAssertionsToContainTextOptions { Timeout = UiTimeoutMs });
         await AssertNoBlazorErrorAsync();
     }
 }

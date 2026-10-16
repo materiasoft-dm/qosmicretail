@@ -143,7 +143,7 @@ namespace Mercurius.Controllers.Api
                 SyncId = syncId,
                 CustomerId = request.CustomerId > 0 ? request.CustomerId : (int?)null,
                 LocationId = locationId,
-                StatusId = (int)StatusCollection.InvoiceStatus.Draft,
+                StatusId = (int)StatusCollection.InvoiceStatus.Completed,
                 InvoiceDate = invoiceDateUtc,
                 InvoiceNumber = $"INV-{DateTime.UtcNow:yyyyMMddHHmmssfff}",
                 Notes = resolvedNotes,
@@ -183,7 +183,7 @@ namespace Mercurius.Controllers.Api
                         SalePrice = batch?.UnitSalePrice ?? product.CurrentSalePrice ?? 0,
                         CostPrice = batch?.UnitCost ?? product.CurrentCostPrice ?? 0,
                         MedicineBatchId = batch?.Id,
-                        StatusId = (int)StatusCollection.InvoiceStatus.Draft
+                        StatusId = (int)StatusCollection.InvoiceStatus.Completed
                     };
                     await _unitOfWork.Repository<InvoiceItem>().AddAsync(invoiceItem, ct);
                     grandTotal += invoiceItem.SalePrice * invoiceItem.Quantity;

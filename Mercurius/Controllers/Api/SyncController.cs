@@ -433,7 +433,7 @@ namespace Mercurius.Controllers.Api
                         InvoiceNumber = $"INV-{now:yyyyMMddHHmmssfff}-{item.SyncId.ToString("N").Substring(0, 4).ToUpperInvariant()}",
                         CustomerId = item.CustomerId,
                         LocationId = resolvedLocationId,
-                        StatusId = (int)StatusCollection.InvoiceStatus.Draft,
+                        StatusId = (int)StatusCollection.InvoiceStatus.Completed,
                         Notes = item.Notes,
                         PaidAmount = item.PaidAmount,
                         CreatedDate = now,
@@ -478,7 +478,7 @@ namespace Mercurius.Controllers.Api
                             CostPrice = lineItem.CostPrice,
                             MedicineBatchId = batch?.Id,
                             Remarks = lineItem.Remarks ?? "",
-                            StatusId = (int)StatusCollection.InvoiceStatus.Draft
+                            StatusId = (int)StatusCollection.InvoiceStatus.Completed
                         };
                         await _unitOfWork.Repository<InvoiceItem>().AddAsync(invoiceItem, ct);
 
