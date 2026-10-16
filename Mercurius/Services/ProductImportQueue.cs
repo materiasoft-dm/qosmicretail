@@ -12,6 +12,10 @@ namespace Mercurius.Services
         // The uploader's tenant, captured from the request that queued the job — the background
         // service has no signed-in user of its own (see HttpContextCurrentTenantContext).
         public int TenantId { get; set; }
+        // The uploader's current branch and user id: imported stock is recorded as adjustments
+        // in that branch, by that user.
+        public int LocationId { get; set; }
+        public System.Guid UserId { get; set; }
     }
 
     /// <summary>

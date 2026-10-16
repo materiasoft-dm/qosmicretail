@@ -112,6 +112,12 @@ namespace Mercurius.Services
             state.Status = "Importing";
             _tracker.AppendLog(job.JobId, $"Parsed {records.Count} rows. Starting import...");
 
+            // Stock from the file is recorded as adjustments (reason "Stock import"), resolved
+            // lazily: a file with no stock never creates the reason.
+            var adjustments = scope.ServiceProvider.GetRequiredService<AdjustmentService>();
+            AdjustmentReason? stockReason = null;
+            int? locationId = null;
+
             var rowNum = 1;
             foreach (var record in records)
             {
@@ -143,39 +149,79 @@ namespace Mercurius.Services
                             }
                         }
 
+                        var barcode = string.IsNullOrWhiteSpace(record.Barcode) ? null : record.Barcode.Trim();
+                        Product product;
+                        decimal stockChange;
+                        string adjustmentNote;
                         if (existingProduct != null)
                         {
                             existingProduct.Name = record.Name ?? existingProduct.Name;
                             existingProduct.Description = record.Description ?? existingProduct.Description;
                             existingProduct.CurrentCostPrice = record.CostPrice;
                             existingProduct.CurrentSalePrice = record.SalePrice;
-                            existingProduct.CurrentStock = record.StockQuantity;
                             existingProduct.ProductCategoryId = category?.Id ?? existingProduct.ProductCategoryId;
+                            existingProduct.Barcode = barcode ?? existingProduct.Barcode;
+                            existingProduct.LowStockCount = record.LowStock ?? existingProduct.LowStockCount;
                             existingProduct.UpdatedDate = DateTime.UtcNow;
 
                             await unitOfWork.Repository<Product>().UpdateAsync(existingProduct, ct);
+                            product = existingProduct;
+                            // Only the difference moves stock, so the adjustment history adds up.
+                            stockChange = record.StockQuantity - existingProduct.CurrentStock;
+                            adjustmentNote = $"Stock count from CSV import (was {existingProduct.CurrentStock:0.##})";
                             state.Updated++;
                         }
                         else
                         {
-                            var newProduct = new Product
+                            // Created with no stock; the file's quantity is recorded as an
+                            // adjustment below, so opening stock shows up in the history.
+                            product = new Product
                             {
                                 ProductCode = record.ProductCode ?? "",
                                 Name = record.Name ?? "",
                                 Description = record.Description ?? "",
                                 CurrentCostPrice = record.CostPrice,
                                 CurrentSalePrice = record.SalePrice,
-                                CurrentStock = record.StockQuantity,
+                                CurrentStock = 0,
+                                Barcode = barcode,
+                                LowStockCount = record.LowStock ?? 0,
                                 ProductCategoryId = category?.Id,
                                 IsActive = true,
                                 CreateDate = DateTime.UtcNow
                             };
 
-                            await unitOfWork.Repository<Product>().AddAsync(newProduct, ct);
+                            await unitOfWork.Repository<Product>().AddAsync(product, ct);
+                            stockChange = record.StockQuantity;
+                            adjustmentNote = "Opening stock from CSV import";
                             state.Created++;
                         }
 
                         await unitOfWork.SaveChangesAsync(ct);
+
+                        if (stockChange != 0)
+                        {
+                            stockReason ??= await GetOrCreateStockImportReasonAsync(unitOfWork, ct);
+                            locationId ??= job.LocationId > 0 ? job.LocationId
+                                : (await unitOfWork.Repository<Location>().GetAllAsync(ct)).Select(l => l.Id).DefaultIfEmpty(0).Min();
+                            // The reason is inbound; a negative count (stock short of zero) is a
+                            // negative quantity, which AdjustmentService subtracts.
+                            var adjustment = new Adjustment
+                            {
+                                AdjustmentDate = DateTime.UtcNow,
+                                ReasonId = stockReason.Id,
+                                Quantity = stockChange,
+                                ProductId = product.Id,
+                                LocationId = locationId.Value,
+                                Note = adjustmentNote,
+                                CreatedBy = job.UserId,
+                                CreatedDate = DateTime.UtcNow,
+                                IsActive = true
+                            };
+                            await unitOfWork.Repository<Adjustment>().AddAsync(adjustment, ct);
+                            await unitOfWork.SaveChangesAsync(ct);
+                            await adjustments.ApplyAsync(adjustment, ct);
+                            state.StockAdjusted++;
+                        }
                     }
                 }
                 catch (Exception ex)
@@ -195,7 +241,25 @@ namespace Mercurius.Services
             state.Status = "Completed";
             state.CompletedAt = DateTime.UtcNow;
             _tracker.AppendLog(job.JobId,
-                $"Done. Created {state.Created}, Updated {state.Updated}, Skipped {state.Skipped}, Errors {state.Errors}.");
+                $"Done. Created {state.Created}, Updated {state.Updated}, Skipped {state.Skipped}, Errors {state.Errors}. Stock adjustments: {state.StockAdjusted}.");
+        }
+
+        // Same get-or-create pattern as the refund restock reason (InvoicesApiController).
+        private static async Task<AdjustmentReason> GetOrCreateStockImportReasonAsync(IUnitOfWork unitOfWork, CancellationToken ct)
+        {
+            var found = (await unitOfWork.Repository<AdjustmentReason>().FindAsync(r => r.Name == "Stock import", ct)).FirstOrDefault();
+            if (found != null) return found;
+
+            var created = new AdjustmentReason
+            {
+                Name = "Stock import",
+                Description = "Stock quantities loaded from a product CSV import.",
+                IsActive = true,
+                IsInbound = true
+            };
+            await unitOfWork.Repository<AdjustmentReason>().AddAsync(created, ct);
+            await unitOfWork.SaveChangesAsync(ct);
+            return created;
         }
     }
 }

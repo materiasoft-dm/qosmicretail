@@ -15,6 +15,8 @@ namespace Mercurius.Services
         public int Updated { get; set; }
         public int Skipped { get; set; }
         public int Errors { get; set; }
+        // Products whose stock from the file was recorded as an adjustment.
+        public int StockAdjusted { get; set; }
         public List<string> Log { get; } = new();
         public DateTime StartedAt { get; set; } = DateTime.UtcNow;
         public DateTime? CompletedAt { get; set; }

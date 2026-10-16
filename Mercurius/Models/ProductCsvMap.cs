@@ -30,6 +30,11 @@ public class ProductCsvMap : ClassMap<ProductCsvRecord>
         Map(m => m.SalePrice).Name("SalePrice", "saleprice", "Price", "price", "SellingPrice", "CurrentSalePrice", "Variant Price").Optional().Default(0m);
 
         // Stock Quantity — Loyverse: "In stock [Store Name]" or "Available for sale [Store Name]"
+        Map(m => m.Barcode).Name("Barcode", "barcode", "UPC", "EAN").Optional();
+
+        // Loyverse: "Low stock [Store Name]".
+        Map(m => m.LowStock).Name("LowStock", "Low stock", "LowStockCount", "Reorder point").Optional();
+
         Map(m => m.StockQuantity).Name("StockQuantity", "stockquantity", "Stock", "stock", "Quantity", "CurrentStock", "Instock", "Availableforsale", "Variant Inventory Qty").Optional().Default(0m);
     }
 }

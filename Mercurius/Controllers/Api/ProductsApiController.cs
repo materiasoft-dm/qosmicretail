@@ -318,7 +318,9 @@ namespace Mercurius.Controllers.Api
                 JobId = jobId,
                 FileContent = content,
                 UpdateExisting = updateExisting,
-                TenantId = int.TryParse(User.FindFirstValue(MercuriusClaimTypes.TenantId), out var tid) ? tid : 0
+                TenantId = int.TryParse(User.FindFirstValue(MercuriusClaimTypes.TenantId), out var tid) ? tid : 0,
+                LocationId = await Mercurius.Services.CurrentLocation.GetIdAsync(_unitOfWork, User),
+                UserId = CurrentUserId
             }, ct);
 
             return Ok(new ProductImportStartedDto { JobId = jobId });
