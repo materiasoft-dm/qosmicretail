@@ -47,7 +47,7 @@
             </MudButtonGroup>
         </div>
 
-        <div class="d-flex flex-nowrap gap-2 mb-3 overflow-auto pb-2">
+        <div class="category-chips d-flex flex-nowrap gap-2 mb-3 overflow-auto pb-2">
             <MudChip T="string" Color="@(_categoryId == 0 ? Color.Primary : Color.Default)" OnClick="@(() => SelectCategory(0))">All</MudChip>
             @foreach (var c in _categories)
             {
@@ -70,7 +70,7 @@
                 {
                     var qtyInCart = CartQtyFor(p.Id);
                     <MudItem xs="6" md="4" lg="3">
-                        <MudCard Class="h-100" Style="cursor:pointer; position:relative;" @onclick="() => AddToCart(p)">
+                        <MudCard Class="sell-card h-100" Elevation="0" @onclick="() => AddToCart(p)">
                             @if (qtyInCart > 0)
                             {
                                 <MudBadge Content="@qtyInCart" Color="Color.Primary" Overlap="true" Class="position-absolute" Style="top:8px; right:8px; z-index:1;" />

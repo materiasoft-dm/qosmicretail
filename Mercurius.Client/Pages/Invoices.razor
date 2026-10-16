@@ -31,7 +31,8 @@
         <RowTemplate>
             <MudTd DataLabel="Invoice #">@context.InvoiceNumber</MudTd>
             <MudTd DataLabel="Date">@LocalTime.FormatDateTime(context.InvoiceDate)</MudTd>
-            <MudTd DataLabel="Due date">@(context.InvoiceDueDate.HasValue ? LocalTime.FormatDate(context.InvoiceDueDate.Value) : "")</MudTd>
+            @* Sales without a due date store DateTime.MinValue rather than null. *@
+            <MudTd DataLabel="Due date">@(context.InvoiceDueDate is { Year: > 1 } due ? LocalTime.FormatDate(due) : "—")</MudTd>
             <MudTd DataLabel="Customer">@(string.IsNullOrEmpty(context.CustomerName) ? "(no customer)" : context.CustomerName)</MudTd>
             <MudTd DataLabel="Status">
                 <MudChip T="string" Size="Size.Small" Color="@StatusColor(context.StatusId)">@context.StatusName</MudChip>

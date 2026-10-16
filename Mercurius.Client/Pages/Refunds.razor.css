@@ -1,0 +1,42 @@
+.refund-number {
+    font-weight: 600;
+    font-variant-numeric: tabular-nums;
+    color: var(--mud-palette-primary);
+    white-space: nowrap;
+}
+
+/* Invoice numbers are long and unbroken: one line, slightly smaller. */
+.invoice-number {
+    font-size: .84rem;
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+}
+
+/* Secondary line under a cell's main value (date and who, customer, units). */
+.cell-sub {
+    margin-top: 2px;
+    font-size: .76rem;
+    color: var(--mud-palette-text-secondary);
+    white-space: nowrap;
+}
+
+.amount {
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+}
+
+/* Phones: MudTable stacks each cell as "label  value", so values wrap and align right. */
+@media (max-width: 959.98px) {
+    .cell-stack {
+        min-width: 0;
+        text-align: right;
+    }
+
+    .refund-number,
+    .invoice-number,
+    .cell-sub {
+        white-space: normal;
+        overflow-wrap: anywhere;
+    }
+}

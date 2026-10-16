@@ -1,0 +1,95 @@
+.tenant-head {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    padding: 4px 0 18px;
+    border-bottom: 1px solid var(--mud-palette-lines-default);
+}
+
+.tenant-avatar {
+    flex: 0 0 52px;
+    width: 52px;
+    height: 52px;
+    border-radius: 14px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.1rem;
+    font-weight: 700;
+    color: #fff;
+    background: linear-gradient(135deg, #38bdf8 0%, #0284c7 100%);
+    box-shadow: 0 6px 16px rgba(2, 132, 199, .28);
+}
+
+.tenant-head-text {
+    min-width: 0;
+}
+
+.tenant-name {
+    font-size: 1.25rem;
+    font-weight: 700;
+    letter-spacing: -.01em;
+    color: var(--mud-palette-text-primary);
+    overflow-wrap: anywhere;
+}
+
+.tenant-sub {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px;
+    margin-top: 4px;
+    font-size: .8rem;
+    color: var(--mud-palette-text-secondary);
+}
+
+    .tenant-sub ::deep .mud-chip {
+        margin: 0;
+    }
+
+.tenant-details {
+    margin: 0;
+    padding-top: 6px;
+}
+
+.tenant-row {
+    display: grid;
+    grid-template-columns: 160px 1fr;
+    gap: 12px;
+    padding: 12px 0;
+    border-bottom: 1px solid var(--mud-palette-table-lines);
+}
+
+    .tenant-row:last-child {
+        border-bottom: none;
+    }
+
+    .tenant-row dt {
+        margin: 0;
+        font-size: .84rem;
+        font-weight: 500;
+        color: var(--mud-palette-text-secondary);
+    }
+
+        .tenant-row dt i {
+            width: 1.2rem;
+            display: inline-block;
+            color: var(--mud-palette-primary);
+        }
+
+    .tenant-row dd {
+        margin: 0;
+        font-size: .9rem;
+        color: var(--mud-palette-text-primary);
+    }
+
+.tenant-address {
+    white-space: pre-line;
+}
+
+@media (max-width: 575.98px) {
+    .tenant-row {
+        grid-template-columns: 1fr;
+        gap: 2px;
+    }
+}

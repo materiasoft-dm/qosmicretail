@@ -1,0 +1,129 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 900 1200" preserveAspectRatio="xMidYMid slice">
+  <!-- Sign-in page backdrop (Mercurius/Components/Account/AccountLayout.razor.css): deep navy into
+       light blue, with a molecule network, capsules, medical crosses, a heartbeat line and waves.
+       Decoration stays near the edges; the middle is darkened so the brand text reads clearly. -->
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="0.55" y2="1">
+      <stop offset="0" stop-color="#0b1730"/>
+      <stop offset="0.42" stop-color="#0f2847"/>
+      <stop offset="0.78" stop-color="#0369a1"/>
+      <stop offset="1" stop-color="#0ea5e9"/>
+    </linearGradient>
+    <radialGradient id="glowLow" cx="0.85" cy="0.9" r="0.55">
+      <stop offset="0" stop-color="#7dd3fc" stop-opacity="0.55"/>
+      <stop offset="1" stop-color="#7dd3fc" stop-opacity="0"/>
+    </radialGradient>
+    <radialGradient id="glowHigh" cx="0.1" cy="0.08" r="0.4">
+      <stop offset="0" stop-color="#38bdf8" stop-opacity="0.28"/>
+      <stop offset="1" stop-color="#38bdf8" stop-opacity="0"/>
+    </radialGradient>
+    <radialGradient id="calm" cx="0.32" cy="0.47" r="0.42">
+      <stop offset="0" stop-color="#0b1730" stop-opacity="0.55"/>
+      <stop offset="1" stop-color="#0b1730" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="wave1" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#bae6fd" stop-opacity="0.22"/>
+      <stop offset="1" stop-color="#bae6fd" stop-opacity="0"/>
+    </linearGradient>
+    <linearGradient id="wave2" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#38bdf8" stop-opacity="0.3"/>
+      <stop offset="1" stop-color="#38bdf8" stop-opacity="0.05"/>
+    </linearGradient>
+    <pattern id="dots" width="28" height="28" patternUnits="userSpaceOnUse">
+      <circle cx="2" cy="2" r="1.3" fill="#e0f2fe"/>
+    </pattern>
+    <radialGradient id="dotFade" cx="0.8" cy="0.2" r="0.75">
+      <stop offset="0" stop-color="#fff" stop-opacity="0.16"/>
+      <stop offset="1" stop-color="#fff" stop-opacity="0"/>
+    </radialGradient>
+    <mask id="dotMask">
+      <rect width="900" height="1200" fill="url(#dotFade)"/>
+    </mask>
+    <filter id="soft" x="-50%" y="-50%" width="200%" height="200%">
+      <feGaussianBlur stdDeviation="6"/>
+    </filter>
+    <!-- A two-tone capsule, 120 x 44, centred on 0,0. -->
+    <symbol id="capsule" viewBox="-62 -24 124 48" overflow="visible">
+      <path d="M0 -22 L-38 -22 A22 22 0 0 0 -38 22 L0 22 Z" fill="#ffffff" fill-opacity="0.2"/>
+      <path d="M0 -22 L38 -22 A22 22 0 0 1 38 22 L0 22 Z" fill="#7dd3fc" fill-opacity="0.34"/>
+      <rect x="-60" y="-22" width="120" height="44" rx="22" fill="none" stroke="#e0f2fe" stroke-opacity="0.35" stroke-width="1.5"/>
+      <path d="M-42 -11 Q-14 -16 34 -13" fill="none" stroke="#ffffff" stroke-opacity="0.35" stroke-width="3" stroke-linecap="round"/>
+    </symbol>
+    <!-- A medical cross, 56 x 56, centred on 0,0. -->
+    <symbol id="cross" viewBox="-30 -30 60 60" overflow="visible">
+      <g fill="#e0f2fe">
+        <rect x="-9" y="-28" width="18" height="56" rx="4"/>
+        <rect x="-28" y="-9" width="56" height="18" rx="4"/>
+      </g>
+    </symbol>
+  </defs>
+
+  <!-- Base and light -->
+  <rect width="900" height="1200" fill="url(#bg)"/>
+  <rect width="900" height="1200" fill="url(#glowHigh)"/>
+  <rect width="900" height="1200" fill="url(#glowLow)"/>
+  <rect width="900" height="1200" fill="url(#dots)" mask="url(#dotMask)"/>
+
+  <!-- Molecule network, top right -->
+  <g fill="none" stroke="#bae6fd" stroke-opacity="0.42" stroke-width="1.8" stroke-linejoin="round">
+    <polygon points="742,260 690,290 638,260 638,200 690,170 742,200"/>
+    <polygon points="846,260 794,290 742,260 742,200 794,170 846,200"/>
+    <polygon points="690,350 638,380 586,350 586,290 638,260 690,290"/>
+    <line x1="794" y1="170" x2="794" y2="105"/>
+    <line x1="586" y1="350" x2="530" y2="382"/>
+    <line x1="846" y1="260" x2="902" y2="292"/>
+    <line x1="638" y1="200" x2="590" y2="150"/>
+    <!-- inner bonds -->
+    <line x1="728" y1="252" x2="704" y2="266" stroke-opacity="0.25"/>
+    <line x1="808" y1="186" x2="832" y2="200" stroke-opacity="0.25"/>
+  </g>
+  <g fill="#7dd3fc">
+    <circle cx="690" cy="170" r="5"/><circle cx="742" cy="200" r="6" fill="#e0f2fe"/><circle cx="742" cy="260" r="5"/>
+    <circle cx="690" cy="290" r="5"/><circle cx="638" cy="260" r="6" fill="#e0f2fe"/><circle cx="638" cy="200" r="5"/>
+    <circle cx="794" cy="170" r="5"/><circle cx="846" cy="200" r="5"/><circle cx="846" cy="260" r="5"/><circle cx="794" cy="290" r="5"/>
+    <circle cx="586" cy="290" r="5"/><circle cx="586" cy="350" r="5"/><circle cx="638" cy="380" r="5"/><circle cx="690" cy="350" r="5"/>
+    <circle cx="794" cy="105" r="8" fill="#38bdf8"/><circle cx="530" cy="382" r="7" fill="#38bdf8"/><circle cx="590" cy="150" r="6" fill="#e0f2fe"/>
+  </g>
+  <circle cx="794" cy="105" r="16" fill="#38bdf8" opacity="0.35" filter="url(#soft)"/>
+  <circle cx="530" cy="382" r="14" fill="#38bdf8" opacity="0.3" filter="url(#soft)"/>
+
+  <!-- Smaller molecule, lower left -->
+  <g fill="none" stroke="#bae6fd" stroke-opacity="0.28" stroke-width="1.5" stroke-linejoin="round">
+    <polygon points="189,1002 150,1025 111,1002 111,958 150,935 189,958"/>
+    <line x1="150" y1="935" x2="150" y2="882"/>
+    <line x1="189" y1="1002" x2="236" y2="1029"/>
+  </g>
+  <g fill="#7dd3fc" fill-opacity="0.7">
+    <circle cx="150" cy="935" r="4"/><circle cx="189" cy="958" r="4"/><circle cx="189" cy="1002" r="4"/>
+    <circle cx="150" cy="1025" r="4"/><circle cx="111" cy="1002" r="4"/><circle cx="111" cy="958" r="4"/>
+    <circle cx="150" cy="882" r="6" fill="#38bdf8" fill-opacity="1"/><circle cx="236" cy="1029" r="5" fill="#e0f2fe" fill-opacity="1"/>
+  </g>
+
+  <!-- Capsules -->
+  <use href="#capsule" x="-62" y="-24" width="124" height="48" transform="translate(150 300) rotate(-32) scale(1.15)"/>
+  <use href="#capsule" x="-62" y="-24" width="124" height="48" transform="translate(735 700) rotate(24) scale(0.95)"/>
+  <use href="#capsule" x="-62" y="-24" width="124" height="48" transform="translate(470 1130) rotate(-14) scale(0.7)" opacity="0.8"/>
+  <use href="#capsule" x="-62" y="-24" width="124" height="48" transform="translate(860 980) rotate(-50) scale(0.6)" opacity="0.7"/>
+
+  <!-- Medical crosses -->
+  <use href="#cross" x="-30" y="-30" width="60" height="60" transform="translate(420 400) scale(0.5)" opacity="0.14"/>
+  <use href="#cross" x="-30" y="-30" width="60" height="60" transform="translate(255 160) scale(0.55)" opacity="0.2"/>
+  <use href="#cross" x="-30" y="-30" width="60" height="60" transform="translate(830 470) scale(0.5)" opacity="0.18"/>
+  <use href="#cross" x="-30" y="-30" width="60" height="60" transform="translate(70 640) scale(0.45)" opacity="0.14"/>
+  <use href="#cross" x="-30" y="-30" width="60" height="60" transform="translate(640 1000) scale(0.6)" opacity="0.16"/>
+
+  <!-- Keep the middle calm behind the brand text -->
+  <rect width="900" height="1200" fill="url(#calm)"/>
+
+  <!-- Heartbeat line -->
+  <path d="M0 830 H250 L272 802 L292 872 L318 760 L342 852 L360 830 H900" fill="none" stroke="#38bdf8" stroke-width="7" stroke-linejoin="round" stroke-linecap="round" opacity="0.35" filter="url(#soft)"/>
+  <path d="M0 830 H250 L272 802 L292 872 L318 760 L342 852 L360 830 H900" fill="none" stroke="#bae6fd" stroke-width="2.2" stroke-linejoin="round" stroke-linecap="round" opacity="0.6"/>
+  <circle cx="360" cy="830" r="5" fill="#e0f2fe"/>
+  <circle cx="360" cy="830" r="14" fill="#7dd3fc" opacity="0.4" filter="url(#soft)"/>
+
+  <!-- Waves -->
+  <path d="M0 950 C 180 890, 330 1010, 520 960 S 800 880, 900 930 V1200 H0 Z" fill="url(#wave1)"/>
+  <path d="M0 1020 C 200 970, 360 1090, 560 1040 S 820 970, 900 1010 V1200 H0 Z" fill="url(#wave2)"/>
+  <path d="M0 1100 C 220 1060, 420 1150, 620 1110 S 840 1070, 900 1090 V1200 H0 Z" fill="#e0f2fe" fill-opacity="0.1"/>
+  <path d="M0 1020 C 200 970, 360 1090, 560 1040 S 820 970, 900 1010" fill="none" stroke="#e0f2fe" stroke-opacity="0.25" stroke-width="1.5"/>
+</svg>

@@ -1,21 +1,33 @@
 .auth-shell {
     min-height: 100vh;
     display: flex;
-    font-family: 'Inter', 'Helvetica Neue', Arial, sans-serif;
-    background: #f5f7fb;
+    font-family: 'Inter', 'Segoe UI', 'Helvetica Neue', Arial, sans-serif;
+    -webkit-font-smoothing: antialiased;
+    background:
+        radial-gradient(700px 400px at 100% 0%, rgba(56, 189, 248, 0.12) 0%, rgba(56, 189, 248, 0) 70%),
+        #f3f7fb;
 }
 
+/* Brand panel: the illustration (Mercurius.Client/wwwroot/images/login-bg.svg — molecules,
+   capsules, a heartbeat line, in the app's navy and light blue). The gradient underneath shows
+   while it loads and matches its colours. */
 .auth-brand {
+    position: relative;
+    overflow: hidden;
     flex: 0 0 42%;
     display: flex;
     align-items: center;
     justify-content: center;
     padding: 3rem;
     color: #fff;
-    background: linear-gradient(160deg, #0f172a 0%, #1e3a5f 60%, #0f766e 100%);
+    background:
+        url('/images/login-bg.svg') center / cover no-repeat,
+        linear-gradient(155deg, #0b1730 0%, #0f2847 42%, #0369a1 78%, #0ea5e9 100%);
 }
 
 .auth-brand-inner {
+    position: relative;
+    z-index: 1;
     max-width: 22rem;
 }
 
@@ -26,20 +38,24 @@
     width: 3.25rem;
     height: 3.25rem;
     border-radius: 0.9rem;
-    background: rgba(255, 255, 255, 0.12);
+    background: linear-gradient(135deg, rgba(255, 255, 255, 0.28) 0%, rgba(255, 255, 255, 0.08) 100%);
+    border: 1px solid rgba(255, 255, 255, 0.25);
+    box-shadow: 0 8px 24px rgba(2, 8, 23, 0.25);
+    -webkit-backdrop-filter: blur(6px);
+    backdrop-filter: blur(6px);
     font-size: 1.5rem;
 }
 
 .auth-brand-name {
     margin: 1.25rem 0 0.5rem;
-    font-size: 2rem;
+    font-size: 2.25rem;
     font-weight: 700;
-    letter-spacing: 0.01em;
+    letter-spacing: -0.02em;
 }
 
 .auth-brand-sub {
     margin: 0;
-    color: rgba(255, 255, 255, 0.75);
+    color: rgba(224, 242, 254, 0.82);
     line-height: 1.6;
 }
 
@@ -55,9 +71,10 @@
     width: 100%;
     max-width: 26rem;
     padding: 2.5rem 2rem;
-    border-radius: 1rem;
+    border-radius: 1.1rem;
     background: #fff;
-    box-shadow: 0 10px 40px rgba(15, 23, 42, 0.08);
+    border: 1px solid #e2e9f1;
+    box-shadow: 0 1px 2px rgba(15, 40, 71, 0.04), 0 18px 48px rgba(15, 40, 71, 0.10);
 }
 
 @media (max-width: 767.98px) {
@@ -68,6 +85,13 @@
     .auth-brand {
         flex: 0 0 auto;
         padding: 2rem 1.5rem;
+        background-position: 70% 22%, center;
+    }
+
+    /* Form right under the banner rather than centred in the leftover height. */
+    .auth-main {
+        align-items: flex-start;
+        padding-top: 1.5rem;
     }
 
     .auth-brand-sub {
@@ -79,9 +103,10 @@
    through ::deep from here — one look for every sign-in screen. */
 .auth-card ::deep .auth-title {
     margin: 0 0 0.35rem;
-    font-size: 1.5rem;
+    font-size: 1.6rem;
     font-weight: 700;
-    color: #0f172a;
+    letter-spacing: -0.02em;
+    color: #0f1e33;
 }
 
 .auth-card ::deep .auth-subtitle {
@@ -124,8 +149,8 @@
 
         .auth-card ::deep .auth-field input:focus {
             outline: none;
-            border-color: #0f766e;
-            box-shadow: 0 0 0 3px rgba(15, 118, 110, 0.15);
+            border-color: #38bdf8;
+            box-shadow: 0 0 0 3px rgba(56, 189, 248, 0.25);
         }
 
 .auth-card ::deep .validation-message {
@@ -148,19 +173,27 @@
     width: 100%;
     padding: 0.75rem 1rem;
     border: none;
-    border-radius: 0.6rem;
-    background: #0f766e;
+    border-radius: 0.65rem;
+    background: linear-gradient(135deg, #38bdf8 0%, #0284c7 100%);
     color: #fff;
     font-size: 0.95rem;
     font-weight: 600;
     text-align: center;
     text-decoration: none;
     cursor: pointer;
-    transition: background-color 0.15s ease;
+    box-shadow: 0 6px 18px rgba(2, 132, 199, 0.3), inset 0 1px 0 rgba(255, 255, 255, 0.22);
+    transition: filter 0.15s ease, box-shadow 0.15s ease, transform 0.15s ease;
 }
 
     .auth-card ::deep .auth-submit:hover {
-        background: #115e59;
+        filter: brightness(1.05);
+        box-shadow: 0 8px 24px rgba(2, 132, 199, 0.38), inset 0 1px 0 rgba(255, 255, 255, 0.22);
+        transform: translateY(-1px);
+    }
+
+    .auth-card ::deep .auth-submit:focus-visible {
+        outline: none;
+        box-shadow: 0 0 0 3px rgba(56, 189, 248, 0.4);
     }
 
 .auth-card ::deep .auth-reference {

@@ -1,0 +1,137 @@
+@* A tenant's details on the Tenants page: read-only first, with Edit switching the same dialog
+   into a form. Closes with DialogResult.Ok(true) when something was saved, so the list reloads. *@
+@inject AdminToolsApiClient Api
+@inject ISnackbar Snackbar
+
+<MudDialog>
+    <DialogContent>
+        @if (!_editing)
+        {
+            <div class="tenant-head">
+                <span class="tenant-avatar">@Initials(_tenant.Name)</span>
+                <div class="tenant-head-text">
+                    <div class="tenant-name">@_tenant.Name</div>
+                    <div class="tenant-sub">
+                        <MudChip T="string" Size="Size.Small" Color="@(_tenant.IsActive ? Color.Success : Color.Default)">@(_tenant.IsActive ? "Active" : "Inactive")</MudChip>
+                        <span>Tenant #@_tenant.Id · since @LocalTime.FormatDate(_tenant.CreatedDate)</span>
+                    </div>
+                </div>
+            </div>
+
+            <dl class="tenant-details">
+                <div class="tenant-row">
+                    <dt><i class="bi bi-geo-alt"></i> Address</dt>
+                    <dd class="tenant-address">@(string.IsNullOrWhiteSpace(_tenant.Address) ? "Not set" : _tenant.Address)</dd>
+                </div>
+                <div class="tenant-row">
+                    <dt><i class="bi bi-telephone"></i> Contact number</dt>
+                    <dd>@(string.IsNullOrWhiteSpace(_tenant.ContactNumber) ? "Not set" : _tenant.ContactNumber)</dd>
+                </div>
+                <div class="tenant-row">
+                    <dt><i class="bi bi-shop"></i> Branches</dt>
+                    <dd>@_tenant.BranchCount</dd>
+                </div>
+                <div class="tenant-row">
+                    <dt><i class="bi bi-people"></i> Users</dt>
+                    <dd>@_tenant.UserCount</dd>
+                </div>
+            </dl>
+        }
+        else
+        {
+            <MudTextField @bind-Value="_name" Label="Business name" Variant="Variant.Outlined" Class="mb-3" AutoFocus="true" MaxLength="200"
+                          UserAttributes="@(new Dictionary<string, object> { ["id"] = "tenantName" })" />
+            <MudTextField @bind-Value="_address" Label="Address" Variant="Variant.Outlined" Class="mb-3" Lines="3" MaxLength="500"
+                          UserAttributes="@(new Dictionary<string, object> { ["id"] = "tenantAddress" })" />
+            <MudTextField @bind-Value="_contactNumber" Label="Contact number" Variant="Variant.Outlined" MaxLength="50" InputType="InputType.Telephone"
+                          UserAttributes="@(new Dictionary<string, object> { ["id"] = "tenantContact" })" />
+            @if (_error != null)
+            {
+                <MudAlert Severity="Severity.Error" Class="mt-3">@_error</MudAlert>
+            }
+        }
+    </DialogContent>
+    <DialogActions>
+        @if (!_editing)
+        {
+            <MudButton OnClick="Close">Close</MudButton>
+            <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Filled.Edit" OnClick="StartEditing">Edit</MudButton>
+        }
+        else
+        {
+            <MudButton OnClick="CancelEditing" Disabled="_busy">Cancel</MudButton>
+            <MudButton Variant="Variant.Filled" Color="Color.Primary" Disabled="_busy" OnClick="SaveAsync">Save changes</MudButton>
+        }
+    </DialogActions>
+</MudDialog>
+
+@code {
+    [CascadingParameter] private IMudDialogInstance MudDialog { get; set; } = default!;
+
+    [Parameter, EditorRequired] public TenantDto Tenant { get; set; } = default!;
+
+    private TenantDto _tenant = new();
+    private bool _editing;
+    private bool _busy;
+    private bool _saved;
+    private string? _error;
+    private string _name = string.Empty;
+    private string? _address;
+    private string? _contactNumber;
+
+    protected override void OnInitialized() => _tenant = Tenant;
+
+    private void StartEditing()
+    {
+        _name = _tenant.Name;
+        _address = _tenant.Address;
+        _contactNumber = _tenant.ContactNumber;
+        _error = null;
+        _editing = true;
+    }
+
+    private void CancelEditing()
+    {
+        _error = null;
+        _editing = false;
+    }
+
+    private async Task SaveAsync()
+    {
+        _error = null;
+        if (string.IsNullOrWhiteSpace(_name)) { _error = "Business name is required."; return; }
+
+        _busy = true;
+        try
+        {
+            var (updated, error) = await Api.UpdateTenantAsync(_tenant.Id,
+                new UpdateTenantRequestDto { Name = _name, Address = _address, ContactNumber = _contactNumber });
+            if (updated == null) { _error = error; return; }
+            _tenant = updated;
+            _saved = true;
+            _editing = false;
+            Snackbar.Add("Tenant details saved.", Severity.Success);
+        }
+        finally
+        {
+            _busy = false;
+        }
+    }
+
+    private void Close()
+    {
+        if (_saved) MudDialog.Close(DialogResult.Ok(true));
+        else MudDialog.Cancel();
+    }
+
+    private static string Initials(string name)
+    {
+        var words = name.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+        return words.Length switch
+        {
+            0 => "?",
+            1 => words[0][..Math.Min(2, words[0].Length)].ToUpperInvariant(),
+            _ => $"{char.ToUpperInvariant(words[0][0])}{char.ToUpperInvariant(words[1][0])}"
+        };
+    }
+}

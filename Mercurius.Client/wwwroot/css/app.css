@@ -1,5 +1,32 @@
+/* ---------------------------------------------------------------------------------------------
+   Brand tokens. Deep navy + light ("sky") blue; MudTheme.cs holds the same values for MudBlazor.
+   --------------------------------------------------------------------------------------------- */
+:root {
+    --mc-navy: #0f2847;
+    --mc-navy-deep: #0b1730;
+    --mc-sky: #38bdf8;
+    --mc-blue: #0284c7;
+    --mc-blue-dark: #0369a1;
+    --mc-gradient: linear-gradient(135deg, #38bdf8 0%, #0284c7 100%);
+    --mc-ring: 0 0 0 3px rgba(56, 189, 248, 0.35);
+    --mc-card-border: #e2e9f1;
+    /* Sidebar accents (Layout/NavMenu.razor.css). */
+    --mc-accent: #38bdf8;
+    --mc-accent-strong: #0284c7;
+    --mc-accent-soft: rgba(56, 189, 248, 0.14);
+}
+
 html, body {
-    font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
+    font-family: 'Inter', 'Segoe UI', 'Helvetica Neue', Arial, sans-serif;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    font-feature-settings: "cv11", "ss01";
+    background: var(--mud-palette-background);
+    color: var(--mud-palette-text-primary);
+}
+
+::selection {
+    background: rgba(56, 189, 248, 0.28);
 }
 
 h1:focus {
@@ -7,21 +34,199 @@ h1:focus {
 }
 
 a, .btn-link {
-    color: #0071c1;
+    color: var(--mc-blue);
 }
+
+    a:hover {
+        color: var(--mc-blue-dark);
+    }
 
 .btn-primary {
     color: #fff;
-    background-color: #1b6ec2;
-    border-color: #1861ac;
+    background: var(--mc-gradient);
+    border-color: var(--mc-blue);
 }
 
 .btn:focus, .btn:active:focus, .btn-link.nav-link:focus, .form-control:focus, .form-check-input:focus {
-  box-shadow: 0 0 0 0.1rem white, 0 0 0 0.25rem #258cfb;
+    box-shadow: var(--mc-ring);
 }
 
 .content {
     padding-top: 1.1rem;
+}
+
+/* A faint light-blue glow behind the page, so the canvas isn't a flat grey. */
+main {
+    background:
+        radial-gradient(900px 420px at 100% -10%, rgba(56, 189, 248, 0.10) 0%, rgba(56, 189, 248, 0) 70%),
+        radial-gradient(700px 360px at -10% 0%, rgba(2, 132, 199, 0.06) 0%, rgba(2, 132, 199, 0) 70%);
+    background-attachment: fixed;
+    min-height: 100vh;
+}
+
+/* Thin, modern scrollbars. */
+* {
+    scrollbar-width: thin;
+    scrollbar-color: #c3d2e2 transparent;
+}
+
+*::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+}
+
+*::-webkit-scrollbar-thumb {
+    background: #c3d2e2;
+    border-radius: 999px;
+    border: 2px solid transparent;
+    background-clip: padding-box;
+}
+
+/* ---------------------------------------------------------------------------------------------
+   MudBlazor refinements — applied app-wide.
+   --------------------------------------------------------------------------------------------- */
+
+/* Page titles: tighter and bolder. */
+.content > .mud-typography-h4,
+.content .mud-typography-h4 {
+    color: var(--mud-palette-text-primary);
+}
+
+/* Filled primary buttons get the brand gradient and a soft glow. */
+.mud-button-filled.mud-button-filled-primary {
+    background: var(--mc-gradient);
+    box-shadow: 0 4px 14px rgba(2, 132, 199, 0.28), inset 0 1px 0 rgba(255, 255, 255, 0.22);
+    transition: box-shadow .18s ease, transform .18s ease, filter .18s ease;
+}
+
+    .mud-button-filled.mud-button-filled-primary:hover {
+        background: var(--mc-gradient);
+        filter: brightness(1.05);
+        box-shadow: 0 6px 20px rgba(2, 132, 199, 0.36), inset 0 1px 0 rgba(255, 255, 255, 0.22);
+        transform: translateY(-1px);
+    }
+
+    .mud-button-filled.mud-button-filled-primary:disabled,
+    .mud-button-filled.mud-button-filled-primary.mud-button-disabled {
+        background: var(--mud-palette-action-disabled-background);
+        box-shadow: none;
+        transform: none;
+    }
+
+.mud-button-root {
+    border-radius: 10px;
+}
+
+.mud-button-outlined {
+    border-color: var(--mud-palette-lines-inputs);
+}
+
+    .mud-button-outlined.mud-button-outlined-primary {
+        border-color: rgba(2, 132, 199, 0.45);
+        background: rgba(56, 189, 248, 0.05);
+    }
+
+/* Cards and paper: white, hairline border, soft shadow. */
+.mud-paper:not(.mud-popover):not(.mud-dialog):not(.mud-snackbar):not(.mud-appbar),
+.mud-card {
+    border: 1px solid var(--mc-card-border);
+}
+
+.mud-paper.mud-paper-outlined {
+    border-color: var(--mc-card-border);
+}
+
+.mud-card {
+    border-radius: 14px;
+    transition: box-shadow .2s ease, transform .2s ease, border-color .2s ease;
+}
+
+/* Tables: quiet header row, roomy cells. */
+.mud-table {
+    border-radius: 14px;
+    overflow: hidden;
+}
+
+.mud-table .mud-table-root .mud-table-head .mud-table-cell {
+    background: #f6f9fc;
+    color: #5b6b82;
+    font-size: .74rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: .06em;
+    border-bottom: 1px solid var(--mud-palette-lines-default);
+}
+
+.mud-table-body .mud-table-row {
+    transition: background-color .12s ease;
+}
+
+.mud-table-cell {
+    border-bottom-color: var(--mud-palette-table-lines);
+}
+
+/* Inputs: light-blue focus ring. */
+.mud-input.mud-input-outlined.mud-input-adorned-start,
+.mud-input.mud-input-outlined {
+    border-radius: 10px;
+}
+
+.mud-input-outlined-border {
+    border-radius: 10px !important;
+}
+
+.mud-input.mud-input-outlined:focus-within .mud-input-outlined-border {
+    box-shadow: var(--mc-ring);
+}
+
+/* Chips: pill shaped. */
+.mud-chip {
+    border-radius: 999px;
+    font-weight: 500;
+}
+
+    .mud-chip.mud-chip-color-primary.mud-chip-filled {
+        background: var(--mc-gradient);
+        box-shadow: 0 2px 8px rgba(2, 132, 199, 0.25);
+    }
+
+/* Dialogs and popovers. */
+.mud-dialog {
+    border-radius: 16px;
+    box-shadow: 0 24px 64px rgba(11, 23, 48, 0.25);
+}
+
+.mud-dialog .mud-dialog-title {
+    font-weight: 700;
+}
+
+.mud-overlay-dark {
+    background-color: rgba(11, 23, 48, 0.45);
+    -webkit-backdrop-filter: blur(2px);
+    backdrop-filter: blur(2px);
+}
+
+.mud-popover {
+    border-radius: 12px;
+    border: 1px solid var(--mc-card-border);
+}
+
+/* Snackbars: rounded with a soft drop. */
+.mud-snackbar {
+    border-radius: 12px;
+    box-shadow: 0 12px 32px rgba(11, 23, 48, 0.22);
+}
+
+/* Alerts: rounded. */
+.mud-alert {
+    border-radius: 12px;
+}
+
+/* Tabs: blue indicator. */
+.mud-tab-slider {
+    background: var(--mc-gradient);
+    height: 3px;
+    border-radius: 3px 3px 0 0;
 }
 
 .valid.modified:not([type=checkbox]) {
@@ -82,7 +287,7 @@ a, .btn-link {
     }
 
         .loading-progress circle:last-child {
-            stroke: #1b6ec2;
+            stroke: #0284c7;
             stroke-dasharray: calc(3.141 * var(--blazor-load-percentage, 0%) * 0.8), 500%;
             transition: stroke-dasharray 0.05s ease-in-out;
         }
@@ -99,5 +304,56 @@ a, .btn-link {
     }
 
 code {
-    color: #c02d76;
+    color: #0369a1;
+    background: rgba(56, 189, 248, 0.1);
+    padding: .1em .35em;
+    border-radius: 6px;
 }
+
+/* ---------------------------------------------------------------------------------------------
+   Dashboard (Pages/Home.razor) — the parts that sit on MudBlazor / WidgetCard elements, which the
+   page's scoped CSS can't reach.
+   --------------------------------------------------------------------------------------------- */
+.dashboard-skeleton,
+.dashboard-empty {
+    border-radius: 14px;
+}
+
+/* Customize mode: dashed outline so it's clear the widgets can be moved. */
+.widget-editing {
+    outline: 2px dashed rgba(56, 189, 248, .6);
+    outline-offset: 3px;
+}
+
+/* ---------------------------------------------------------------------------------------------
+   Sell page product cards (Pages/Sell.razor).
+   --------------------------------------------------------------------------------------------- */
+.sell-card {
+    cursor: pointer;
+    position: relative;
+    overflow: hidden;
+}
+
+    .sell-card::before {
+        content: "";
+        position: absolute;
+        inset: 0 0 auto 0;
+        height: 3px;
+        background: var(--mc-gradient);
+        opacity: 0;
+        transition: opacity .2s ease;
+    }
+
+    .sell-card:hover {
+        transform: translateY(-2px);
+        border-color: rgba(56, 189, 248, 0.55);
+        box-shadow: 0 10px 28px rgba(2, 132, 199, 0.14);
+    }
+
+        .sell-card:hover::before {
+            opacity: 1;
+        }
+
+    .sell-card:active {
+        transform: translateY(0);
+    }

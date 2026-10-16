@@ -104,6 +104,13 @@ namespace Mercurius.Client.Services
             if (response.IsSuccessStatusCode) return (await response.Content.ReadFromJsonAsync<TenantDto>(), null);
             return (null, await ApiErrors.ReadAsync(response, "Failed to create the tenant."));
         }
+
+        public async Task<(TenantDto? Tenant, string? Error)> UpdateTenantAsync(int id, UpdateTenantRequestDto request)
+        {
+            var response = await _http.PutAsJsonAsync($"api/platform/tenants/{id}", request);
+            if (response.IsSuccessStatusCode) return (await response.Content.ReadFromJsonAsync<TenantDto>(), null);
+            return (null, await ApiErrors.ReadAsync(response, "The tenant couldn't be saved."));
+        }
     }
 
     // Criteria for one audit trail search. From/To are the viewer's local calendar dates; the

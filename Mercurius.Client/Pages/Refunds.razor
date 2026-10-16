@@ -1,0 +1,111 @@
+@page "/refunds"
+@attribute [Authorize(Policy = ModuleRegistry.Pages.INVOICE_INDEX)]
+@inject InvoicesApiClient Api
+@inject NavigationManager Nav
+
+<PageTitle>Refunds</PageTitle>
+
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <div>
+        <MudText Typo="Typo.h4">Refunds</MudText>
+        <MudText Class="mud-text-secondary">Every refund, newest first. Refunds are made from an invoice's details page.</MudText>
+    </div>
+</div>
+
+<MudTextField T="string" Value="_search" ValueChanged="OnSearchChanged" Label="Search by refund # or invoice #..." Variant="Variant.Outlined"
+              Immediate="true" Clearable="true" Adornment="Adornment.Start" AdornmentIcon="@Icons.Material.Filled.Search" Class="mb-4" Style="max-width:320px;" />
+
+<MudPaper Class="pa-2" Elevation="2">
+    <MudTable T="RefundListItemDto" @ref="_table" ServerData="LoadPageAsync" Hover="true" Dense="true" RowsPerPage="25"
+              OnRowClick="@((TableRowClickEventArgs<RefundListItemDto> e) => GoToInvoice(e.Item?.InvoiceId ?? 0))" RowStyle="cursor:pointer;">
+        <HeaderContent>
+            <MudTh><MudTableSortLabel T="RefundListItemDto" SortLabel="date" InitialDirection="SortDirection.Descending">Refund</MudTableSortLabel></MudTh>
+            <MudTh><MudTableSortLabel T="RefundListItemDto" SortLabel="invoice">Invoice</MudTableSortLabel></MudTh>
+            <MudTh>Products</MudTh>
+            <MudTh>Reason</MudTh>
+            <MudTh Style="text-align:right;">Amount</MudTh>
+            <MudTh>Stock</MudTh>
+        </HeaderContent>
+        <RowTemplate>
+            @* Each two-line value is one block, so MudTable's stacked phone layout keeps it together. *@
+            <MudTd DataLabel="Refund">
+                <div class="cell-stack">
+                    <div class="refund-number">@context.RefundNumber</div>
+                    <div class="cell-sub">
+                        @LocalTime.FormatDateTime(context.DateRefunded)@(string.IsNullOrEmpty(context.RefundedBy) ? "" : $" · {context.RefundedBy}")
+                    </div>
+                </div>
+            </MudTd>
+            <MudTd DataLabel="Invoice">
+                <div class="cell-stack">
+                    <div class="invoice-number">@context.InvoiceNumber</div>
+                    <div class="cell-sub">@(string.IsNullOrEmpty(context.CustomerName) ? "No customer" : context.CustomerName)</div>
+                </div>
+            </MudTd>
+            <MudTd DataLabel="Products">
+                <div class="cell-stack">
+                    <div>@context.Products</div>
+                    <div class="cell-sub">@context.Quantity.ToString("0.##") @(context.Quantity == 1 ? "unit" : "units")@(context.LineCount > 1 ? $" · {context.LineCount} lines" : "")</div>
+                </div>
+            </MudTd>
+            <MudTd DataLabel="Reason">@context.Reasons</MudTd>
+            <MudTd DataLabel="Amount" Style="text-align:right;"><span class="amount">@Money.Format(context.Amount)</span></MudTd>
+            <MudTd DataLabel="Stock">
+                @if (context.RestockedLines == 0)
+                {
+                    <MudChip T="string" Size="Size.Small" Variant="Variant.Text">Not restocked</MudChip>
+                }
+                else if (context.RestockedLines == context.LineCount)
+                {
+                    <MudChip T="string" Size="Size.Small" Variant="Variant.Text" Color="Color.Success">Restocked</MudChip>
+                }
+                else
+                {
+                    <MudChip T="string" Size="Size.Small" Variant="Variant.Text" Color="Color.Info">Partly restocked</MudChip>
+                }
+            </MudTd>
+        </RowTemplate>
+        <NoRecordsContent>
+            <MudText>No refunds found.</MudText>
+        </NoRecordsContent>
+        <PagerContent>
+            <MudTablePager PageSizeOptions="@(new[] { 10, 25, 50, 100 })" />
+        </PagerContent>
+    </MudTable>
+</MudPaper>
+
+@code {
+    private MudTable<RefundListItemDto>? _table;
+    private string _search = string.Empty;
+    private CancellationTokenSource? _debounce;
+
+    private async Task<TableData<RefundListItemDto>> LoadPageAsync(TableState state, CancellationToken token)
+    {
+        var desc = state.SortDirection != SortDirection.Ascending;
+        var result = await Api.GetRefundsAsync(_search, state.Page + 1, state.PageSize, state.SortLabel, desc, token);
+        return new TableData<RefundListItemDto> { Items = result.Items, TotalItems = result.Total };
+    }
+
+    // A refund's details (lines, reasons, restocking) live on its invoice.
+    private void GoToInvoice(int invoiceId)
+    {
+        if (invoiceId > 0) Nav.NavigateTo($"invoices/{invoiceId}");
+    }
+
+    private async Task OnSearchChanged(string? value)
+    {
+        _search = value ?? string.Empty;
+        _debounce?.Cancel();
+        _debounce = new CancellationTokenSource();
+        var token = _debounce.Token;
+        try
+        {
+            await Task.Delay(300, token);
+            if (_table != null) await _table.ReloadServerData();
+        }
+        catch (TaskCanceledException)
+        {
+            // Superseded by a newer keystroke.
+        }
+    }
+}

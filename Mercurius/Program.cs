@@ -10,6 +10,7 @@ using Mercurius.Repo.Repositories;
 using Mercurius.Repo.Models;
 using Mercurius.Services;
 using Mercurius.Middleware;
+using Microsoft.AspNetCore.DataProtection;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.RateLimiting;
@@ -102,6 +103,15 @@ builder.Services.AddScoped<IUnitOfWork>(sp =>
 // ASP.NET CORE IDENTITY (EF Core-backed)
 // ============================================
 
+// Data Protection keys encrypt the sign-in cookie and every form's antiforgery token. On the
+// shared host the worker process has no user profile, so by default the key ring lives only in
+// memory: each app restart (a deploy, or IIS recycling an idle app) would sign everyone out and
+// make any sign-in page opened before the restart fail with HTTP 400. Keep the keys on disk in the
+// app's own folder instead (outside wwwroot, so never served; git-ignored).
+builder.Services.AddDataProtection()
+    .SetApplicationName("Mercurius")
+    .PersistKeysToFileSystem(new DirectoryInfo(Path.Combine(builder.Environment.ContentRootPath, "App_Data", "DataProtection-Keys")));
+
 // The sign-in cookie is the web app's default scheme; the account pages (Components/Account) and
 // the /account/logout endpoint are the UI for it.
 builder.Services.AddAuthentication(options =>
@@ -123,6 +133,10 @@ builder.Services.AddIdentityCore<MercuriusUser>(options =>
     options.Password.RequireUppercase = true;
     options.Password.RequireNonAlphanumeric = true;
     options.Password.RequiredLength = 8;
+    // The classic site's Identity UI (AddDefaultUI) set this, so every migration and the live
+    // schema have 128-character AspNetUserLogins/AspNetUserTokens key columns. Without it the
+    // model defaults to 450, and Migrate() would refuse to start over the pending model change.
+    options.Stores.MaxLengthForKeys = 128;
 })
     .AddRoles<IdentityRole>()
     .AddEntityFrameworkStores<MercuriusDbContext>()
