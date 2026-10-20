@@ -532,7 +532,7 @@ async Task SeedDataAsync(WebApplication app)
         var userManager = services.GetRequiredService<UserManager<MercuriusUser>>();
         var logger = services.GetRequiredService<ILogger<Program>>();
 
-        var roles = new[] { "Administrator", "Manager", "User" };
+        var roles = new[] { "Administrator", "Manager", "User", Mercurius.Common.ModuleRegistry.DatabaseAdministratorRole };
         foreach (var role in roles)
         {
             if (!await roleManager.RoleExistsAsync(role))
@@ -542,18 +542,39 @@ async Task SeedDataAsync(WebApplication app)
             }
         }
 
+        var databaseModules = Mercurius.Common.ModuleRegistry.DatabaseModules;
+
+        // Administrator gets every permission except the database ones, and loses those if an
+        // earlier version of this seed granted them. They belong to Database Administrator alone.
         var adminRole = await roleManager.FindByNameAsync("Administrator");
         if (adminRole != null)
         {
             var existingClaims = await roleManager.GetClaimsAsync(adminRole);
-            foreach (var page in Mercurius.Common.ModuleRegistry.Modules)
+            foreach (var page in Mercurius.Common.ModuleRegistry.Modules.Except(databaseModules))
             {
                 if (!existingClaims.Any(c => c.Type == MercuriusClaimTypes.AccessPages && c.Value == page))
                 {
                     await roleManager.AddClaimAsync(adminRole, new System.Security.Claims.Claim(MercuriusClaimTypes.AccessPages, page));
                 }
             }
-            logger.LogInformation("Added all permissions to Administrator role");
+            foreach (var claim in existingClaims.Where(c => c.Type == MercuriusClaimTypes.AccessPages && databaseModules.Contains(c.Value)))
+            {
+                await roleManager.RemoveClaimAsync(adminRole, claim);
+            }
+            logger.LogInformation("Added all non-database permissions to Administrator role");
+        }
+
+        var databaseAdminRole = await roleManager.FindByNameAsync(Mercurius.Common.ModuleRegistry.DatabaseAdministratorRole);
+        if (databaseAdminRole != null)
+        {
+            var existingClaims = await roleManager.GetClaimsAsync(databaseAdminRole);
+            foreach (var page in databaseModules)
+            {
+                if (!existingClaims.Any(c => c.Type == MercuriusClaimTypes.AccessPages && c.Value == page))
+                {
+                    await roleManager.AddClaimAsync(databaseAdminRole, new System.Security.Claims.Claim(MercuriusClaimTypes.AccessPages, page));
+                }
+            }
         }
 
         var unitOfWork = services.GetRequiredService<IUnitOfWork>();
@@ -689,6 +710,22 @@ async Task SeedDataAsync(WebApplication app)
                 adminUser.IsPlatformAdmin = true;
                 await userManager.UpdateAsync(adminUser);
                 logger.LogInformation("Granted platform-admin to seed admin user");
+            }
+
+            // The seed admin (the deployment's operator) always holds both Administrator and
+            // Database Administrator, so it keeps the database tools (Data Query, Database Backups,
+            // Server Logs) that Administrator no longer carries. Anyone else gets Database
+            // Administrator from the Users page.
+            if (adminUser != null)
+            {
+                foreach (var roleName in new[] { "Administrator", Mercurius.Common.ModuleRegistry.DatabaseAdministratorRole })
+                {
+                    if (!await userManager.IsInRoleAsync(adminUser, roleName))
+                    {
+                        await userManager.AddToRoleAsync(adminUser, roleName);
+                        logger.LogInformation($"Assigned {roleName} role to seed admin user");
+                    }
+                }
             }
 
             // Assign default location to admin (new or existing) — unfiltered for the same

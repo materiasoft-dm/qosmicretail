@@ -86,10 +86,23 @@ namespace Mercurius.Common
                     ModuleRegistry.Pages.ADMIN_ROLES_MANAGEMENT,
                     ModuleRegistry.Pages.ADMIN_USERS_MANAGEMENT,
                     ModuleRegistry.Pages.ADMIN_DATA_QUERY,
+                    ModuleRegistry.Pages.ADMIN_SERVER_LOGS,
                     ModuleRegistry.Pages.ADMIN_AUDIT_TRAIL,
                     ModuleRegistry.Pages.WHOLESALE_INDEX,
                     ModuleRegistry.Pages.WHOLESALE_DELETE,
             ModuleRegistry.Pages.WHOLESALE_VIEW
+        };
+
+        // Permissions that reach the whole server rather than one tenant's data (raw SQL, the
+        // full SQLite snapshot, the server-wide log files). They are held only by the seeded Database Administrator role, never
+        // by Administrator, and only a platform admin can grant that role or these permissions.
+        public const string DatabaseAdministratorRole = "Database Administrator";
+
+        public static IReadOnlyList<string> DatabaseModules { get; } = new[]
+        {
+            ModuleRegistry.Pages.ADMIN_DATA_QUERY,
+            ModuleRegistry.Pages.CONFIG_DATABASE_BACKUPS,
+            ModuleRegistry.Pages.ADMIN_SERVER_LOGS
         };
 
         public static class Pages
@@ -170,6 +183,7 @@ namespace Mercurius.Common
             public const string ADMIN_USERS_MANAGEMENT = "ADMIN - User management";
             public const string ADMIN_ROLES_MANAGEMENT = "ADMIN - Roles management";
             public const string ADMIN_DATA_QUERY = "ADMIN - Data Query";
+            public const string ADMIN_SERVER_LOGS = "ADMIN - Server Logs";
             public const string ADMIN_AUDIT_TRAIL = "ADMIN - Audit Trail";
 
             public const string WHOLESALE_INDEX = "Whole Sale List Page";

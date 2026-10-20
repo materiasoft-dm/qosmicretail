@@ -81,7 +81,7 @@
             new("Database Backups", "Daily snapshots of the database, kept for up to 10 days.", "database-backups", "bi-database-down",
                 (user, me) => me.DatabaseBackupsEnabled && user.Can(ModuleRegistry.Pages.CONFIG_DATABASE_BACKUPS)),
             new("Logs", "Server log files, for troubleshooting.", "logs", "bi-terminal-fill",
-                Page(ModuleRegistry.Pages.ADMIN_USERS_MANAGEMENT)),
+                Page(ModuleRegistry.Pages.ADMIN_SERVER_LOGS)),
             new("Data Query", "Run SQL directly against the database. Use with care.", "data-query", "bi-database-exclamation",
                 Page(ModuleRegistry.Pages.ADMIN_DATA_QUERY)),
             new("Tenants", "Create and manage the pharmacies on this deployment.", "platform-admin", "bi-buildings",

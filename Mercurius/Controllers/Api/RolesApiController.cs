@@ -6,6 +6,7 @@ using Mercurius.Common.Constants;
 using Mercurius.Shared.Admin;
 using Mercurius.Shared.Common;
 using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
 
@@ -21,6 +22,17 @@ namespace Mercurius.Controllers.Api
     {
         private readonly RoleManager<IdentityRole> _roleManager;
         public RolesApiController(RoleManager<IdentityRole> roleManager) => _roleManager = roleManager;
+
+        // Roles are shared by every tenant, and the database permissions reach every tenant's data,
+        // so only a platform admin may grant or remove them on any role, or change or delete the
+        // Database Administrator role itself.
+        private bool CallerIsPlatformAdmin => User.HasClaim(MercuriusClaimTypes.IsPlatformAdmin, "true");
+
+        private static bool IsDatabaseAdministratorRole(IdentityRole role) =>
+            role.Name == Mercurius.Common.ModuleRegistry.DatabaseAdministratorRole;
+
+        private ObjectResult DatabasePermissionsPlatformAdminOnly() =>
+            StatusCode(StatusCodes.Status403Forbidden, new { error = "Only a platform admin can change database permissions or the Database Administrator role." });
 
         [HttpGet]
         public ActionResult<ListResultDto<RoleDto>> Get()
@@ -47,6 +59,10 @@ namespace Mercurius.Controllers.Api
         public async Task<IActionResult> Create(CreateRoleRequest request)
         {
             if (string.IsNullOrWhiteSpace(request.Name)) return BadRequest(new { error = "Role name is required." });
+            if (!CallerIsPlatformAdmin && request.Pages.Any(p => Mercurius.Common.ModuleRegistry.DatabaseModules.Contains(p)))
+            {
+                return DatabasePermissionsPlatformAdminOnly();
+            }
             var role = new IdentityRole(request.Name);
             var result = await _roleManager.CreateAsync(role);
             if (!result.Succeeded) return BadRequest(new { error = string.Join("; ", result.Errors.Select(e => e.Description)) });
@@ -66,6 +82,19 @@ namespace Mercurius.Controllers.Api
             if (role == null) return NotFound();
 
             var existingClaims = await _roleManager.GetClaimsAsync(role);
+            if (!CallerIsPlatformAdmin)
+            {
+                var databaseModules = Mercurius.Common.ModuleRegistry.DatabaseModules;
+                var currentDatabasePages = existingClaims
+                    .Where(c => c.Type == MercuriusClaimTypes.AccessPages && databaseModules.Contains(c.Value))
+                    .Select(c => c.Value).ToHashSet();
+                var requestedDatabasePages = request.Pages.Where(p => databaseModules.Contains(p)).ToHashSet();
+                if (IsDatabaseAdministratorRole(role) || !currentDatabasePages.SetEquals(requestedDatabasePages))
+                {
+                    return DatabasePermissionsPlatformAdminOnly();
+                }
+            }
+
             foreach (var claim in existingClaims.Where(c => c.Type == MercuriusClaimTypes.AccessPages))
             {
                 await _roleManager.RemoveClaimAsync(role, claim);
@@ -84,6 +113,7 @@ namespace Mercurius.Controllers.Api
         {
             var role = await _roleManager.FindByIdAsync(id);
             if (role == null) return NotFound();
+            if (IsDatabaseAdministratorRole(role) && !CallerIsPlatformAdmin) return DatabasePermissionsPlatformAdminOnly();
             await _roleManager.DeleteAsync(role);
             return Ok();
         }

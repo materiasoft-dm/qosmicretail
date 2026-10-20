@@ -85,6 +85,7 @@ namespace Mercurius.Services.Admin
                     // Same as the seeded default admin; they can change it under Account settings.
                     FirstName = "Admin",
                     LastName = "User",
+                    IsActive = true,
                     TenantId = tenant.Id
                 };
                 var createResult = await _userManager.CreateAsync(adminUser, adminPassword);
