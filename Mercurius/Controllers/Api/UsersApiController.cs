@@ -38,6 +38,10 @@ namespace Mercurius.Controllers.Api
             _auditLogger = auditLogger;
         }
 
+        // Database Administrator reaches every tenant's data, so a tenant's own user managers can
+        // neither hand it out nor take it away; only a platform admin changes who holds it.
+        private const string DatabaseAdministratorRole = Mercurius.Common.ModuleRegistry.DatabaseAdministratorRole;
+
         private bool CallerIsPlatformAdmin => User.HasClaim(MercuriusClaimTypes.IsPlatformAdmin, "true");
 
         [HttpGet]
@@ -105,10 +109,13 @@ namespace Mercurius.Controllers.Api
                 IsActive = true,
                 TenantId = _tenant.TenantId
             };
+            var roleNames = await ResolveRoleNamesAsync(request.RoleIds);
+            if (!CallerIsPlatformAdmin && roleNames.Contains(DatabaseAdministratorRole)) return DatabaseRolePlatformAdminOnly();
+
             var result = await _userManager.CreateAsync(user, request.Password ?? string.Empty);
             if (!result.Succeeded) return BadRequest(new { error = Describe(result) });
 
-            foreach (var roleName in await ResolveRoleNamesAsync(request.RoleIds))
+            foreach (var roleName in roleNames)
             {
                 await _userManager.AddToRoleAsync(user, roleName);
             }
@@ -123,8 +130,14 @@ namespace Mercurius.Controllers.Api
             if (user.IsPlatformAdmin && !CallerIsPlatformAdmin) return PlatformAdminOnly();
 
             var currentRoles = await _userManager.GetRolesAsync(user);
+            var roleNames = await ResolveRoleNamesAsync(request.RoleIds);
+            if (!CallerIsPlatformAdmin && currentRoles.Contains(DatabaseAdministratorRole) != roleNames.Contains(DatabaseAdministratorRole))
+            {
+                return DatabaseRolePlatformAdminOnly();
+            }
+
             if (currentRoles.Count > 0) await _userManager.RemoveFromRolesAsync(user, currentRoles);
-            foreach (var roleName in await ResolveRoleNamesAsync(request.RoleIds))
+            foreach (var roleName in roleNames)
             {
                 await _userManager.AddToRoleAsync(user, roleName);
             }
@@ -184,6 +197,9 @@ namespace Mercurius.Controllers.Api
             }
             return names;
         }
+
+        private ObjectResult DatabaseRolePlatformAdminOnly() =>
+            StatusCode(StatusCodes.Status403Forbidden, new { error = $"Only a platform admin can grant or remove the {DatabaseAdministratorRole} role." });
 
         private ObjectResult PlatformAdminOnly() =>
             StatusCode(StatusCodes.Status403Forbidden, new { error = "Only a platform admin can change a platform admin's account." });

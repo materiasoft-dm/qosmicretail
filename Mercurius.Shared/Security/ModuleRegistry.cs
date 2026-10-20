@@ -92,6 +92,17 @@ namespace Mercurius.Common
             ModuleRegistry.Pages.WHOLESALE_VIEW
         };
 
+        // Permissions that reach the whole database rather than one tenant's data (raw SQL, the
+        // full SQLite snapshot). They are held only by the seeded Database Administrator role, never
+        // by Administrator, and only a platform admin can grant that role or these permissions.
+        public const string DatabaseAdministratorRole = "Database Administrator";
+
+        public static IReadOnlyList<string> DatabaseModules { get; } = new[]
+        {
+            ModuleRegistry.Pages.ADMIN_DATA_QUERY,
+            ModuleRegistry.Pages.CONFIG_DATABASE_BACKUPS
+        };
+
         public static class Pages
         {
             public const string HOME_PAGE = "Dashboard Page";

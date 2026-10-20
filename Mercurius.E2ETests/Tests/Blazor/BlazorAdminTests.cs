@@ -132,6 +132,64 @@ public class BlazorAdminTests : BlazorTestBase
     }
 
     /// <summary>
+    /// Data Query and Database Backups reach every tenant's data, so they belong to the Database
+    /// Administrator role, not Administrator: a new tenant's admin is neither offered nor let into
+    /// them, and can't grant itself that role.
+    /// </summary>
+    [Fact]
+    public async Task TenantAdmin_HasNoDatabaseTools_AndCantGrantDatabaseRole()
+    {
+        await LoginAsAdminAsync();
+        var stamp = Stamp();
+        var email = $"tenant-db-{stamp}@example.com";
+        const string password = "Tenant@12345";
+
+        await GotoAppAsync("platform-admin");
+        await Page.GetByRole(AriaRole.Button, new PageGetByRoleOptions { Name = "New tenant" }).ClickAsync();
+        await FillFieldAsync("Business name", $"E2E Pharmacy {stamp}");
+        await FillFieldAsync("First branch", $"Branch {stamp}");
+        await FillFieldAsync("Address", "12 Rizal Ave, Manila");
+        await FillFieldAsync("Contact number", "0917 555 0101");
+        await FillFieldAsync("Email (sign-in)", email);
+        await FillFieldAsync("Password", password);
+        await Page.GetByRole(AriaRole.Button, new PageGetByRoleOptions { Name = "Create tenant" }).ClickAsync();
+        await Assertions.Expect(Rows.Filter(new LocatorFilterOptions { HasTextString = $"E2E Pharmacy {stamp}" })).ToHaveCountAsync(1, new LocatorAssertionsToHaveCountOptions { Timeout = UiTimeoutMs });
+
+        await Context.ClearCookiesAsync();
+        await LoginAsync(email, password);
+
+        await GotoAppAsync("settings");
+        var content = Page.Locator("article.content");
+        await Assertions.Expect(content.GetByText("Audit Trail", new LocatorGetByTextOptions { Exact = true }))
+            .ToBeVisibleAsync(new LocatorAssertionsToBeVisibleOptions { Timeout = UiTimeoutMs });
+        await Assertions.Expect(content.GetByText("Data Query", new LocatorGetByTextOptions { Exact = true })).ToHaveCountAsync(0);
+        await Assertions.Expect(content.GetByText("Database Backups", new LocatorGetByTextOptions { Exact = true })).ToHaveCountAsync(0);
+
+        var dataQuery = await Page.APIRequest.PostAsync("/api/admin/data-query", new APIRequestContextOptions
+        {
+            DataObject = new { apiKey = DevAdminQueryKey, sql = "SELECT 1" }
+        });
+        Assert.True(dataQuery.Status is 401 or 403, $"data-query returned {dataQuery.Status}");
+        var backups = await Page.APIRequest.GetAsync("/api/admin/backups");
+        Assert.True(backups.Status is 401 or 403, $"backups returned {backups.Status}");
+
+        // Granting itself Database Administrator is refused.
+        var users = await (await Page.APIRequest.GetAsync("/api/users?showDeactivated=true")).JsonAsync();
+        var myId = users!.Value.GetProperty("items").EnumerateArray()
+            .First(u => u.GetProperty("isCurrentUser").GetBoolean()).GetProperty("id").GetString();
+        var roles = await (await Page.APIRequest.GetAsync("/api/roles")).JsonAsync();
+        var roleIds = roles!.Value.GetProperty("items").EnumerateArray()
+            .Where(r => r.GetProperty("name").GetString() is "Administrator" or "Database Administrator")
+            .Select(r => r.GetProperty("id").GetString()).ToArray();
+        var assign = await Page.APIRequest.PostAsync($"/api/users/{myId}/roles", new APIRequestContextOptions
+        {
+            DataObject = new { roleIds }
+        });
+        Assert.Equal(403, assign.Status);
+        await AssertNoBlazorErrorAsync();
+    }
+
+    /// <summary>
     /// Clicking a tenant's name opens its details (read-only, with Edit and Close); Edit turns the
     /// dialog into a form, and saving updates both the dialog and the list.
     /// </summary>
