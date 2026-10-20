@@ -75,6 +75,11 @@ public class BlazorAdminTests : BlazorTestBase
         // The E2E server runs on SQLite, so daily snapshots exist and are listed.
         await GotoAppAsync("database-backups");
         await Assertions.Expect(Page.Locator("article.content table")).ToBeVisibleAsync(new LocatorAssertionsToBeVisibleOptions { Timeout = UiTimeoutMs });
+
+        // The seed admin holds Database Administrator, which carries Server Logs.
+        await GotoAppAsync("logs");
+        await Assertions.Expect(Page.GetByRole(AriaRole.Button, new PageGetByRoleOptions { Name = "Clear all logs" }))
+            .ToBeVisibleAsync(new LocatorAssertionsToBeVisibleOptions { Timeout = UiTimeoutMs });
         await AssertNoBlazorErrorAsync();
     }
 
@@ -132,9 +137,10 @@ public class BlazorAdminTests : BlazorTestBase
     }
 
     /// <summary>
-    /// Data Query and Database Backups reach every tenant's data, so they belong to the Database
-    /// Administrator role, not Administrator: a new tenant's admin is neither offered nor let into
-    /// them, and can't grant itself that role.
+    /// Data Query, Database Backups and Server Logs reach every tenant's data, so they belong to the
+    /// Database Administrator role, not Administrator: a new tenant's admin is neither offered nor
+    /// let into them, and can't grant itself that role. It is also created active, so it appears in
+    /// its own Users list.
     /// </summary>
     [Fact]
     public async Task TenantAdmin_HasNoDatabaseTools_AndCantGrantDatabaseRole()
@@ -164,6 +170,7 @@ public class BlazorAdminTests : BlazorTestBase
             .ToBeVisibleAsync(new LocatorAssertionsToBeVisibleOptions { Timeout = UiTimeoutMs });
         await Assertions.Expect(content.GetByText("Data Query", new LocatorGetByTextOptions { Exact = true })).ToHaveCountAsync(0);
         await Assertions.Expect(content.GetByText("Database Backups", new LocatorGetByTextOptions { Exact = true })).ToHaveCountAsync(0);
+        await Assertions.Expect(content.GetByText("Logs", new LocatorGetByTextOptions { Exact = true })).ToHaveCountAsync(0);
 
         var dataQuery = await Page.APIRequest.PostAsync("/api/admin/data-query", new APIRequestContextOptions
         {
@@ -172,9 +179,11 @@ public class BlazorAdminTests : BlazorTestBase
         Assert.True(dataQuery.Status is 401 or 403, $"data-query returned {dataQuery.Status}");
         var backups = await Page.APIRequest.GetAsync("/api/admin/backups");
         Assert.True(backups.Status is 401 or 403, $"backups returned {backups.Status}");
+        var logs = await Page.APIRequest.GetAsync("/api/logs");
+        Assert.True(logs.Status is 401 or 403, $"logs returned {logs.Status}");
 
         // Granting itself Database Administrator is refused.
-        var users = await (await Page.APIRequest.GetAsync("/api/users?showDeactivated=true")).JsonAsync();
+        var users = await (await Page.APIRequest.GetAsync("/api/users")).JsonAsync();
         var myId = users!.Value.GetProperty("items").EnumerateArray()
             .First(u => u.GetProperty("isCurrentUser").GetBoolean()).GetProperty("id").GetString();
         var roles = await (await Page.APIRequest.GetAsync("/api/roles")).JsonAsync();

@@ -712,14 +712,20 @@ async Task SeedDataAsync(WebApplication app)
                 logger.LogInformation("Granted platform-admin to seed admin user");
             }
 
-            // Somebody has to hold the database permissions after they left Administrator, so the
-            // seed admin gets Database Administrator while nobody else has it. Once anyone holds the
-            // role this leaves membership alone, so it can be reassigned from the Users page.
-            var databaseAdminRoleName = Mercurius.Common.ModuleRegistry.DatabaseAdministratorRole;
-            if (adminUser != null && (await userManager.GetUsersInRoleAsync(databaseAdminRoleName)).Count == 0)
+            // The seed admin (the deployment's operator) always holds both Administrator and
+            // Database Administrator, so it keeps the database tools (Data Query, Database Backups,
+            // Server Logs) that Administrator no longer carries. Anyone else gets Database
+            // Administrator from the Users page.
+            if (adminUser != null)
             {
-                await userManager.AddToRoleAsync(adminUser, databaseAdminRoleName);
-                logger.LogInformation($"Assigned {databaseAdminRoleName} role to seed admin user");
+                foreach (var roleName in new[] { "Administrator", Mercurius.Common.ModuleRegistry.DatabaseAdministratorRole })
+                {
+                    if (!await userManager.IsInRoleAsync(adminUser, roleName))
+                    {
+                        await userManager.AddToRoleAsync(adminUser, roleName);
+                        logger.LogInformation($"Assigned {roleName} role to seed admin user");
+                    }
+                }
             }
 
             // Assign default location to admin (new or existing) — unfiltered for the same

@@ -14,7 +14,7 @@ namespace Mercurius.Controllers.Api
     // (resolve full path, verify it's still under the logs directory before touching it).
     [ApiController]
     [Route("api/logs")]
-    [Authorize(Policy = Mercurius.Common.ModuleRegistry.Pages.ADMIN_USERS_MANAGEMENT)]
+    [Authorize(Policy = Mercurius.Common.ModuleRegistry.Pages.ADMIN_SERVER_LOGS)]
     public class LogsApiController : ControllerBase
     {
         private readonly string _logDir;
