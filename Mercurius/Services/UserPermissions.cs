@@ -21,7 +21,7 @@ namespace Mercurius.Services
             _roleManager = roleManager;
         }
 
-        public async Task<HashSet<string>> GetAsync(string? userId)
+        public virtual async Task<HashSet<string>> GetAsync(string? userId)
         {
             var granted = new HashSet<string>(StringComparer.Ordinal);
             if (string.IsNullOrEmpty(userId)) return granted;

@@ -139,6 +139,7 @@ namespace Mercurius.Controllers.Api
                 CurrentSalePrice = request.CurrentSalePrice,
                 LeadTimeDays = request.LeadTimeDays,
                 LowStockCount = request.LowStockCount,
+                VatType = ValidVatType(request.VatType),
                 Note = request.Note ?? string.Empty,
                 CustomWarning = string.Empty,
                 Model = string.Empty,
@@ -179,6 +180,7 @@ namespace Mercurius.Controllers.Api
                 LeadTimeDays = product.LeadTimeDays,
                 CurrentStock = product.CurrentStock,
                 LowStockCount = product.LowStockCount,
+                VatType = product.VatType,
                 Note = product.Note,
                 Model = product.Model,
                 CustomWarning = product.CustomWarning,
@@ -214,6 +216,7 @@ namespace Mercurius.Controllers.Api
             product.CurrentSalePrice = request.CurrentSalePrice;
             product.LeadTimeDays = request.LeadTimeDays;
             product.LowStockCount = request.LowStockCount;
+            product.VatType = ValidVatType(request.VatType);
             product.Note = request.Note ?? string.Empty;
             // IsActive=false is this app's "delete" (soft) — the MVC Delete hard-deleted, which
             // fails once any invoice/batch references the product anyway (FKs are Restrict).
@@ -350,6 +353,11 @@ namespace Mercurius.Controllers.Api
 
         private Guid CurrentUserId =>
             Guid.TryParse(User.FindFirstValue(ClaimTypes.NameIdentifier), out var uid) ? uid : Guid.Empty;
+
+        private static int ValidVatType(int vatType) =>
+
+            Enum.IsDefined(typeof(Mercurius.Shared.Bir.VatType), vatType) ? vatType : 0;
+
 
         private static string? NormalizeBarcode(string? barcode) =>
             string.IsNullOrWhiteSpace(barcode) ? null : barcode.Trim();

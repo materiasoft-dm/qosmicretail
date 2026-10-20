@@ -66,7 +66,13 @@ namespace Mercurius.Controllers.Api
                     Country = address?.Country,
                     MonthlyTargetSalesCount = l.MetaMonthlyTargetSalesCount,
                     DailySalesTarget = dailyTarget,
-                    IsActive = l.IsActive
+                    IsActive = l.IsActive,
+                    TaxRegisteredName = l.TaxRegisteredName,
+                    TaxBusinessName = l.TaxBusinessName,
+                    TaxAddress = l.TaxAddress,
+                    Tin = l.Tin,
+                    TinBranchCode = l.TinBranchCode,
+                    IsVatRegistered = l.IsVatRegistered
                 };
             }).ToList();
             return Ok(new ListResultDto<LocationDto> { Items = items, Total = items.Count });
@@ -85,6 +91,7 @@ namespace Mercurius.Controllers.Api
             location.Name = request.Name.Trim();
             location.MetaMonthlyTargetSalesCount = request.MonthlyTargetSalesCount;
             location.IsActive = request.IsActive;
+            ApplyTaxProfile(location, request);
             await _unitOfWork.Repository<Location>().UpdateAsync(location, ct);
 
             var address = await _unitOfWork.Repository<Address>().GetByIdAsync(location.AddressId, ct);
@@ -111,6 +118,23 @@ namespace Mercurius.Controllers.Api
             await SetDailyTargetAsync(location.Id, request.DailySalesTarget, ct);
             await _unitOfWork.SaveChangesAsync(ct);
             return NoContent();
+        }
+
+        private static void ApplyTaxProfile(Location location, CreateLocationRequest request)
+        {
+            location.TaxRegisteredName = Clean(request.TaxRegisteredName, 200);
+            location.TaxBusinessName = Clean(request.TaxBusinessName, 200);
+            location.TaxAddress = Clean(request.TaxAddress, 500);
+            location.Tin = Clean(request.Tin, 20);
+            location.TinBranchCode = Clean(request.TinBranchCode, 10);
+            location.IsVatRegistered = request.IsVatRegistered;
+        }
+
+        private static string? Clean(string? value, int max)
+        {
+            if (string.IsNullOrWhiteSpace(value)) return null;
+            var trimmed = value.Trim();
+            return trimmed.Length > max ? trimmed[..max] : trimmed;
         }
 
         // No target (or zero) removes the setting, so the dashboard falls back to its default.
@@ -173,6 +197,7 @@ namespace Mercurius.Controllers.Api
                 ContactInformationId = contactInformation.Id,
                 IsActive = true
             };
+            ApplyTaxProfile(location, request);
             await _unitOfWork.Repository<Location>().AddAsync(location, ct);
             await _unitOfWork.SaveChangesAsync(ct);
             await SetDailyTargetAsync(location.Id, request.DailySalesTarget, ct);
@@ -192,7 +217,13 @@ namespace Mercurius.Controllers.Api
                 Country = address.Country,
                 MonthlyTargetSalesCount = location.MetaMonthlyTargetSalesCount,
                 DailySalesTarget = request.DailySalesTarget is > 0 ? request.DailySalesTarget : null,
-                IsActive = location.IsActive
+                IsActive = location.IsActive,
+                TaxRegisteredName = location.TaxRegisteredName,
+                TaxBusinessName = location.TaxBusinessName,
+                TaxAddress = location.TaxAddress,
+                Tin = location.Tin,
+                TinBranchCode = location.TinBranchCode,
+                IsVatRegistered = location.IsVatRegistered
             });
         }
     }

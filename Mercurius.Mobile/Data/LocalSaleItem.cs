@@ -20,11 +20,18 @@ public class LocalSaleItem
     public decimal SalePrice { get; set; }
     public decimal CostPrice { get; set; }
 
-    // Server-computed for pulled sales (wholesale lines can carry a custom total); 0 for lines
-    // created here, where Quantity * SalePrice is the total — see EffectiveLineTotal.
+    // Server-computed for pulled sales (wholesale lines can carry a custom total). For lines
+    // created here: what the line sold for after VAT exemption/discount, or 0 when that's just
+    // Quantity * SalePrice — see EffectiveLineTotal.
     public decimal LineTotal { get; set; }
     public decimal RefundedQuantity { get; set; }
 
+    // BIR: the line's tax class as sold, its VAT, and its share of a special discount.
+    public int VatType { get; set; }
+    public decimal VatAmount { get; set; }
+    public decimal DiscountAmount { get; set; }
+
     [Ignore]
-    public decimal EffectiveLineTotal => LineTotal != 0 ? LineTotal : Quantity * SalePrice;
+    // A fully discounted line really is 0, so a discount makes LineTotal authoritative even then.
+    public decimal EffectiveLineTotal => LineTotal != 0 || DiscountAmount != 0 ? LineTotal : Quantity * SalePrice;
 }

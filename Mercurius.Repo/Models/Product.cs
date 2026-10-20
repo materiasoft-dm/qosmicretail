@@ -44,6 +44,10 @@ public string Model { get; set; }
 public decimal? CurrentCostPrice { get; set; }
 public decimal? CurrentSalePrice { get; set; }
 
+    // BIR tax class (Mercurius.Shared.Bir.VatType: 0 Vatable, 1 VAT-exempt, 2 zero-rated). Shelf
+    // prices of VATable products include the 12% VAT. Some maintenance medicines are VAT-exempt.
+    public int VatType { get; set; }
+
     public int? LeadTimeDays { get; set; }
 
     // CurrentStock + LowStockCount widened from int to decimal (R11) so pharmacy products

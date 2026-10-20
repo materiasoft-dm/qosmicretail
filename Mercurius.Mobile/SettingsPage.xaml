@@ -46,6 +46,49 @@
                     </VerticalStackLayout>
                 </Border>
 
+                <!-- BIR registration of this device as a POS terminal. The MIN, serial number and
+                     Permit to Use come from BIR's eAccReg once the terminal is registered; only
+                     roles with "Configuration - POS Terminals (BIR)" can change them. -->
+                <Border StrokeShape="RoundRectangle 14"
+                        Stroke="{StaticResource Gray100}"
+                        BackgroundColor="{StaticResource White}"
+                        Padding="20">
+                    <Border.Shadow>
+                        <Shadow Brush="Black" Opacity="0.05" Radius="12" Offset="0,3" />
+                    </Border.Shadow>
+                    <VerticalStackLayout Spacing="10">
+                        <Label Text="BIR REGISTRATION" FontSize="12" FontAttributes="Bold" TextColor="{StaticResource Gray400}" />
+                        <Label x:Name="BirStatusLabel" AutomationId="BirStatusLabel" FontSize="15" FontAttributes="Bold" TextColor="{StaticResource MidnightBlue}" />
+                        <Label x:Name="BirSellerLabel" AutomationId="BirSellerLabel" FontSize="12" TextColor="{StaticResource Gray500}" />
+
+                        <Label Text="Machine Identification Number (MIN)" FontSize="12" TextColor="{StaticResource Gray500}" />
+                        <Border StrokeShape="RoundRectangle 10" Stroke="{StaticResource Gray100}" BackgroundColor="#F5F6F8" Padding="12,0" HeightRequest="42">
+                            <Entry x:Name="MinEntry" AutomationId="MinEntry" Placeholder="From your BIR Permit to Use" MaxLength="30" VerticalOptions="Center" />
+                        </Border>
+                        <Label Text="Machine serial number" FontSize="12" TextColor="{StaticResource Gray500}" />
+                        <Border StrokeShape="RoundRectangle 10" Stroke="{StaticResource Gray100}" BackgroundColor="#F5F6F8" Padding="12,0" HeightRequest="42">
+                            <Entry x:Name="SerialEntry" AutomationId="SerialEntry" Placeholder="As registered with BIR" MaxLength="50" VerticalOptions="Center" />
+                        </Border>
+                        <Label Text="Permit to Use (PTU) number" FontSize="12" TextColor="{StaticResource Gray500}" />
+                        <Border StrokeShape="RoundRectangle 10" Stroke="{StaticResource Gray100}" BackgroundColor="#F5F6F8" Padding="12,0" HeightRequest="42">
+                            <Entry x:Name="PtuEntry" AutomationId="PtuEntry" Placeholder="e.g. FP102026-123-0000001-00000" MaxLength="50" VerticalOptions="Center" />
+                        </Border>
+                        <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="10">
+                            <CheckBox x:Name="PtuDateCheckBox" AutomationId="PtuDateCheckBox" VerticalOptions="Center" CheckedChanged="OnPtuDateCheckedChanged" />
+                            <Label Grid.Column="1" Text="PTU date issued" FontSize="13" VerticalOptions="Center" TextColor="{StaticResource Gray500}" />
+                            <DatePicker Grid.Column="2" x:Name="PtuDatePicker" AutomationId="PtuDatePicker" Format="yyyy-MM-dd" IsEnabled="False" />
+                        </Grid>
+                        <Button x:Name="SaveBirButton" AutomationId="SaveBirRegistrationButton" Text="Save registration" HeightRequest="42"
+                                HorizontalOptions="Start" Padding="18,0" Clicked="OnSaveBirClicked" />
+                        <Label x:Name="BirHintLabel" FontSize="12" TextColor="{StaticResource Gray400}" />
+
+                        <BoxView HeightRequest="1" Color="{StaticResource Gray100}" Margin="0,6" />
+                        <Label Text="Receipt paper width" FontSize="13" FontAttributes="Bold" TextColor="{StaticResource Gray500}" />
+                        <Picker x:Name="ReceiptWidthPicker" AutomationId="ReceiptWidthPicker" SelectedIndexChanged="OnReceiptWidthChanged" />
+                        <Label Text="Characters per line on this device's receipt printer: 32 for 58mm paper, 42 or 48 for 80mm." FontSize="12" TextColor="{StaticResource Gray400}" />
+                    </VerticalStackLayout>
+                </Border>
+
                 <Border StrokeShape="RoundRectangle 14"
                         Stroke="{StaticResource Gray100}"
                         BackgroundColor="{StaticResource White}"

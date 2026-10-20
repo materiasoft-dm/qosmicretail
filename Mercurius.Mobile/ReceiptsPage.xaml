@@ -186,6 +186,12 @@
                                 <VerticalStackLayout x:Name="DetailItemsStack" Spacing="0" />
                             </VerticalStackLayout>
                         </Border>
+
+                        <!-- BIR: the invoice exactly as it printed (kept in the e-journal), marked as a reprint. -->
+                        <Button x:Name="ReprintButton" AutomationId="ReprintInvoiceButton" Text="Reprint invoice" HeightRequest="44"
+                                HorizontalOptions="Center" Padding="24,0" IsVisible="False"
+                                BackgroundColor="{StaticResource White}" TextColor="{StaticResource MidnightBlue}"
+                                Clicked="OnReprintClicked" />
                     </VerticalStackLayout>
                 </ScrollView>
 

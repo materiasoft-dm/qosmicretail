@@ -27,6 +27,8 @@ public class LocalProduct
     public decimal LowStockCount { get; set; }
     public decimal MarkUpPercentage { get; set; }
     public bool IsActive { get; set; }
+    // Mercurius.Shared.Bir.VatType: how this product shows on a BIR invoice.
+    public int VatType { get; set; }
     public DateTime LastModifiedUtc { get; set; }
 
     // True for a product created on this device that the server hasn't confirmed yet. Sync pushes

@@ -95,6 +95,10 @@
         <ShellContent ContentTemplate="{DataTemplate local:ReceiptsPage}" Route="ReceiptsPage" />
     </FlyoutItem>
 
+    <FlyoutItem Title="End of Day" Route="ReadingsPage">
+        <ShellContent ContentTemplate="{DataTemplate local:ReadingsPage}" Route="ReadingsPage" />
+    </FlyoutItem>
+
     <FlyoutItem Title="Dashboard" Route="MainPage">
         <ShellContent ContentTemplate="{DataTemplate local:MainPage}" Route="MainPage" />
     </FlyoutItem>

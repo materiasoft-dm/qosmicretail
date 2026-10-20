@@ -46,7 +46,8 @@ public class SyncService
             CurrentStock = p.CurrentStock,
             LowStockCount = p.LowStockCount,
             MarkUpPercentage = p.MarkUpPercentage,
-            IsActive = p.IsActive
+            IsActive = p.IsActive,
+            VatType = p.VatType
         }).ToList();
 
         var results = await _syncApiService.PushProductsAsync(dtos, ct);
@@ -96,6 +97,7 @@ public class SyncService
             LowStockCount = p.LowStockCount,
             MarkUpPercentage = p.MarkUpPercentage,
             IsActive = p.IsActive,
+            VatType = p.VatType,
             LastModifiedUtc = p.LastModifiedUtc
         });
 
@@ -138,13 +140,37 @@ public class SyncService
                 PaymentMethod = sale.PaymentMethod,
                 PaidAmount = sale.PaidAmount,
                 CashierUserId = sale.CashierUserId,
+                PosTerminalId = sale.InvoiceSequence > 0 ? sale.PosTerminalId : null,
+                TerminalInvoiceSequence = sale.InvoiceSequence > 0 ? sale.InvoiceSequence : null,
+                VatableSales = sale.VatableSales,
+                VatAmount = sale.VatAmount,
+                VatExemptSales = sale.VatExemptSales,
+                ZeroRatedSales = sale.ZeroRatedSales,
+                LessVat = sale.LessVat,
+                DiscountAmount = sale.DiscountAmount,
+                DiscountTypeId = sale.DiscountTypeId,
+                DiscountName = sale.DiscountName,
+                SpecialDiscountType = sale.SpecialDiscountType,
+                SpecialDiscountIdNumber = sale.SpecialDiscountIdNumber,
+                SpecialDiscountHolderName = sale.SpecialDiscountHolderName,
+                SpecialDiscountHolderTin = sale.SpecialDiscountHolderTin,
+                BuyerName = sale.BuyerName,
+                BuyerTin = sale.BuyerTin,
+                BuyerAddress = sale.BuyerAddress,
+                BuyerBusinessStyle = sale.BuyerBusinessStyle,
+                ReceiptText = sale.ReceiptText,
+                JournalHash = sale.JournalHash,
                 Items = items.Select(i => new SaleItemPushDto
                 {
                     SyncId = i.SyncId,
                     ProductSyncId = i.ProductSyncId,
                     Quantity = i.Quantity,
                     SalePrice = i.SalePrice,
-                    CostPrice = i.CostPrice
+                    CostPrice = i.CostPrice,
+                    VatType = i.VatType,
+                    VatAmount = i.VatAmount,
+                    DiscountAmount = i.DiscountAmount,
+                    NetAmount = i.EffectiveLineTotal
                 }).ToList()
             });
         }
@@ -240,7 +266,28 @@ public class SyncService
             Status = r.Status,
             HasRefund = r.HasRefund,
             RefundedAmount = r.RefundedAmount,
-            ServerModifiedUtc = r.LastModifiedUtc
+            ServerModifiedUtc = r.LastModifiedUtc,
+            PosTerminalId = r.PosTerminalId,
+            InvoiceSequence = r.TerminalInvoiceSequence ?? 0,
+            GrossAmount = r.Items.Sum(i => Mercurius.Shared.Bir.BirTaxCalculator.Round(i.Quantity * i.SalePrice)),
+            VatableSales = r.VatableSales,
+            VatAmount = r.VatAmount,
+            VatExemptSales = r.VatExemptSales,
+            ZeroRatedSales = r.ZeroRatedSales,
+            LessVat = r.LessVat,
+            DiscountAmount = r.DiscountAmount,
+            DiscountTypeId = r.DiscountTypeId,
+            DiscountName = r.DiscountName,
+            SpecialDiscountType = r.SpecialDiscountType,
+            SpecialDiscountIdNumber = r.SpecialDiscountIdNumber,
+            SpecialDiscountHolderName = r.SpecialDiscountHolderName,
+            SpecialDiscountHolderTin = r.SpecialDiscountHolderTin,
+            BuyerName = r.BuyerName,
+            BuyerTin = r.BuyerTin,
+            BuyerAddress = r.BuyerAddress,
+            BuyerBusinessStyle = r.BuyerBusinessStyle,
+            ReceiptText = r.ReceiptText,
+            JournalHash = r.JournalHash
         };
         var items = r.Items.Select(i => new LocalSaleItem
         {
@@ -251,7 +298,10 @@ public class SyncService
             Quantity = i.Quantity,
             SalePrice = i.SalePrice,
             LineTotal = i.LineTotal,
-            RefundedQuantity = i.RefundedQuantity
+            RefundedQuantity = i.RefundedQuantity,
+            VatType = i.VatType,
+            VatAmount = i.VatAmount,
+            DiscountAmount = i.DiscountAmount
         }).ToList();
         return (sale, items);
     }

@@ -1,0 +1,85 @@
+@page "/discount-types"
+@attribute [Authorize(Policy = ModuleRegistry.Pages.CONFIG_DISCOUNT_TYPES)]
+@using Mercurius.Client.Pages.Dialogs
+@using Mercurius.Shared.Bir
+@inject DiscountTypesApiClient Api
+@inject IDialogService DialogService
+@inject ISnackbar Snackbar
+
+<PageTitle>Discount Types</PageTitle>
+
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <MudText Typo="Typo.h4">Discount Types</MudText>
+    <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Filled.Add" OnClick="() => OpenAsync(null)">
+        Add Discount
+    </MudButton>
+</div>
+
+<MudText Typo="Typo.body2" Class="mb-3">
+    Discounts the cashier can apply to a whole ticket on the Sell page of the mobile app. Devices pick up changes on their next sync.
+</MudText>
+
+<MudPaper Class="pa-2" Elevation="2">
+    <MudTable RowsPerPage="25" Items="@(_result?.Items ?? new())" Loading="@(_result is null)" Hover="true" Dense="true">
+        <HeaderContent>
+            <MudTh>Name</MudTh>
+            <MudTh>Receipt code</MudTh>
+            <MudTh>Discount</MudTh>
+            <MudTh>VAT-exempt</MudTh>
+            <MudTh>Asks for ID</MudTh>
+            <MudTh>BIR category</MudTh>
+            <MudTh>Status</MudTh>
+            <MudTh></MudTh>
+        </HeaderContent>
+        <RowTemplate>
+            <MudTd DataLabel="Name">@context.Name</MudTd>
+            <MudTd DataLabel="Receipt code">@context.ShortLabel</MudTd>
+            <MudTd DataLabel="Discount">@ValueText(context)</MudTd>
+            <MudTd DataLabel="VAT-exempt">@(context.IsVatExempt ? "Yes" : "No")</MudTd>
+            <MudTd DataLabel="Asks for ID">@(context.RequiresCustomerId ? (context.IdLabel ?? "Yes") : "No")</MudTd>
+            <MudTd DataLabel="BIR category">@DiscountTypeDialog.CategoryName(context.Category)</MudTd>
+            <MudTd DataLabel="Status">
+                <MudChip T="string" Size="Size.Small" Color="@(context.IsActive ? Color.Success : Color.Default)">
+                    @(context.IsActive ? "Active" : "Inactive")
+                </MudChip>
+            </MudTd>
+            <MudTd>
+                <MudIconButton Icon="@Icons.Material.Filled.Edit" Size="Size.Small" OnClick="() => OpenAsync(context)" />
+            </MudTd>
+        </RowTemplate>
+        <NoRecordsContent>
+            <MudText>No discount types yet.</MudText>
+        </NoRecordsContent>
+        <PagerContent>
+            <MudTablePager PageSizeOptions="@(new[] { 25, 50, 100 })" />
+        </PagerContent>
+    </MudTable>
+</MudPaper>
+
+@code {
+    private ListResultDto<DiscountTypeDto>? _result;
+
+    protected override async Task OnInitializedAsync()
+    {
+        if (!RendererInfo.IsInteractive) return; // prerendering: show the loading state; the browser loads the data
+        await LoadAsync();
+    }
+
+    private async Task LoadAsync() => _result = await Api.GetAsync();
+
+    private static string ValueText(DiscountTypeDto d) => d.ValueKind == (int)DiscountValueKind.Percent
+        ? $"{d.Value:0.##}%"
+        : $"₱{d.Value:#,##0.00}";
+
+    private async Task OpenAsync(DiscountTypeDto? existing)
+    {
+        var parameters = new DialogParameters<DiscountTypeDialog> { { d => d.Existing, existing } };
+        var dialog = await DialogService.ShowAsync<DiscountTypeDialog>(existing == null ? "Add Discount Type" : "Edit Discount Type", parameters);
+        var result = await dialog.Result;
+        if (result is { Canceled: false })
+        {
+            Snackbar.Add(existing == null ? "Discount type created." : "Discount type updated.", Severity.Success);
+            await LoadAsync();
+        }
+    }
+}

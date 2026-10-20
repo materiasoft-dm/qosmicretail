@@ -41,6 +41,9 @@ public class ProductDto
     [JsonPropertyName("isActive")]
     public bool IsActive { get; set; }
 
+    [JsonPropertyName("vatType")]
+    public int VatType { get; set; }
+
     [JsonPropertyName("lastModifiedUtc")]
     public DateTime LastModifiedUtc { get; set; }
 

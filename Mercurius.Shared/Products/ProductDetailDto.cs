@@ -15,6 +15,8 @@ namespace Mercurius.Shared.Products
         public int? LeadTimeDays { get; set; }
         public decimal CurrentStock { get; set; }
         public decimal LowStockCount { get; set; }
+        // Mercurius.Shared.Bir.VatType.
+        public int VatType { get; set; }
         public string? Note { get; set; }
         public string? Model { get; set; }
         public string? CustomWarning { get; set; }
@@ -53,6 +55,7 @@ namespace Mercurius.Shared.Products
         public decimal? CurrentSalePrice { get; set; }
         public int? LeadTimeDays { get; set; }
         public decimal LowStockCount { get; set; }
+        public int VatType { get; set; }
         public string? Note { get; set; }
         // CategoryFieldId -> value, for the chosen category's custom fields.
         public Dictionary<int, string?> CustomFieldValues { get; set; } = new();
@@ -70,6 +73,7 @@ namespace Mercurius.Shared.Products
         public decimal? CurrentSalePrice { get; set; }
         public int? LeadTimeDays { get; set; }
         public decimal LowStockCount { get; set; }
+        public int VatType { get; set; }
         public string? Note { get; set; }
         public bool IsActive { get; set; }
         public Dictionary<int, string?> CustomFieldValues { get; set; } = new();

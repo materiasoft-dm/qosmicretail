@@ -56,6 +56,7 @@ public static class MauiProgram
 
 		builder.Services.AddSingleton<SyncApiService>();
 		builder.Services.AddSingleton<SyncService>();
+		builder.Services.AddSingleton<BirService>();
 		builder.Services.AddSingleton<SyncCoordinator>();
 
 		// ============================================
@@ -68,6 +69,7 @@ public static class MauiProgram
 		builder.Services.AddTransient<SalesPage>();
 		builder.Services.AddTransient<ReceiptsPage>();
 		builder.Services.AddTransient<SettingsPage>();
+		builder.Services.AddTransient<ReadingsPage>();
 
 		return builder.Build();
 	}

@@ -537,6 +537,41 @@ not assumed — the fixes are in `Infrastructure/`, but the reasoning is worth k
   neighborhood. This did NOT turn out to be the (sole) cause of the broader crash above — the same
   crash signature persisted afterward — but it's a legitimate fix in its own right regardless.
 
+### BIR invoicing (`Mercurius.Shared/Bir`, `BirSyncController`, mobile `BirService`)
+
+Philippine BIR accreditation basics (RMO 24-2023 CRM/POS). The tax maths and the printed layouts
+live in `Mercurius.Shared/Bir/` (`BirTaxCalculator`, `BirDocumentFormatter`), which the mobile app
+compiles in as linked source, so those files must stay dependency-free.
+
+- **VAT**: shelf prices include 12% VAT. `Product.VatType` is Vatable/VatExempt/ZeroRated; a branch
+  (`Location`) carries the seller's registered name, TIN, branch code and `IsVatRegistered` (a
+  non-VAT seller reports everything as exempt). Invoices store VATable/VAT/exempt/zero-rated
+  totals, `LessVat` and `DiscountAmount`; the invariant is
+  `AmountDue = Vatable + VAT + Exempt + ZeroRated - Discount`.
+- **Discount types** (`DiscountType`, Settings → Discount Types, `CONFIG_DISCOUNT_TYPES`): per
+  tenant, percent or fixed amount, optionally VAT-exempt (VAT removed first, SC/PWD style) and/or
+  asking for the holder's ID. `Category` is the BIR line it's reported on in X/Z readings (SC, PWD,
+  Solo Parent, NAAC, MOV, or 0 = other). The statutory ones are seeded per tenant by the
+  `SeedDefaultDiscountTypes` migration (idempotent: skips a category a tenant already has),
+  `TenantProvisioningService`, and startup for a brand-new default tenant. A discount applies to
+  the whole ticket; a fixed amount is spread across lines by price, capped at the ticket total.
+  Invoices keep `DiscountTypeId` plus a `DiscountName` snapshot.
+- **Terminals** (`PosTerminal`): each device registers itself by DeviceId on every sync
+  (`POST api/sync/terminal/register`) and gets a code `T<id>`. Its MIN, serial and Permit to Use are
+  entered on the device (Settings), gated by `CONFIG_POS_TERMINALS`. Supplier accreditation comes
+  from config `Bir:Supplier` (blank until BIR grants it).
+- **Invoice numbering is offline, per terminal**: `LocalDatabase.SaveSaleAsync` issues the next
+  8-digit serial, renders the receipt and extends a SHA-256 hash chain (the e-journal) in one
+  transaction. The server stores `InvoiceNumber = T<id>-<serial>` and keeps the highest serial it
+  has seen; the device is the authority for its counters. A device not yet registered still sells,
+  but its receipts say "NOT A VALID INVOICE" until the MIN and PTU are set.
+- **X/Z readings** (mobile End of Day page): the Z-reading closes the day, moves the Z counter and
+  the accumulating grand total on, and uploads as `PosZReading` (`POST api/sync/zreadings/push`,
+  create-once by SyncId). Sales awaiting a Z-reading are never pruned or cleared at logout.
+- **Printing** goes through the OS share sheet (e.g. RawBT on Android); paper width is per device.
+- Not built yet: refunds/voids in Z-readings (print as 0), per-item discount eligibility, discounts
+  on the web Sell page, a web page for terminals, and EIS e-invoicing.
+
 ### FIFO batch pricing (`BatchPricingService`)
 
 `MedicineBatch` rows (created via `MedicineBatchesApiController`, one per stock receipt) each carry their own `UnitCost`/`UnitSalePrice`. A new shipment at a different price is just a new batch queued behind older stock — web checkout (`SalesApiController`) and mobile invoice push (`SyncController.PushInvoices`) call `BatchPricingService.FindFulfillingBatchAsync` to pick, oldest first, the first batch whose `RemainingQuantity` alone covers the full line quantity; if the oldest batch falls short, the *whole* line is priced and drawn from the next batch that can cover it rather than splitting across two batches' ledgers (a deliberate simplification, confirmed with the product owner). Only when *no* single batch covers the line is it priced from the newest batch, which is emptied with the shortfall taken from the other batches oldest first (`BatchPricingService.DeductAsync`), so batches never go negative and still add up to the shelf stock. A refund with restock puts the units back on the line's batch. `InvoiceItem.MedicineBatchId` records which batch a line was actually priced/deducted from, for refund credit and lot-recall tracing. Products with no batches at all (most non-drug items) fall back to `Product.CurrentSalePrice`/`CurrentCostPrice` unchanged — this feature is purely additive. `BatchPricingService.RefreshActivePriceAsync` keeps those flat fields in sync with whichever batch is now the oldest non-depleted one, so every screen that reads them (the Products list, the Sell page, the mobile sync API) keeps working without knowing batches exist.

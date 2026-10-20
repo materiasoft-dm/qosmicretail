@@ -1,0 +1,88 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<ContentPage xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+             xmlns:data="clr-namespace:Mercurius.Mobile.Data"
+             xmlns:controls="clr-namespace:Mercurius.Mobile.Controls"
+             x:Class="Mercurius.Mobile.ReadingsPage"
+             Title="End of Day">
+
+    <!-- BIR X-readings (mid-shift totals), Z-readings (end-of-day close, which moves the Z counter
+         and the accumulating grand total on), and the e-journal export. See BirService. -->
+    <Grid RowDefinitions="Auto,*" RowSpacing="0">
+
+        <Grid Grid.Row="0" BackgroundColor="{StaticResource Secondary}" Padding="32,26">
+            <HorizontalStackLayout Spacing="12">
+                <controls:MenuButton />
+                <VerticalStackLayout Spacing="2" VerticalOptions="Center">
+                    <Label Text="End of Day" FontSize="24" FontAttributes="Bold" TextColor="{StaticResource White}" />
+                    <Label x:Name="HeaderSubtitleLabel" Text="X- and Z-readings" FontSize="13" TextColor="{StaticResource SecondaryDarkText}" />
+                </VerticalStackLayout>
+            </HorizontalStackLayout>
+        </Grid>
+
+        <ScrollView Grid.Row="1">
+            <VerticalStackLayout Padding="32,24" Spacing="20" MaximumWidthRequest="600" HorizontalOptions="Center">
+
+                <Label x:Name="NotRegisteredLabel" AutomationId="NotRegisteredLabel" IsVisible="False" FontSize="13" TextColor="#D32F2F"
+                       Text="This device isn't registered as a terminal yet. Connect to the internet and sync, then come back." />
+
+                <Border StrokeShape="RoundRectangle 14" Stroke="{StaticResource Gray100}" BackgroundColor="{StaticResource White}" Padding="20">
+                    <Border.Shadow>
+                        <Shadow Brush="Black" Opacity="0.05" Radius="12" Offset="0,3" />
+                    </Border.Shadow>
+                    <VerticalStackLayout Spacing="12">
+                        <Label Text="SINCE THE LAST Z-READING" FontSize="12" FontAttributes="Bold" TextColor="{StaticResource Gray400}" />
+                        <Label x:Name="PendingSummaryLabel" AutomationId="PendingSummaryLabel" FontSize="19" FontAttributes="Bold" TextColor="{StaticResource MidnightBlue}" />
+                        <Label x:Name="GrandTotalLabel" AutomationId="GrandTotalLabel" FontSize="12" TextColor="{StaticResource Gray400}" />
+                        <Grid ColumnDefinitions="*,*" ColumnSpacing="10">
+                            <Button x:Name="XReadingButton" AutomationId="XReadingButton" Text="X-reading" HeightRequest="46"
+                                    BackgroundColor="{StaticResource Gray100}" TextColor="{StaticResource MidnightBlue}"
+                                    Clicked="OnXReadingClicked" />
+                            <Button Grid.Column="1" x:Name="ZReadingButton" AutomationId="ZReadingButton" Text="Z-reading (close day)" HeightRequest="46"
+                                    FontAttributes="Bold" Clicked="OnZReadingClicked" />
+                        </Grid>
+                        <Label Text="X-reading: totals so far, nothing is reset. Z-reading: closes the day, once per business day, after the last sale."
+                               FontSize="12" TextColor="{StaticResource Gray400}" />
+                    </VerticalStackLayout>
+                </Border>
+
+                <Border StrokeShape="RoundRectangle 14" Stroke="{StaticResource Gray100}" BackgroundColor="{StaticResource White}" Padding="20">
+                    <Border.Shadow>
+                        <Shadow Brush="Black" Opacity="0.05" Radius="12" Offset="0,3" />
+                    </Border.Shadow>
+                    <VerticalStackLayout Spacing="12">
+                        <Label Text="E-JOURNAL" FontSize="12" FontAttributes="Bold" TextColor="{StaticResource Gray400}" />
+                        <Label Text="Every invoice this terminal still holds, as printed, with a hash chain that shows if one was altered. Export it for BIR or your records."
+                               FontSize="12" TextColor="{StaticResource Gray400}" />
+                        <Button x:Name="ExportJournalButton" AutomationId="ExportJournalButton" Text="Export e-journal" HeightRequest="42"
+                                HorizontalOptions="Start" Padding="18,0"
+                                BackgroundColor="{StaticResource Gray100}" TextColor="{StaticResource MidnightBlue}"
+                                Clicked="OnExportJournalClicked" />
+                    </VerticalStackLayout>
+                </Border>
+
+                <VerticalStackLayout Spacing="10">
+                    <Label Text="PAST Z-READINGS" FontSize="12" FontAttributes="Bold" TextColor="{StaticResource Gray400}" />
+                    <Label x:Name="NoZReadingsLabel" Text="None yet." FontSize="13" TextColor="{StaticResource Gray400}" IsVisible="False" />
+                    <!-- A bindable StackLayout rather than a CollectionView inside the ScrollView: the
+                         list is short (one per day, and only what this device holds). -->
+                    <VerticalStackLayout x:Name="ZReadingsList" AutomationId="ZReadingsList" Spacing="8">
+                        <BindableLayout.ItemTemplate>
+                            <DataTemplate x:DataType="data:LocalZReading">
+                                <Border StrokeShape="RoundRectangle 10" Stroke="{StaticResource Gray100}" BackgroundColor="{StaticResource White}" Padding="14,12">
+                                    <Border.GestureRecognizers>
+                                        <TapGestureRecognizer Tapped="OnZReadingTapped" CommandParameter="{Binding .}" />
+                                    </Border.GestureRecognizers>
+                                    <VerticalStackLayout Spacing="2">
+                                        <Label Text="{Binding Title}" FontSize="14" FontAttributes="Bold" TextColor="{StaticResource MidnightBlue}" />
+                                        <Label Text="{Binding Subtitle}" FontSize="12" TextColor="{StaticResource Gray400}" />
+                                    </VerticalStackLayout>
+                                </Border>
+                            </DataTemplate>
+                        </BindableLayout.ItemTemplate>
+                    </VerticalStackLayout>
+                </VerticalStackLayout>
+            </VerticalStackLayout>
+        </ScrollView>
+    </Grid>
+</ContentPage>

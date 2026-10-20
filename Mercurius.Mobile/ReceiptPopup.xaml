@@ -1,0 +1,38 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<toolkit:Popup xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
+               xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+               xmlns:toolkit="http://schemas.microsoft.com/dotnet/2022/maui/toolkit"
+               x:Class="Mercurius.Mobile.ReceiptPopup"
+               Size="460,680"
+               Color="Transparent">
+
+    <Border StrokeShape="RoundRectangle 16"
+            Stroke="{StaticResource Gray100}"
+            BackgroundColor="{StaticResource White}"
+            Padding="20"
+            StrokeThickness="1">
+        <Grid RowDefinitions="Auto,*,Auto" RowSpacing="12">
+            <VerticalStackLayout Grid.Row="0" Spacing="2">
+                <Label x:Name="TitleLabel" AutomationId="ReceiptTitleLabel" FontSize="17" FontAttributes="Bold" TextColor="{StaticResource MidnightBlue}" />
+                <Label x:Name="SubtitleLabel" AutomationId="ReceiptSubtitleLabel" FontSize="14" TextColor="{StaticResource Primary}" FontAttributes="Bold" />
+            </VerticalStackLayout>
+
+            <!-- Grey "paper" with the receipt exactly as it prints, in a fixed-width font. -->
+            <Border Grid.Row="1" StrokeShape="RoundRectangle 8" Stroke="Transparent" BackgroundColor="#F5F6F8" Padding="12">
+                <ScrollView>
+                    <Label x:Name="ReceiptLabel" AutomationId="ReceiptTextLabel"
+                           FontFamily="{OnPlatform Android=monospace, WinUI=Consolas, iOS=Courier, MacCatalyst=Courier}"
+                           FontSize="11" TextColor="{StaticResource Gray900}" LineBreakMode="NoWrap" />
+                </ScrollView>
+            </Border>
+
+            <Grid Grid.Row="2" ColumnDefinitions="*,*" ColumnSpacing="10">
+                <Button AutomationId="ReceiptShareButton" Text="Print / Share" HeightRequest="46"
+                        BackgroundColor="{StaticResource Gray100}" TextColor="{StaticResource Gray500}"
+                        Clicked="OnShareClicked" />
+                <Button Grid.Column="1" AutomationId="ReceiptDoneButton" Text="Done" HeightRequest="46" FontAttributes="Bold"
+                        Clicked="OnDoneClicked" />
+            </Grid>
+        </Grid>
+    </Border>
+</toolkit:Popup>

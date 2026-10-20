@@ -36,10 +36,8 @@ public class CheckoutAndSyncTests : MercuriusMobileWindowsTestBase
         Thread.Sleep(200);
         Tap("ChargeCashButton");
 
-        // 3. A native "Sale Complete" alert confirms the charge — dismiss it. On Windows this
-        // renders as a WinUI ContentDialog whose OK button exposes "OK" as its Name.
-        var okButton = WaitForText("OK", timeoutSeconds: 10);
-        okButton.Click();
+        // 3. The printed invoice (ReceiptPopup) confirms the charge — dismiss it.
+        WaitForId("ReceiptDoneButton", timeoutSeconds: 10).Click();
 
         // 4. Back on the Sell page: the ticket is cleared and the tile's local stock reflects the
         // sale immediately (SalesPage.xaml.cs reloads products right after SaveSaleAsync).

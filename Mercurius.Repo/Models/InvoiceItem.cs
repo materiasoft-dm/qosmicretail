@@ -38,6 +38,13 @@ public decimal? CustomTotalPrice { get; set; }
     // trace exactly which sales a given batch went into.
     public int? MedicineBatchId { get; set; }
 
+    // BIR tax class the line was sold under (Mercurius.Shared.Bir.VatType), its VAT, and its
+    // share of a special (senior/PWD...) discount. When a discount applies, CustomTotalPrice
+    // holds what the customer actually paid for the line.
+    public int VatType { get; set; }
+    public decimal VatAmount { get; set; }
+    public decimal DiscountAmount { get; set; }
+
 public virtual Invoice Invoice { get; set; }
 public virtual Product Product { get; set; }
 public virtual InvoiceStatus Status { get; set; }

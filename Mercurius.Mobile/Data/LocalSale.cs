@@ -49,4 +49,41 @@ public class LocalSale
     public bool HasRefund { get; set; }
     public decimal RefundedAmount { get; set; }
     public DateTime? ServerModifiedUtc { get; set; }
+
+    // --- BIR invoice (see Mercurius.Shared.Bir). Set at checkout on this device; for other
+    // terminals' sales, copied from the server. GrandTotal is the amount due after any discount.
+    public int? PosTerminalId { get; set; }
+    // The invoice's serial number on its terminal; 0 when the device wasn't registered as a
+    // terminal yet (the server then numbers it, and the receipt says it isn't a valid invoice).
+    public long InvoiceSequence { get; set; }
+    public decimal GrossAmount { get; set; }
+    public decimal VatableSales { get; set; }
+    public decimal VatAmount { get; set; }
+    public decimal VatExemptSales { get; set; }
+    public decimal ZeroRatedSales { get; set; }
+    public decimal LessVat { get; set; }
+    public decimal DiscountAmount { get; set; }
+    // The tenant's discount type applied to the ticket, and how it read when applied ("SC Disc 20%").
+    public int? DiscountTypeId { get; set; }
+    public string? DiscountName { get; set; }
+    // Its BIR reporting category (Mercurius.Shared.Bir.SpecialDiscountType); 0 = none/other.
+    public int SpecialDiscountType { get; set; }
+    public string? SpecialDiscountIdNumber { get; set; }
+    public string? SpecialDiscountHolderName { get; set; }
+    public string? SpecialDiscountHolderTin { get; set; }
+    public string? BuyerName { get; set; }
+    public string? BuyerTin { get; set; }
+    public string? BuyerAddress { get; set; }
+    public string? BuyerBusinessStyle { get; set; }
+    // The e-journal copy: the invoice exactly as printed, chained by hash to the previous one.
+    public string? ReceiptText { get; set; }
+    public string? JournalHash { get; set; }
+
+    // Local only: which Z-reading closed this sale. Null = not yet in a Z-reading, which keeps
+    // the row from being pruned or cleared on logout until one includes it.
+    [Indexed]
+    public int? ZReadingCounter { get; set; }
+
+    [Ignore]
+    public bool IsAwaitingZReading => IsFromThisDevice && InvoiceSequence > 0 && ZReadingCounter == null;
 }
