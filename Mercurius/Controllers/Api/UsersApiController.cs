@@ -25,11 +25,11 @@ namespace Mercurius.Controllers.Api
     public class UsersApiController : ControllerBase
     {
         private readonly UserManager<MercuriusUser> _userManager;
-        private readonly RoleManager<IdentityRole> _roleManager;
+        private readonly RoleManager<MercuriusRole> _roleManager;
         private readonly ICurrentTenantContext _tenant;
         private readonly IAuditLogger _auditLogger;
 
-        public UsersApiController(UserManager<MercuriusUser> userManager, RoleManager<IdentityRole> roleManager,
+        public UsersApiController(UserManager<MercuriusUser> userManager, RoleManager<MercuriusRole> roleManager,
             ICurrentTenantContext tenant, IAuditLogger auditLogger)
         {
             _userManager = userManager;

@@ -13,7 +13,7 @@ namespace Mercurius.Repo.Repositories
     /// user/role/claim/login/token tables via IdentityDbContext, and adds one DbSet per
     /// business model.
     /// </summary>
-    public class MercuriusDbContext : IdentityDbContext<MercuriusUser>
+    public class MercuriusDbContext : IdentityDbContext<MercuriusUser, MercuriusRole, string>
     {
         private readonly ICurrentTenantContext _currentTenantContext;
 
@@ -193,6 +193,20 @@ namespace Mercurius.Repo.Repositories
                 if (!typeof(ITenantScoped).IsAssignableFrom(entityType.ClrType)) continue;
                 SetTenantQueryFilterMethod.MakeGenericMethod(entityType.ClrType).Invoke(this, new object[] { builder });
             }
+
+            // Roles are per tenant (MercuriusRole). Identity's own unique index on NormalizedName
+            // would stop two tenants both having an "Administrator", so uniqueness moves to
+            // (TenantId, NormalizedName). The filter shows the current tenant's roles plus platform
+            // roles (TenantId null), which is what keeps RoleManager.FindByNameAsync and
+            // UserManager.AddToRoleAsync(user, "Administrator") inside one tenant. Sign-in and
+            // seeding run before any tenant claim exists, so they pick the tenant explicitly
+            // with ITenantScopeOverride.
+            builder.Entity<MercuriusRole>(role =>
+            {
+                role.HasIndex(r => r.NormalizedName).HasDatabaseName("RoleNameIndex").IsUnique(false);
+                role.HasIndex(r => new { r.TenantId, r.NormalizedName }).HasDatabaseName("RoleNameTenantIndex").IsUnique();
+                role.HasQueryFilter(r => r.TenantId == null || r.TenantId == _currentTenantContext.TenantId);
+            });
         }
 
         private static readonly MethodInfo SetTenantQueryFilterMethod =

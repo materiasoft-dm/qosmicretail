@@ -13,12 +13,15 @@ namespace Mercurius.Services
     public class UserPermissions
     {
         private readonly UserManager<MercuriusUser> _userManager;
-        private readonly RoleManager<IdentityRole> _roleManager;
+        private readonly RoleManager<MercuriusRole> _roleManager;
+        private readonly ITenantScopeOverride _tenantScope;
 
-        public UserPermissions(UserManager<MercuriusUser> userManager, RoleManager<IdentityRole> roleManager)
+        public UserPermissions(UserManager<MercuriusUser> userManager, RoleManager<MercuriusRole> roleManager,
+            ITenantScopeOverride tenantScope)
         {
             _userManager = userManager;
             _roleManager = roleManager;
+            _tenantScope = tenantScope;
         }
 
         public async Task<HashSet<string>> GetAsync(string? userId)
@@ -27,6 +30,9 @@ namespace Mercurius.Services
             if (string.IsNullOrEmpty(userId)) return granted;
             var user = await _userManager.FindByIdAsync(userId);
             if (user == null) return granted;
+
+            // Roles are per tenant; read the user's own tenant's, whatever the request carries.
+            using var _ = _tenantScope.UseTenant(user.TenantId);
 
             foreach (var roleName in await _userManager.GetRolesAsync(user))
             {

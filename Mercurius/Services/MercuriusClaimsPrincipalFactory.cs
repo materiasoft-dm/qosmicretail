@@ -5,21 +5,27 @@ using System.Security.Claims;
 
 namespace Mercurius.Services
 {
-    public class MercuriusClaimsPrincipalFactory : UserClaimsPrincipalFactory<MercuriusUser, IdentityRole>
+    public class MercuriusClaimsPrincipalFactory : UserClaimsPrincipalFactory<MercuriusUser, MercuriusRole>
     {
-        private readonly RoleManager<IdentityRole> _roleManager;
+        private readonly RoleManager<MercuriusRole> _roleManager;
+        private readonly ITenantScopeOverride _tenantScope;
 
         public MercuriusClaimsPrincipalFactory(
             UserManager<MercuriusUser> userManager,
-            RoleManager<IdentityRole> roleManager,
-            IOptions<IdentityOptions> optionsAccessor)
+            RoleManager<MercuriusRole> roleManager,
+            IOptions<IdentityOptions> optionsAccessor,
+            ITenantScopeOverride tenantScope)
             : base(userManager, roleManager, optionsAccessor)
         {
             _roleManager = roleManager;
+            _tenantScope = tenantScope;
         }
 
         protected override async Task<ClaimsIdentity> GenerateClaimsAsync(MercuriusUser user)
         {
+            // Roles are per tenant and filtered by the current tenant, but at sign-in the request
+            // has no tenant claim yet (this is what issues it), so read them as the user's tenant.
+            using var _ = _tenantScope.UseTenant(user.TenantId);
             var identity = await base.GenerateClaimsAsync(user);
 
             // The tenant boundary itself — read by ICurrentTenantContext (Mercurius.Repo) to
