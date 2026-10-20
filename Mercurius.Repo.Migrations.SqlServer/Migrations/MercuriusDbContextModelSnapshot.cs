@@ -665,6 +665,10 @@ namespace Mercurius.Repo.Migrations.SqlServer.Migrations
                         .HasPrecision(18, 4)
                         .HasColumnType("decimal(18,4)");
 
+                    b.Property<string>("PaymentMethod")
+                        .HasMaxLength(20)
+                        .HasColumnType("nvarchar(20)");
+
                     b.Property<string>("SourceChannel")
                         .HasMaxLength(20)
                         .HasColumnType("nvarchar(20)");

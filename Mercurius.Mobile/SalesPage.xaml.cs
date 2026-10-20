@@ -186,6 +186,10 @@ public partial class SalesPage : ContentPage
             : pending == 1
                 ? "1 sale pending sync"
                 : $"{pending} sales pending sync";
+        // The server refused them (rather than being unreachable), e.g. this account can't sell:
+        // waiting won't fix it, so say why.
+        var refusal = pending > 0 ? _syncCoordinator.LastReport?.SaleRejections.FirstOrDefault() : null;
+        if (refusal != null) PendingSyncLabel.Text += $" · {refusal}";
     }
 
     private void ApplyFilter()
@@ -435,6 +439,7 @@ public partial class SalesPage : ContentPage
                 // existed (falls back to resolving the signed-in user's own current branch).
                 LocationId = _deviceSettingsService.GetSelectedLocationId(),
                 Notes = payment.Method == Models.PaymentMethod.Card ? "Paid by card" : "Paid by cash",
+                PaymentMethod = payment.Method.ToString(),
                 PaidAmount = payment.AmountReceived,
                 GrandTotal = grandTotal,
                 IsSynced = false,

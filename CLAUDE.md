@@ -90,15 +90,22 @@ JwtBearerDefaults.AuthenticationScheme)]`) exposes `GET .../pull?since=<utc time
   (older app builds), `""` means "cleared".
 - **Invoices** are create-once/idempotent by `SyncId` — a synced sale is a completed financial
   record; re-pushing the same `SyncId` is a safe no-op rather than overwriting it. Edits to a
-  submitted sale should go through a refund/void flow, not sync. `PushInvoices` mirrors
-  web checkout's (`SalesApiController`) inventory bookkeeping for every line: it calls
-  `BatchPricingService.FindFulfillingBatchAsync` to pick a batch, decrements
-  `MedicineBatch.RemainingQuantity`/`Product.CurrentStock`, writes a `ZeroStockSaleAuditLog` row
-  when stock goes to zero or below, and calls `RefreshActivePriceAsync` afterward — the price the
-  device actually charged (`SalePrice`/`CostPrice` in the push body) is trusted as-is (it's what
-  the customer agreed to pay), but which batch it's drawn from and the resulting stock ledger are
-  always decided server-side, same as a web-created sale. Before this existed, a synced mobile
-  sale recorded revenue without ever touching inventory.
+  submitted sale should go through a refund/void flow, not sync. `PushInvoices` and web checkout
+  (`SalesApiController`) record every line through the same `SaleRecorder` (`Mercurius/Services/`):
+  it picks the batch (`BatchPricingService.FindFulfillingBatchAsync`), takes the line's cost from
+  that batch, decrements `MedicineBatch.RemainingQuantity`/`Product.CurrentStock`, writes a
+  `ZeroStockSaleAuditLog` row when stock goes to zero or below, and refreshes the active price
+  afterward. **Pricing rule for both tills:** a sale the customer has already paid keeps the price
+  the till charged (a mobile push's `SalePrice`, a web offline sale's `CartLineRequest.UnitPrice`);
+  a web sale charged online is priced by the server, and if the ticket showed a different unit
+  price checkout returns 409 with the current prices and saves nothing, so the cashier re-quotes
+  before charging. The device's `CostPrice` is ignored (cost is server bookkeeping). The payment
+  method is stored in `Invoice.PaymentMethod` (`Cash`/`Card`); older tills only wrote it into
+  `Notes` ("Paid by card"), which `PaymentMethods.Normalize` falls back to.
+- **Permissions on push.** Mobile JWTs carry no `access.pages` claims, so `SyncController` reads the
+  user's role permissions from the database (`UserPermissions`): invoice push needs
+  `NEWSALE_CREATE`, product push needs `PRODUCTS_CREATE` (new) or `PRODUCTS_EDIT` (existing).
+  A refusal is a per-item error, so the device keeps the record queued and shows the reason.
 - Conflict resolution is last-write-wins using the **server's own clock**, never a client-supplied
   timestamp — `UpdatedDate`/`CreatedDate` are always stamped server-side on write acceptance, whether
   the write came from the admin UI or a sync push. Business-meaning dates the client actually observed
@@ -532,7 +539,7 @@ not assumed — the fixes are in `Infrastructure/`, but the reasoning is worth k
 
 ### FIFO batch pricing (`BatchPricingService`)
 
-`MedicineBatch` rows (created via `MedicineBatchesApiController`, one per stock receipt) each carry their own `UnitCost`/`UnitSalePrice`. A new shipment at a different price is just a new batch queued behind older stock — web checkout (`SalesApiController`) and mobile invoice push (`SyncController.PushInvoices`) call `BatchPricingService.FindFulfillingBatchAsync` to pick, oldest first, the first batch whose `RemainingQuantity` alone covers the full line quantity; if the oldest batch falls short, the *whole* line is priced and drawn from the next batch that can cover it rather than splitting across two batches' ledgers (a deliberate simplification, confirmed with the product owner). `InvoiceItem.MedicineBatchId` records which batch a line was actually priced/deducted from, for refund credit and lot-recall tracing. Products with no batches at all (most non-drug items) fall back to `Product.CurrentSalePrice`/`CurrentCostPrice` unchanged — this feature is purely additive. `BatchPricingService.RefreshActivePriceAsync` keeps those flat fields in sync with whichever batch is now the oldest non-depleted one, so every screen that reads them (the Products list, the Sell page, the mobile sync API) keeps working without knowing batches exist.
+`MedicineBatch` rows (created via `MedicineBatchesApiController`, one per stock receipt) each carry their own `UnitCost`/`UnitSalePrice`. A new shipment at a different price is just a new batch queued behind older stock — web checkout (`SalesApiController`) and mobile invoice push (`SyncController.PushInvoices`) call `BatchPricingService.FindFulfillingBatchAsync` to pick, oldest first, the first batch whose `RemainingQuantity` alone covers the full line quantity; if the oldest batch falls short, the *whole* line is priced and drawn from the next batch that can cover it rather than splitting across two batches' ledgers (a deliberate simplification, confirmed with the product owner). Only when *no* single batch covers the line is it priced from the newest batch, which is emptied with the shortfall taken from the other batches oldest first (`BatchPricingService.DeductAsync`), so batches never go negative and still add up to the shelf stock. A refund with restock puts the units back on the line's batch. `InvoiceItem.MedicineBatchId` records which batch a line was actually priced/deducted from, for refund credit and lot-recall tracing. Products with no batches at all (most non-drug items) fall back to `Product.CurrentSalePrice`/`CurrentCostPrice` unchanged — this feature is purely additive. `BatchPricingService.RefreshActivePriceAsync` keeps those flat fields in sync with whichever batch is now the oldest non-depleted one, so every screen that reads them (the Products list, the Sell page, the mobile sync API) keeps working without knowing batches exist.
 
 ### Audit trail (`AuditLog`, Settings → Audit Trail)
 

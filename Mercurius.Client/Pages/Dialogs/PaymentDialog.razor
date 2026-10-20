@@ -122,9 +122,10 @@
             bool success;
             CheckoutResultDto? result;
             string? error;
+            CheckoutPriceChangeDto? priceChange;
             try
             {
-                (success, result, error) = await SalesApi.CheckoutAsync(request);
+                (success, result, error, priceChange) = await SalesApi.CheckoutAsync(request);
             }
             catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException)
             {
@@ -136,6 +137,13 @@
                 return;
             }
 
+            if (priceChange != null)
+            {
+                // Nothing was charged. Back to the ticket with the current prices, so the cashier
+                // tells the customer the new total before charging.
+                MudDialog.Close(DialogResult.Ok(new SaleOutcome { PriceChange = priceChange }));
+                return;
+            }
             if (!success)
             {
                 _error = error;
