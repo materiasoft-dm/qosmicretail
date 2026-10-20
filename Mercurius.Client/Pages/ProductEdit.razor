@@ -108,6 +108,14 @@ else
             <MudItem xs="12" sm="6" md="4">
                 <MudNumericField @bind-Value="_form.LowStockCount" Label="Low stock warning" Format="0.##" Variant="Variant.Outlined" HideSpinButtons="true" />
             </MudItem>
+            <MudItem xs="12" sm="6" md="4">
+                <MudSelect T="int" @bind-Value="_form.VatType" Label="VAT" Variant="Variant.Outlined"
+                           HelperText="How BIR invoices show this item. VATable prices include 12% VAT.">
+                    <MudSelectItem T="int" Value="0">VATable (12%)</MudSelectItem>
+                    <MudSelectItem T="int" Value="1">VAT-exempt</MudSelectItem>
+                    <MudSelectItem T="int" Value="2">Zero-rated</MudSelectItem>
+                </MudSelect>
+            </MudItem>
             @if (!IsNew)
             {
                 <MudItem xs="12" sm="6" md="4">
@@ -359,6 +367,7 @@ else
                     CurrentSalePrice = _form.CurrentSalePrice,
                     LeadTimeDays = _form.LeadTimeDays,
                     LowStockCount = _form.LowStockCount,
+                    VatType = _form.VatType,
                     Note = _form.Note,
                     CustomFieldValues = customValues
                 });
@@ -383,6 +392,7 @@ else
                     CurrentSalePrice = _form.CurrentSalePrice,
                     LeadTimeDays = _form.LeadTimeDays,
                     LowStockCount = _form.LowStockCount,
+                    VatType = _form.VatType,
                     Note = _form.Note,
                     IsActive = _form.IsActive,
                     CustomFieldValues = customValues

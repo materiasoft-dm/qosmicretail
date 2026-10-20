@@ -95,6 +95,32 @@ namespace Mercurius.Services
         }
 
         /// <summary>
+        /// Fills in the BIR tax summary (VATable/VAT/exempt/zero-rated) of a sale with no special
+        /// discount, from each product's tax class. The mobile till computes this itself (it prints
+        /// it); this is for sales that don't, like web checkout.
+        /// </summary>
+        public static void ApplyTax(Invoice invoice, IReadOnlyList<(InvoiceItem Item, Product Product)> lines, bool sellerIsVatRegistered)
+        {
+            var summary = Mercurius.Shared.Bir.BirTaxCalculator.Compute(
+                lines.Select(l => new Mercurius.Shared.Bir.TaxLineInput
+                {
+                    Quantity = l.Item.Quantity,
+                    UnitPrice = l.Item.SalePrice,
+                    VatType = (Mercurius.Shared.Bir.VatType)l.Product.VatType
+                }),
+                sellerIsVatRegistered);
+            for (var i = 0; i < lines.Count; i++)
+            {
+                lines[i].Item.VatType = (int)summary.Lines[i].VatType;
+                lines[i].Item.VatAmount = summary.Lines[i].VatAmount;
+            }
+            invoice.VatableSales = summary.VatableSales;
+            invoice.VatAmount = summary.VatAmount;
+            invoice.VatExemptSales = summary.VatExemptSales;
+            invoice.ZeroRatedSales = summary.ZeroRatedSales;
+        }
+
+        /// <summary>
         /// INV-&lt;utc ms&gt;-XXXX. The SyncId suffix keeps two sales made in the same millisecond
         /// (two tills, or a burst of offline sales replayed at once) from colliding on the
         /// unique invoice number.

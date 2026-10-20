@@ -115,4 +115,21 @@ namespace Mercurius.Client.Services
             return response.IsSuccessStatusCode ? (true, null) : (false, await ApiErrors.ReadAsync(response, "Failed to save field."));
         }
     }
+
+    public class DiscountTypesApiClient
+    {
+        private readonly HttpClient _http;
+        public DiscountTypesApiClient(HttpClient http) => _http = http;
+
+        public async Task<ListResultDto<DiscountTypeDto>> GetAsync() =>
+            await _http.GetFromJsonAsync<ListResultDto<DiscountTypeDto>>("api/discount-types") ?? new();
+
+        public async Task<string?> SaveAsync(DiscountTypeDto request)
+        {
+            var response = request.Id == 0
+                ? await _http.PostAsJsonAsync("api/discount-types", request)
+                : await _http.PutAsJsonAsync($"api/discount-types/{request.Id}", request);
+            return response.IsSuccessStatusCode ? null : await ApiErrors.ReadAsync(response, "Failed to save.");
+        }
+    }
 }

@@ -583,6 +583,62 @@ namespace Mercurius.Repo.Migrations.SqlServer.Migrations
                     b.ToTable("CustomerContactInformations");
                 });
 
+            modelBuilder.Entity("Mercurius.Repo.Models.DiscountType", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<int>("Category")
+                        .HasColumnType("int");
+
+                    b.Property<DateTime>("CreatedDate")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("IdLabel")
+                        .HasMaxLength(50)
+                        .HasColumnType("nvarchar(50)");
+
+                    b.Property<bool>("IsActive")
+                        .HasColumnType("bit");
+
+                    b.Property<bool>("IsVatExempt")
+                        .HasColumnType("bit");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<bool>("RequiresCustomerId")
+                        .HasColumnType("bit");
+
+                    b.Property<string>("ShortLabel")
+                        .HasMaxLength(10)
+                        .HasColumnType("nvarchar(10)");
+
+                    b.Property<int>("TenantId")
+                        .HasColumnType("int");
+
+                    b.Property<DateTime>("UpdatedDate")
+                        .HasColumnType("datetime2");
+
+                    b.Property<decimal>("Value")
+                        .HasPrecision(18, 4)
+                        .HasColumnType("decimal(18,4)");
+
+                    b.Property<int>("ValueKind")
+                        .HasColumnType("int");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("TenantId", "Name");
+
+                    b.ToTable("DiscountTypes");
+                });
+
             modelBuilder.Entity("Mercurius.Repo.Models.DosageForm", b =>
                 {
                     b.Property<int>("Id")
@@ -633,6 +689,22 @@ namespace Mercurius.Repo.Migrations.SqlServer.Migrations
 
                     SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
 
+                    b.Property<string>("BuyerAddress")
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
+                    b.Property<string>("BuyerBusinessStyle")
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.Property<string>("BuyerName")
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.Property<string>("BuyerTin")
+                        .HasMaxLength(20)
+                        .HasColumnType("nvarchar(20)");
+
                     b.Property<Guid>("CreatedBy")
                         .HasColumnType("uniqueidentifier");
 
@@ -640,6 +712,17 @@ namespace Mercurius.Repo.Migrations.SqlServer.Migrations
                         .HasColumnType("datetime2");
 
                     b.Property<int?>("CustomerId")
+                        .HasColumnType("int");
+
+                    b.Property<decimal>("DiscountAmount")
+                        .HasPrecision(18, 4)
+                        .HasColumnType("decimal(18,4)");
+
+                    b.Property<string>("DiscountName")
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<int?>("DiscountTypeId")
                         .HasColumnType("int");
 
                     b.Property<bool>("HasRefund")
@@ -655,6 +738,14 @@ namespace Mercurius.Repo.Migrations.SqlServer.Migrations
                         .HasMaxLength(50)
                         .HasColumnType("nvarchar(50)");
 
+                    b.Property<string>("JournalHash")
+                        .HasMaxLength(64)
+                        .HasColumnType("nvarchar(64)");
+
+                    b.Property<decimal>("LessVat")
+                        .HasPrecision(18, 4)
+                        .HasColumnType("decimal(18,4)");
+
                     b.Property<int>("LocationId")
                         .HasColumnType("int");
 
@@ -669,6 +760,12 @@ namespace Mercurius.Repo.Migrations.SqlServer.Migrations
                         .HasMaxLength(20)
                         .HasColumnType("nvarchar(20)");
 
+                    b.Property<int?>("PosTerminalId")
+                        .HasColumnType("int");
+
+                    b.Property<string>("ReceiptText")
+                        .HasColumnType("nvarchar(max)");
+
                     b.Property<string>("SourceChannel")
                         .HasMaxLength(20)
                         .HasColumnType("nvarchar(20)");
@@ -681,6 +778,21 @@ namespace Mercurius.Repo.Migrations.SqlServer.Migrations
                         .HasMaxLength(200)
                         .HasColumnType("nvarchar(200)");
 
+                    b.Property<string>("SpecialDiscountHolderName")
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.Property<string>("SpecialDiscountHolderTin")
+                        .HasMaxLength(20)
+                        .HasColumnType("nvarchar(20)");
+
+                    b.Property<string>("SpecialDiscountIdNumber")
+                        .HasMaxLength(50)
+                        .HasColumnType("nvarchar(50)");
+
+                    b.Property<int>("SpecialDiscountType")
+                        .HasColumnType("int");
+
                     b.Property<int>("StatusId")
                         .HasColumnType("int");
 
@@ -690,15 +802,36 @@ namespace Mercurius.Repo.Migrations.SqlServer.Migrations
                     b.Property<int>("TenantId")
                         .HasColumnType("int");
 
+                    b.Property<long?>("TerminalInvoiceSequence")
+                        .HasColumnType("bigint");
+
                     b.Property<Guid?>("UpdateBy")
                         .HasColumnType("uniqueidentifier");
 
                     b.Property<DateTime?>("UpdatedDate")
                         .HasColumnType("datetime2");
 
+                    b.Property<decimal>("VatAmount")
+                        .HasPrecision(18, 4)
+                        .HasColumnType("decimal(18,4)");
+
+                    b.Property<decimal>("VatExemptSales")
+                        .HasPrecision(18, 4)
+                        .HasColumnType("decimal(18,4)");
+
+                    b.Property<decimal>("VatableSales")
+                        .HasPrecision(18, 4)
+                        .HasColumnType("decimal(18,4)");
+
+                    b.Property<decimal>("ZeroRatedSales")
+                        .HasPrecision(18, 4)
+                        .HasColumnType("decimal(18,4)");
+
                     b.HasKey("Id");
 
                     b.HasIndex("CustomerId");
+
+                    b.HasIndex("DiscountTypeId");
 
                     b.HasIndex("InvoiceDate");
 
@@ -710,6 +843,8 @@ namespace Mercurius.Repo.Migrations.SqlServer.Migrations
 
                     b.HasIndex("SyncId")
                         .IsUnique();
+
+                    b.HasIndex("PosTerminalId", "TerminalInvoiceSequence");
 
                     b.ToTable("Invoices");
                 });
@@ -727,6 +862,10 @@ namespace Mercurius.Repo.Migrations.SqlServer.Migrations
                         .HasColumnType("decimal(18,4)");
 
                     b.Property<decimal?>("CustomTotalPrice")
+                        .HasPrecision(18, 4)
+                        .HasColumnType("decimal(18,4)");
+
+                    b.Property<decimal>("DiscountAmount")
                         .HasPrecision(18, 4)
                         .HasColumnType("decimal(18,4)");
 
@@ -760,6 +899,13 @@ namespace Mercurius.Repo.Migrations.SqlServer.Migrations
                         .HasColumnType("uniqueidentifier");
 
                     b.Property<int>("TenantId")
+                        .HasColumnType("int");
+
+                    b.Property<decimal>("VatAmount")
+                        .HasPrecision(18, 4)
+                        .HasColumnType("decimal(18,4)");
+
+                    b.Property<int>("VatType")
                         .HasColumnType("int");
 
                     b.Property<int?>("WholeSaleId")
@@ -980,6 +1126,9 @@ namespace Mercurius.Repo.Migrations.SqlServer.Migrations
                     b.Property<bool>("IsActive")
                         .HasColumnType("bit");
 
+                    b.Property<bool>("IsVatRegistered")
+                        .HasColumnType("bit");
+
                     b.Property<decimal?>("MetaMonthlyTargetSalesCount")
                         .HasPrecision(18, 4)
                         .HasColumnType("decimal(18,4)");
@@ -988,8 +1137,28 @@ namespace Mercurius.Repo.Migrations.SqlServer.Migrations
                         .IsRequired()
                         .HasColumnType("nvarchar(max)");
 
+                    b.Property<string>("TaxAddress")
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
+                    b.Property<string>("TaxBusinessName")
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.Property<string>("TaxRegisteredName")
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
                     b.Property<int>("TenantId")
                         .HasColumnType("int");
+
+                    b.Property<string>("Tin")
+                        .HasMaxLength(20)
+                        .HasColumnType("nvarchar(20)");
+
+                    b.Property<string>("TinBranchCode")
+                        .HasMaxLength(10)
+                        .HasColumnType("nvarchar(10)");
 
                     b.HasKey("Id");
 
@@ -1087,6 +1256,201 @@ namespace Mercurius.Repo.Migrations.SqlServer.Migrations
                     b.ToTable("MedicineBatches");
                 });
 
+            modelBuilder.Entity("Mercurius.Repo.Models.PosTerminal", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<decimal>("AccumulatedGrandTotal")
+                        .HasPrecision(18, 4)
+                        .HasColumnType("decimal(18,4)");
+
+                    b.Property<DateTime>("CreatedDate")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("DeviceId")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<bool>("IsActive")
+                        .HasColumnType("bit");
+
+                    b.Property<long>("LastInvoiceSequence")
+                        .HasColumnType("bigint");
+
+                    b.Property<int>("LastZCounter")
+                        .HasColumnType("int");
+
+                    b.Property<int?>("LocationId")
+                        .HasColumnType("int");
+
+                    b.Property<string>("MachineIdentificationNumber")
+                        .HasMaxLength(50)
+                        .HasColumnType("nvarchar(50)");
+
+                    b.Property<string>("Name")
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.Property<DateTime?>("PermitToUseDateIssued")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("PermitToUseNumber")
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<int>("ResetCounter")
+                        .HasColumnType("int");
+
+                    b.Property<string>("SerialNumber")
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<int>("TenantId")
+                        .HasColumnType("int");
+
+                    b.Property<DateTime?>("UpdatedDate")
+                        .HasColumnType("datetime2");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("LocationId");
+
+                    b.HasIndex("TenantId", "DeviceId")
+                        .IsUnique();
+
+                    b.ToTable("PosTerminals");
+                });
+
+            modelBuilder.Entity("Mercurius.Repo.Models.PosZReading", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<long>("BeginningInvoiceSequence")
+                        .HasColumnType("bigint");
+
+                    b.Property<decimal>("CardSales")
+                        .HasPrecision(18, 4)
+                        .HasColumnType("decimal(18,4)");
+
+                    b.Property<decimal>("CashSales")
+                        .HasPrecision(18, 4)
+                        .HasColumnType("decimal(18,4)");
+
+                    b.Property<Guid>("CreatedBy")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTime>("CreatedDate")
+                        .HasColumnType("datetime2");
+
+                    b.Property<decimal>("DiscountTotal")
+                        .HasPrecision(18, 4)
+                        .HasColumnType("decimal(18,4)");
+
+                    b.Property<long>("EndingInvoiceSequence")
+                        .HasColumnType("bigint");
+
+                    b.Property<decimal>("GrossSales")
+                        .HasPrecision(18, 4)
+                        .HasColumnType("decimal(18,4)");
+
+                    b.Property<decimal>("LessVat")
+                        .HasPrecision(18, 4)
+                        .HasColumnType("decimal(18,4)");
+
+                    b.Property<int?>("LocationId")
+                        .HasColumnType("int");
+
+                    b.Property<decimal>("MedalOfValorDiscount")
+                        .HasPrecision(18, 4)
+                        .HasColumnType("decimal(18,4)");
+
+                    b.Property<decimal>("NationalAthleteDiscount")
+                        .HasPrecision(18, 4)
+                        .HasColumnType("decimal(18,4)");
+
+                    b.Property<decimal>("NetSales")
+                        .HasPrecision(18, 4)
+                        .HasColumnType("decimal(18,4)");
+
+                    b.Property<decimal>("NewGrandTotal")
+                        .HasPrecision(18, 4)
+                        .HasColumnType("decimal(18,4)");
+
+                    b.Property<int>("PosTerminalId")
+                        .HasColumnType("int");
+
+                    b.Property<decimal>("PreviousGrandTotal")
+                        .HasPrecision(18, 4)
+                        .HasColumnType("decimal(18,4)");
+
+                    b.Property<decimal>("PwdDiscount")
+                        .HasPrecision(18, 4)
+                        .HasColumnType("decimal(18,4)");
+
+                    b.Property<DateTime>("ReadingDate")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("ReportText")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<int>("ResetCounter")
+                        .HasColumnType("int");
+
+                    b.Property<int>("SalesCount")
+                        .HasColumnType("int");
+
+                    b.Property<decimal>("SeniorCitizenDiscount")
+                        .HasPrecision(18, 4)
+                        .HasColumnType("decimal(18,4)");
+
+                    b.Property<decimal>("SoloParentDiscount")
+                        .HasPrecision(18, 4)
+                        .HasColumnType("decimal(18,4)");
+
+                    b.Property<Guid>("SyncId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<int>("TenantId")
+                        .HasColumnType("int");
+
+                    b.Property<decimal>("VatAmount")
+                        .HasPrecision(18, 4)
+                        .HasColumnType("decimal(18,4)");
+
+                    b.Property<decimal>("VatExemptSales")
+                        .HasPrecision(18, 4)
+                        .HasColumnType("decimal(18,4)");
+
+                    b.Property<decimal>("VatableSales")
+                        .HasPrecision(18, 4)
+                        .HasColumnType("decimal(18,4)");
+
+                    b.Property<int>("ZCounter")
+                        .HasColumnType("int");
+
+                    b.Property<decimal>("ZeroRatedSales")
+                        .HasPrecision(18, 4)
+                        .HasColumnType("decimal(18,4)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("SyncId")
+                        .IsUnique();
+
+                    b.HasIndex("PosTerminalId", "ZCounter");
+
+                    b.ToTable("PosZReadings");
+                });
+
             modelBuilder.Entity("Mercurius.Repo.Models.Product", b =>
                 {
                     b.Property<int>("Id")
@@ -1168,6 +1532,9 @@ namespace Mercurius.Repo.Migrations.SqlServer.Migrations
 
                     b.Property<DateTime?>("UpdatedDate")
                         .HasColumnType("datetime2");
+
+                    b.Property<int>("VatType")
+                        .HasColumnType("int");
 
                     b.HasKey("Id");
 
@@ -1907,6 +2274,16 @@ namespace Mercurius.Repo.Migrations.SqlServer.Migrations
                         .HasForeignKey("CustomerId")
                         .OnDelete(DeleteBehavior.Restrict);
 
+                    b.HasOne("Mercurius.Repo.Models.DiscountType", "DiscountType")
+                        .WithMany()
+                        .HasForeignKey("DiscountTypeId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("Mercurius.Repo.Models.PosTerminal", "PosTerminal")
+                        .WithMany()
+                        .HasForeignKey("PosTerminalId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
                     b.HasOne("Mercurius.Repo.Models.InvoiceStatus", "Status")
                         .WithMany("Invoices")
                         .HasForeignKey("StatusId")
@@ -1914,6 +2291,10 @@ namespace Mercurius.Repo.Migrations.SqlServer.Migrations
                         .IsRequired();
 
                     b.Navigation("Customer");
+
+                    b.Navigation("DiscountType");
+
+                    b.Navigation("PosTerminal");
 
                     b.Navigation("Status");
                 });
@@ -2007,6 +2388,27 @@ namespace Mercurius.Repo.Migrations.SqlServer.Migrations
                         .IsRequired();
 
                     b.Navigation("Product");
+                });
+
+            modelBuilder.Entity("Mercurius.Repo.Models.PosTerminal", b =>
+                {
+                    b.HasOne("Mercurius.Repo.Models.Location", "Location")
+                        .WithMany()
+                        .HasForeignKey("LocationId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.Navigation("Location");
+                });
+
+            modelBuilder.Entity("Mercurius.Repo.Models.PosZReading", b =>
+                {
+                    b.HasOne("Mercurius.Repo.Models.PosTerminal", "PosTerminal")
+                        .WithMany()
+                        .HasForeignKey("PosTerminalId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("PosTerminal");
                 });
 
             modelBuilder.Entity("Mercurius.Repo.Models.Product", b =>

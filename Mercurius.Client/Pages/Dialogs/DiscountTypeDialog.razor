@@ -1,0 +1,86 @@
+@using Mercurius.Shared.Bir
+@inject DiscountTypesApiClient Api
+
+<MudDialog>
+    <DialogContent>
+        <MudTextField @bind-Value="_model.Name" Label="Name" Variant="Variant.Outlined" Class="mb-3" AutoFocus="true" MaxLength="100" />
+        <MudTextField @bind-Value="_model.ShortLabel" Label="Receipt code" HelperText="Printed on the receipt, e.g. SC prints “Less: SC Disc 20%”." Variant="Variant.Outlined" Class="mb-3" MaxLength="10" />
+        <MudRadioGroup T="int" @bind-Value="_model.ValueKind" Class="mb-2">
+            <MudRadio T="int" Value="@((int)DiscountValueKind.Percent)" Color="Color.Primary">Percent</MudRadio>
+            <MudRadio T="int" Value="@((int)DiscountValueKind.FixedAmount)" Color="Color.Primary">Fixed amount</MudRadio>
+        </MudRadioGroup>
+        <MudNumericField T="decimal" @bind-Value="_model.Value" Label="@(_model.ValueKind == (int)DiscountValueKind.Percent ? "Percent off" : "Amount off (₱)")"
+                         Adornment="Adornment.End" AdornmentText="@(_model.ValueKind == (int)DiscountValueKind.Percent ? "%" : "₱")"
+                         Min="0" Variant="Variant.Outlined" Class="mb-3" />
+        <MudSwitch @bind-Value="_model.IsVatExempt" Color="Color.Primary" Label="VAT-exempt (removes the 12% VAT before the discount, like SC/PWD)" />
+        <MudSwitch @bind-Value="_model.RequiresCustomerId" Color="Color.Primary" Label="Ask for the customer's ID and name (printed with a signature line)" />
+        @if (_model.RequiresCustomerId)
+        {
+            <MudTextField @bind-Value="_model.IdLabel" Label="ID label" Placeholder="ID No." Variant="Variant.Outlined" Class="mb-3" MaxLength="50" />
+        }
+        <MudSelect T="int" @bind-Value="_model.Category" Label="BIR category" HelperText="Which line of the X/Z reading it's reported on." Variant="Variant.Outlined" Class="mb-3">
+            @foreach (var category in Enum.GetValues<SpecialDiscountType>())
+            {
+                <MudSelectItem T="int" Value="@((int)category)">@CategoryName((int)category)</MudSelectItem>
+            }
+        </MudSelect>
+        @if (Existing != null)
+        {
+            <MudSwitch @bind-Value="_model.IsActive" Color="Color.Primary" Label="Active" />
+        }
+        @if (_error != null)
+        {
+            <MudAlert Severity="Severity.Error" Class="mt-2">@_error</MudAlert>
+        }
+    </DialogContent>
+    <DialogActions>
+        <MudButton OnClick="Cancel">Cancel</MudButton>
+        <MudButton Color="Color.Primary" Variant="Variant.Filled" OnClick="Save" Disabled="_saving">Save</MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    [CascadingParameter] private IMudDialogInstance MudDialog { get; set; } = default!;
+    [Parameter] public DiscountTypeDto? Existing { get; set; }
+
+    private DiscountTypeDto _model = new();
+    private string? _error;
+    private bool _saving;
+
+    public static string CategoryName(int category) => (SpecialDiscountType)category switch
+    {
+        SpecialDiscountType.SeniorCitizen => "Senior Citizen",
+        SpecialDiscountType.Pwd => "PWD",
+        SpecialDiscountType.SoloParent => "Solo Parent",
+        SpecialDiscountType.NationalAthlete => "National Athlete/Coach",
+        SpecialDiscountType.MedalOfValor => "Medal of Valor",
+        _ => "Other (store discount)"
+    };
+
+    protected override void OnInitialized()
+    {
+        if (Existing != null)
+        {
+            _model = new DiscountTypeDto
+            {
+                Id = Existing.Id, Name = Existing.Name, ShortLabel = Existing.ShortLabel, ValueKind = Existing.ValueKind,
+                Value = Existing.Value, IsVatExempt = Existing.IsVatExempt, RequiresCustomerId = Existing.RequiresCustomerId,
+                IdLabel = Existing.IdLabel, Category = Existing.Category, IsActive = Existing.IsActive
+            };
+        }
+    }
+
+    private async Task Save()
+    {
+        if (string.IsNullOrWhiteSpace(_model.Name)) { _error = "Name is required."; return; }
+        if (_model.Value <= 0) { _error = "Value must be more than zero."; return; }
+        if (_model.ValueKind == (int)DiscountValueKind.Percent && _model.Value > 100) { _error = "A percent discount can't be more than 100%."; return; }
+
+        _saving = true;
+        _error = await Api.SaveAsync(_model);
+        _saving = false;
+        if (_error == null) MudDialog.Close(DialogResult.Ok(true));
+    }
+
+    private void Cancel() => MudDialog.Cancel();
+}

@@ -1,0 +1,54 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<toolkit:Popup xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
+               xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+               xmlns:toolkit="http://schemas.microsoft.com/dotnet/2022/maui/toolkit"
+               x:Class="Mercurius.Mobile.InvoiceDetailsPopup"
+               Size="440,640"
+               Color="Transparent">
+
+    <Border StrokeShape="RoundRectangle 16"
+            Stroke="{StaticResource Gray100}"
+            BackgroundColor="{StaticResource White}"
+            Padding="24"
+            StrokeThickness="1">
+        <Grid RowDefinitions="Auto,*,Auto" RowSpacing="14">
+            <Label Grid.Row="0" Text="Discount and customer" FontSize="17" FontAttributes="Bold" TextColor="{StaticResource MidnightBlue}" />
+
+            <ScrollView Grid.Row="1">
+                <VerticalStackLayout Spacing="10">
+                    <Label Text="DISCOUNT" FontSize="11" FontAttributes="Bold" TextColor="{StaticResource Gray400}" />
+                    <Picker x:Name="DiscountPicker" AutomationId="DiscountPicker" Title="Discount" SelectedIndexChanged="OnDiscountChanged" />
+                    <Label x:Name="DiscountHintLabel" FontSize="12" TextColor="{StaticResource Gray400}" />
+                    <Label x:Name="NoDiscountTypesLabel" IsVisible="False" FontSize="12" TextColor="#D32F2F"
+                           Text="No discount types on this device yet. They're set up on the web (Settings, Discount Types) and arrive with the next sync." />
+
+                    <VerticalStackLayout x:Name="DiscountFields" Spacing="8" IsVisible="False">
+                        <Entry x:Name="DiscountIdEntry" AutomationId="DiscountIdEntry" Placeholder="ID number" MaxLength="50" />
+                        <Entry x:Name="DiscountNameEntry" AutomationId="DiscountNameEntry" Placeholder="Name on the ID" MaxLength="200" />
+                        <Entry x:Name="DiscountTinEntry" AutomationId="DiscountTinEntry" Placeholder="TIN (optional)" MaxLength="20" Keyboard="Numeric" />
+                    </VerticalStackLayout>
+
+                    <BoxView HeightRequest="1" Color="{StaticResource Gray100}" Margin="0,6" />
+
+                    <Label Text="SOLD TO (optional)" FontSize="11" FontAttributes="Bold" TextColor="{StaticResource Gray400}" />
+                    <Label Text="For a VAT-registered customer who needs their details on the invoice. Left blank, the receipt has blank lines to fill in by hand."
+                           FontSize="12" TextColor="{StaticResource Gray400}" />
+                    <Entry x:Name="BuyerNameEntry" AutomationId="BuyerNameEntry" Placeholder="Customer or company name" MaxLength="200" />
+                    <Entry x:Name="BuyerTinEntry" AutomationId="BuyerTinEntry" Placeholder="TIN" MaxLength="20" Keyboard="Numeric" />
+                    <Entry x:Name="BuyerAddressEntry" AutomationId="BuyerAddressEntry" Placeholder="Address" MaxLength="500" />
+                    <Entry x:Name="BuyerStyleEntry" AutomationId="BuyerStyleEntry" Placeholder="Business style" MaxLength="200" />
+
+                    <Label x:Name="ErrorLabel" FontSize="12" TextColor="#D32F2F" IsVisible="False" />
+                </VerticalStackLayout>
+            </ScrollView>
+
+            <Grid Grid.Row="2" ColumnDefinitions="*,*" ColumnSpacing="10">
+                <Button AutomationId="InvoiceDetailsCancelButton" Text="Cancel" HeightRequest="44"
+                        BackgroundColor="{StaticResource Gray100}" TextColor="{StaticResource Gray500}"
+                        Clicked="OnCancelClicked" />
+                <Button Grid.Column="1" AutomationId="InvoiceDetailsApplyButton" Text="Apply" HeightRequest="44" FontAttributes="Bold"
+                        Clicked="OnApplyClicked" />
+            </Grid>
+        </Grid>
+    </Border>
+</toolkit:Popup>

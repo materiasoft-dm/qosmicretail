@@ -57,6 +57,9 @@ namespace Mercurius.Repo.Repositories
         public DbSet<UserDashboardLayout> UserDashboardLayouts => Set<UserDashboardLayout>();
         public DbSet<ZeroStockSaleAuditLog> ZeroStockSaleAuditLogs => Set<ZeroStockSaleAuditLog>();
         public DbSet<AuditLog> AuditLogs => Set<AuditLog>();
+        public DbSet<PosTerminal> PosTerminals => Set<PosTerminal>();
+        public DbSet<DiscountType> DiscountTypes => Set<DiscountType>();
+        public DbSet<PosZReading> PosZReadings => Set<PosZReading>();
 
         protected override void OnModelCreating(ModelBuilder builder)
         {
@@ -79,6 +82,14 @@ namespace Mercurius.Repo.Repositories
             builder.Entity<Invoice>().HasIndex(i => i.StatusId);
             builder.Entity<Invoice>().HasIndex(i => i.InvoiceDate);
             builder.Entity<Invoice>().HasIndex(i => i.SyncId).IsUnique();
+            builder.Entity<Invoice>().HasIndex(i => new { i.PosTerminalId, i.TerminalInvoiceSequence });
+
+            // A device is one terminal per tenant (the same device signed in to another
+            // pharmacy's account is a different terminal there).
+            builder.Entity<PosTerminal>().HasIndex(t => new { t.TenantId, t.DeviceId }).IsUnique();
+            builder.Entity<DiscountType>().HasIndex(d => new { d.TenantId, d.Name });
+            builder.Entity<PosZReading>().HasIndex(z => z.SyncId).IsUnique();
+            builder.Entity<PosZReading>().HasIndex(z => new { z.PosTerminalId, z.ZCounter });
 
             builder.Entity<Customer>().HasIndex(c => c.FirstName);
             builder.Entity<Customer>().HasIndex(c => c.LastName);

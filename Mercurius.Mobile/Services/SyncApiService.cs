@@ -49,6 +49,54 @@ public class SyncApiService
         return await response.Content.ReadFromJsonAsync<ReceiptPullPage>(cancellationToken: ct) ?? new ReceiptPullPage();
     }
 
+    // ---- BIR terminal (Api/BirSyncController)
+
+    public async Task<TerminalConfigDto> RegisterTerminalAsync(TerminalRegisterRequest request, CancellationToken ct = default)
+    {
+        var response = await _httpClient.PostAsJsonAsync("api/sync/terminal/register", request, ct);
+        response.EnsureSuccessStatusCode();
+        return await response.Content.ReadFromJsonAsync<TerminalConfigDto>(cancellationToken: ct)
+            ?? throw new InvalidOperationException("The server returned no terminal.");
+    }
+
+    // Null result + message when the server refuses (e.g. no permission), rather than throwing,
+    // so the Settings page can say why.
+    public async Task<(TerminalConfigDto? Config, string? Error)> UpdateTerminalRegistrationAsync(TerminalRegistrationUpdate update, CancellationToken ct = default)
+    {
+        var response = await _httpClient.PutAsJsonAsync("api/sync/terminal/registration", update, ct);
+        if (response.IsSuccessStatusCode)
+        {
+            return (await response.Content.ReadFromJsonAsync<TerminalConfigDto>(cancellationToken: ct), null);
+        }
+        var error = await ReadErrorAsync(response, ct);
+        return (null, error ?? $"The server refused the change ({(int)response.StatusCode}).");
+    }
+
+    public async Task<List<DiscountTypeDto>> GetDiscountTypesAsync(CancellationToken ct = default)
+    {
+        return await _httpClient.GetFromJsonAsync<List<DiscountTypeDto>>("api/sync/discount-types", ct) ?? new List<DiscountTypeDto>();
+    }
+
+    public async Task<List<SalePushResult>> PushZReadingsAsync(List<ZReadingPushDto> readings, CancellationToken ct = default)
+    {
+        var response = await _httpClient.PostAsJsonAsync("api/sync/zreadings/push", readings, ct);
+        response.EnsureSuccessStatusCode();
+        return await response.Content.ReadFromJsonAsync<List<SalePushResult>>(cancellationToken: ct) ?? new List<SalePushResult>();
+    }
+
+    private static async Task<string?> ReadErrorAsync(HttpResponseMessage response, CancellationToken ct)
+    {
+        try
+        {
+            var body = await response.Content.ReadFromJsonAsync<Dictionary<string, object>>(cancellationToken: ct);
+            return body != null && body.TryGetValue("error", out var e) ? e?.ToString() : null;
+        }
+        catch
+        {
+            return null;
+        }
+    }
+
     // Backs SettingsPage's clinic picker.
     public async Task<List<LocationDto>> GetLocationsAsync(CancellationToken ct = default)
     {

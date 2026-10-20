@@ -1,5 +1,6 @@
 using Mercurius.Mobile.Data;
 using Mercurius.Mobile.Models;
+using CommunityToolkit.Maui.Views;
 using Mercurius.Mobile.Services;
 
 namespace Mercurius.Mobile;
@@ -17,6 +18,8 @@ public partial class ReceiptsPage : ContentPage
     private readonly LocalDatabase _localDatabase;
     private readonly SyncCoordinator _syncCoordinator;
     private readonly DeviceSettingsService _deviceSettings;
+    private readonly BirService _birService;
+    private LocalSale? _shownSale;
 
     private List<LocalSale> _sales = new();
     private Dictionary<Guid, List<LocalSaleItem>> _itemsBySale = new();
@@ -28,9 +31,10 @@ public partial class ReceiptsPage : ContentPage
     private static readonly Color ActiveSegmentText = Color.FromArgb("#1A1D2E");
     private static readonly Color InactiveSegmentText = Color.FromArgb("#919191");
 
-    public ReceiptsPage(LocalDatabase localDatabase, SyncCoordinator syncCoordinator, DeviceSettingsService deviceSettings)
+    public ReceiptsPage(LocalDatabase localDatabase, SyncCoordinator syncCoordinator, DeviceSettingsService deviceSettings, BirService birService)
     {
         InitializeComponent();
+        _birService = birService;
         _localDatabase = localDatabase;
         _syncCoordinator = syncCoordinator;
         _deviceSettings = deviceSettings;
@@ -239,8 +243,18 @@ public partial class ReceiptsPage : ContentPage
             DetailItemsStack.Children.Add(BuildItemRow(item));
         }
 
+        // Only this terminal's own invoices carry their printed text.
+        _shownSale = sale;
+        ReprintButton.IsVisible = !string.IsNullOrEmpty(sale.ReceiptText);
+
         NoSelectionLayout.IsVisible = false;
         DetailLayout.IsVisible = true;
+    }
+
+    private async void OnReprintClicked(object? sender, EventArgs e)
+    {
+        if (string.IsNullOrEmpty(_shownSale?.ReceiptText)) return;
+        await this.ShowPopupAsync(new ReceiptPopup("Reprint", _shownSale.InvoiceNumber, _birService.RenderReprint(_shownSale)));
     }
 
     private static View BuildItemRow(ReceiptItemRow item)

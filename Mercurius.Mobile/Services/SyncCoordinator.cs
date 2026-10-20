@@ -6,12 +6,15 @@ namespace Mercurius.Mobile.Services;
 // pushing the same queued sale at once is exactly how duplicates and cursor corruption happen).
 //
 // Order within a pass matters:
+//   0. register terminal — this device as a BIR POS terminal (BirService).
 //   1. push products  — a sale can reference a product created offline; the server can only
 //                       record that line once it knows the product.
 //   2. push sales     — before pulling, so our own new sales come back in the same pass already
-//                       carrying their server invoice numbers.
+//                       carrying their server invoice numbers. Then push Z-readings, whose
+//                       sales are now on the server.
 //   3. pull products  — fresh stock/prices (the server's stock already reflects step 2).
 //   4. pull receipts  — every terminal's and the web's sales.
+//   5. pull discount types — the tenant's discounts for the Sell page (the full list, small).
 // Each step is independent: one failing (e.g. a single bad sale, or the receipts endpoint not
 // deployed yet) doesn't stop the others, and nothing is lost — push queues and pull cursors are
 // persisted, so the next pass resumes exactly where this one stopped.
@@ -22,14 +25,16 @@ public class SyncCoordinator
     private static readonly TimeSpan PeriodicInterval = TimeSpan.FromMinutes(2);
 
     private readonly SyncService _syncService;
+    private readonly BirService _birService;
     private readonly object _gate = new();
     private Task<SyncReport>? _inFlight;
     private IDispatcherTimer? _timer;
     private bool _started;
 
-    public SyncCoordinator(SyncService syncService)
+    public SyncCoordinator(SyncService syncService, BirService birService)
     {
         _syncService = syncService;
+        _birService = birService;
     }
 
     public DateTime? LastSuccessfulSyncUtc { get; private set; }
@@ -103,13 +108,20 @@ public class SyncCoordinator
         // "N sales pending sync" that never goes down has a visible reason.
         var productRejections = new List<string>();
         var saleRejections = new List<string>();
+        // First, so sales below can be numbered against a terminal the server knows, and a
+        // branch's changed BIR details reach the receipts.
+        await Step(report, "terminal registration", async () => await _birService.RefreshTerminalAsync());
         await Step(report, "products upload", async () => report.ProductsPushed = await _syncService.PushProductsAsync(rejections: productRejections));
         await Step(report, "sales upload", async () => report.SalesPushed = await _syncService.SyncSalesAsync(rejections: saleRejections));
+        var zReadingRejections = new List<string>();
+        await Step(report, "Z-readings upload", async () => await _birService.PushZReadingsAsync(rejections: zReadingRejections));
+        report.Errors.AddRange(zReadingRejections.Select(r => $"Z-readings upload: {r}"));
         report.Errors.AddRange(productRejections.Select(r => $"products upload: {r}"));
         report.Errors.AddRange(saleRejections.Select(r => $"sales upload: {r}"));
         report.SaleRejections.AddRange(saleRejections);
         await Step(report, "products download", async () => report.ProductsPulled = await _syncService.SyncProductsAsync());
         await Step(report, "receipts download", async () => report.ReceiptsPulled = await _syncService.PullReceiptsAsync());
+        await Step(report, "discount types download", async () => await _birService.RefreshDiscountTypesAsync());
 
         if (report.Errors.Count == 0) LastSuccessfulSyncUtc = DateTime.UtcNow;
         Finish(report);

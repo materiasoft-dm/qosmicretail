@@ -51,6 +51,13 @@
 	</PropertyGroup>
 
 	<ItemGroup>
+		<!-- BIR tax, discount and receipt rules, shared with the server. Compiled in as source (not a
+		     project reference) so the app keeps no dependency on the server's projects; the files
+		     are written to stay plain C#. -->
+		<Compile Include="..\Mercurius.Shared\Bir\*.cs" Link="Bir\%(Filename)%(Extension)" />
+	</ItemGroup>
+
+	<ItemGroup>
 		<!-- App Icon -->
 		<MauiIcon Include="Resources\AppIcon\appicon.svg" ForegroundFile="Resources\AppIcon\appiconfg.svg" Color="#512BD4" />
 

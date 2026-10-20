@@ -41,4 +41,7 @@ public class ProductPushDto
 
     [JsonPropertyName("isActive")]
     public bool IsActive { get; set; } = true;
+
+    [JsonPropertyName("vatType")]
+    public int? VatType { get; set; }
 }

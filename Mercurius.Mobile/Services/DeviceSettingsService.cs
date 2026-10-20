@@ -37,6 +37,20 @@ public class DeviceSettingsService
 
     public void SetTerminalName(string name) => Preferences.Default.Set(TerminalNameKey, name.Trim());
 
+    private const string ReceiptWidthKey = "Device_ReceiptWidth";
+
+    // Characters per line on this terminal's receipt printer: 32 for 58 mm paper (the common
+    // Bluetooth printers), 42 or 48 for 80 mm.
+    public static readonly int[] ReceiptWidths = { 32, 42, 48 };
+
+    public int GetReceiptWidth()
+    {
+        var width = Preferences.Default.Get(ReceiptWidthKey, 32);
+        return ReceiptWidths.Contains(width) ? width : 32;
+    }
+
+    public void SetReceiptWidth(int width) => Preferences.Default.Set(ReceiptWidthKey, width);
+
     private const string DeviceIdKey = "Device_Id";
 
     // A stable, random per-install identifier, sent with every request so the server's audit

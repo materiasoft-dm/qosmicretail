@@ -20,6 +20,8 @@ public class CartLine : INotifyPropertyChanged
     public decimal Price { get; set; }
     public decimal CostPrice { get; set; }
     public decimal Stock { get; set; }
+    // Mercurius.Shared.Bir.VatType, copied from the product.
+    public int VatType { get; set; }
 
     private decimal _quantity;
     public decimal Quantity

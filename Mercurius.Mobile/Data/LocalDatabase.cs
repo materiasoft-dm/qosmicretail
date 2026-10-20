@@ -1,3 +1,5 @@
+using System.Security.Cryptography;
+using System.Text;
 using SQLite;
 
 namespace Mercurius.Mobile.Data;
@@ -27,6 +29,9 @@ public class LocalDatabase
             await _connection.CreateTableAsync<SyncState>();
             await _connection.CreateTableAsync<LocalSale>();
             await _connection.CreateTableAsync<LocalSaleItem>();
+            await _connection.CreateTableAsync<LocalTerminal>();
+            await _connection.CreateTableAsync<LocalZReading>();
+            await _connection.CreateTableAsync<LocalDiscountType>();
             _initialized = true;
         }
         finally
@@ -141,10 +146,12 @@ public class LocalDatabase
         await EnsureInitializedAsync();
         await _connection.RunInTransactionAsync(conn =>
         {
-            conn.Execute("DELETE FROM SaleItems WHERE SaleSyncId IN (SELECT SyncId FROM Sales WHERE IsSynced = 1)");
-            conn.Execute("DELETE FROM Sales WHERE IsSynced = 1");
+            conn.Execute($"DELETE FROM SaleItems WHERE SaleSyncId IN (SELECT SyncId FROM Sales WHERE IsSynced = 1 AND NOT {AwaitingZReadingSql})");
+            conn.Execute($"DELETE FROM Sales WHERE IsSynced = 1 AND NOT {AwaitingZReadingSql}");
             conn.Execute("DELETE FROM Products WHERE IsPendingSync = 0");
             conn.DeleteAll<SyncState>();
+            // The next account may be another pharmacy's, with its own discounts.
+            conn.DeleteAll<LocalDiscountType>();
         });
     }
 
@@ -186,6 +193,15 @@ public class LocalDatabase
                     sale.IsFromThisDevice = existing.IsFromThisDevice;
                     sale.CashierUserId ??= existing.CashierUserId;
                     sale.CreatedUtc = existing.CreatedUtc;
+                    // Local-only, and what this terminal printed: a server without the BIR fields
+                    // (or a copy missing them) must not erase the e-journal or reopen a Z-reading.
+                    sale.ZReadingCounter = existing.ZReadingCounter;
+                    if (existing.InvoiceSequence > 0 && sale.InvoiceSequence == 0) CopyBirFields(existing, sale);
+                    if (string.IsNullOrEmpty(sale.ReceiptText))
+                    {
+                        sale.ReceiptText = existing.ReceiptText;
+                        sale.JournalHash = existing.JournalHash;
+                    }
                 }
                 sale.IsSynced = true;
                 conn.InsertOrReplace(sale);
@@ -201,29 +217,79 @@ public class LocalDatabase
         });
     }
 
+    // This terminal's own invoices that no Z-reading has closed yet. They're needed for the next
+    // Z-reading, so logout and pruning leave them alone even once they're synced.
+    private const string AwaitingZReadingSql = "(IsFromThisDevice = 1 AND InvoiceSequence > 0 AND ZReadingCounter IS NULL)";
+
     // Keeps the local history bounded to the retention window. Never touches unsynced sales —
-    // those are the only copy anywhere, however old.
+    // those are the only copy anywhere, however old — or sales awaiting a Z-reading.
     public async Task<int> PruneSyncedSalesBeforeAsync(DateTime cutoffUtc)
     {
         await EnsureInitializedAsync();
         var removed = 0;
         await _connection.RunInTransactionAsync(conn =>
         {
-            conn.Execute("DELETE FROM SaleItems WHERE SaleSyncId IN (SELECT SyncId FROM Sales WHERE IsSynced = 1 AND InvoiceDate < ?)", cutoffUtc);
-            removed = conn.Execute("DELETE FROM Sales WHERE IsSynced = 1 AND InvoiceDate < ?", cutoffUtc);
+            conn.Execute($"DELETE FROM SaleItems WHERE SaleSyncId IN (SELECT SyncId FROM Sales WHERE IsSynced = 1 AND InvoiceDate < ? AND NOT {AwaitingZReadingSql})", cutoffUtc);
+            removed = conn.Execute($"DELETE FROM Sales WHERE IsSynced = 1 AND InvoiceDate < ? AND NOT {AwaitingZReadingSql}", cutoffUtc);
         });
         return removed;
+    }
+
+    private static void CopyBirFields(LocalSale from, LocalSale to)
+    {
+        to.PosTerminalId = from.PosTerminalId;
+        to.InvoiceSequence = from.InvoiceSequence;
+        to.GrossAmount = from.GrossAmount;
+        to.VatableSales = from.VatableSales;
+        to.VatAmount = from.VatAmount;
+        to.VatExemptSales = from.VatExemptSales;
+        to.ZeroRatedSales = from.ZeroRatedSales;
+        to.LessVat = from.LessVat;
+        to.DiscountAmount = from.DiscountAmount;
+        to.DiscountTypeId = from.DiscountTypeId;
+        to.DiscountName = from.DiscountName;
+        to.SpecialDiscountType = from.SpecialDiscountType;
+        to.SpecialDiscountIdNumber = from.SpecialDiscountIdNumber;
+        to.SpecialDiscountHolderName = from.SpecialDiscountHolderName;
+        to.SpecialDiscountHolderTin = from.SpecialDiscountHolderTin;
+        to.BuyerName = from.BuyerName;
+        to.BuyerTin = from.BuyerTin;
+        to.BuyerAddress = from.BuyerAddress;
+        to.BuyerBusinessStyle = from.BuyerBusinessStyle;
     }
 
     // Records a completed sale immediately — this is what makes checkout work with zero
     // connectivity. Also decrements the local product cache's stock right away (optimistic;
     // the server recomputes the authoritative figure from FIFO batches once this sale syncs)
     // so the POS grid reflects the sale instantly instead of waiting on a round trip.
-    public async Task SaveSaleAsync(LocalSale sale, List<LocalSaleItem> items)
+    //
+    // In the same transaction it issues the BIR invoice: takes this terminal's next serial number,
+    // renders the receipt with it (renderReceipt), and chains the receipt into the e-journal by
+    // hash. Doing all of it at once means a serial is never skipped or used twice, even if the
+    // app dies mid-checkout.
+    public async Task SaveSaleAsync(LocalSale sale, List<LocalSaleItem> items, Func<LocalSale, LocalTerminal?, string> renderReceipt)
     {
         await EnsureInitializedAsync();
         await _connection.RunInTransactionAsync(conn =>
         {
+            var terminal = conn.Find<LocalTerminal>(LocalTerminal.SingletonId);
+            if (terminal is { TerminalId: > 0 })
+            {
+                var sequence = terminal.LastInvoiceSequence + 1;
+                sale.PosTerminalId = terminal.TerminalId;
+                sale.InvoiceSequence = sequence;
+                sale.InvoiceNumber = $"{terminal.TerminalCode}-{Mercurius.Shared.Bir.BirFormat.InvoiceNumber(sequence)}";
+                terminal.LastInvoiceSequence = sequence;
+            }
+
+            sale.ReceiptText = renderReceipt(sale, terminal);
+            sale.JournalHash = JournalHash(terminal?.LastJournalHash, sale.ReceiptText);
+            if (terminal != null)
+            {
+                terminal.LastJournalHash = sale.JournalHash;
+                conn.Update(terminal);
+            }
+
             conn.Insert(sale);
             foreach (var item in items)
             {
@@ -277,5 +343,126 @@ public class LocalDatabase
     {
         await EnsureInitializedAsync();
         return await _connection.Table<LocalSale>().Where(s => !s.IsSynced).CountAsync();
+    }
+
+    // ---------------------------------------------------------------- BIR terminal, readings, e-journal
+
+    // SHA-256 of the previous invoice's hash and this invoice's text: changing or removing any
+    // earlier invoice breaks every hash after it.
+    public static string JournalHash(string? previousHash, string receiptText)
+    {
+        var bytes = SHA256.HashData(Encoding.UTF8.GetBytes((previousHash ?? "") + "\n" + receiptText));
+        return Convert.ToHexString(bytes).ToLowerInvariant();
+    }
+
+    public async Task ReplaceDiscountTypesAsync(IReadOnlyList<LocalDiscountType> discountTypes)
+    {
+        await EnsureInitializedAsync();
+        await _connection.RunInTransactionAsync(conn =>
+        {
+            conn.DeleteAll<LocalDiscountType>();
+            conn.InsertAll(discountTypes);
+        });
+    }
+
+    public async Task<List<LocalDiscountType>> GetDiscountTypesAsync()
+    {
+        await EnsureInitializedAsync();
+        return await _connection.Table<LocalDiscountType>().OrderBy(d => d.SortOrder).ToListAsync();
+    }
+
+    public async Task<LocalTerminal?> GetTerminalAsync()
+    {
+        await EnsureInitializedAsync();
+        return await _connection.FindAsync<LocalTerminal>(LocalTerminal.SingletonId);
+    }
+
+    // Merges the server's view of this terminal into the local row (see BirService for the rules).
+    public async Task<LocalTerminal> UpdateTerminalAsync(Func<LocalTerminal?, LocalTerminal> merge)
+    {
+        await EnsureInitializedAsync();
+        LocalTerminal result = null!;
+        await _connection.RunInTransactionAsync(conn =>
+        {
+            result = merge(conn.Find<LocalTerminal>(LocalTerminal.SingletonId));
+            result.Id = LocalTerminal.SingletonId;
+            conn.InsertOrReplace(result);
+        });
+        return result;
+    }
+
+    // This terminal's invoices since its last Z-reading, oldest first (an X-reading's contents).
+    public async Task<List<LocalSale>> GetSalesAwaitingZReadingAsync(int terminalId)
+    {
+        await EnsureInitializedAsync();
+        var sales = await _connection.Table<LocalSale>()
+            .Where(s => s.IsFromThisDevice && s.PosTerminalId == terminalId && s.ZReadingCounter == null)
+            .ToListAsync();
+        return sales.Where(s => s.InvoiceSequence > 0).OrderBy(s => s.InvoiceSequence).ToList();
+    }
+
+    // Takes a Z-reading atomically: the sales it covers, the reading built from them, the sales
+    // marked as closed by it, and the terminal's Z counter and grand total moved forward. A sale
+    // rung up a moment later can't fall between the reading and the marking.
+    public async Task<LocalZReading?> TakeZReadingAsync(Func<LocalTerminal, List<LocalSale>, LocalZReading> build)
+    {
+        await EnsureInitializedAsync();
+        LocalZReading? reading = null;
+        await _connection.RunInTransactionAsync(conn =>
+        {
+            var terminal = conn.Find<LocalTerminal>(LocalTerminal.SingletonId);
+            if (terminal is not { TerminalId: > 0 }) return;
+
+            var terminalId = terminal.TerminalId;
+            var sales = conn.Table<LocalSale>()
+                .Where(s => s.IsFromThisDevice && s.PosTerminalId == terminalId && s.ZReadingCounter == null)
+                .ToList()
+                .Where(s => s.InvoiceSequence > 0)
+                .OrderBy(s => s.InvoiceSequence)
+                .ToList();
+
+            reading = build(terminal, sales);
+            conn.Insert(reading);
+            foreach (var sale in sales)
+            {
+                sale.ZReadingCounter = reading.ZCounter;
+                conn.Update(sale);
+            }
+            terminal.LastZCounter = reading.ZCounter;
+            terminal.AccumulatedGrandTotal = reading.NewGrandTotal;
+            terminal.LastInvoiceSequence = Math.Max(terminal.LastInvoiceSequence, reading.EndingInvoiceSequence);
+            conn.Update(terminal);
+        });
+        return reading;
+    }
+
+    public async Task<List<LocalZReading>> GetZReadingsAsync()
+    {
+        await EnsureInitializedAsync();
+        var readings = await _connection.Table<LocalZReading>().ToListAsync();
+        return readings.OrderByDescending(z => z.ZCounter).ThenByDescending(z => z.ReadingUtc).ToList();
+    }
+
+    public async Task<List<LocalZReading>> GetUnsyncedZReadingsAsync()
+    {
+        await EnsureInitializedAsync();
+        return await _connection.Table<LocalZReading>().Where(z => !z.IsSynced).ToListAsync();
+    }
+
+    public async Task MarkZReadingSyncedAsync(Guid syncId)
+    {
+        await EnsureInitializedAsync();
+        await _connection.ExecuteAsync("UPDATE ZReadings SET IsSynced = 1 WHERE SyncId = ?", syncId);
+    }
+
+    // Every invoice this terminal issued that's still on the device, in serial order — the
+    // e-journal export. (The server keeps every synced invoice's text too, for the long term.)
+    public async Task<List<LocalSale>> GetJournalAsync(int terminalId)
+    {
+        await EnsureInitializedAsync();
+        var sales = await _connection.Table<LocalSale>()
+            .Where(s => s.IsFromThisDevice && s.PosTerminalId == terminalId)
+            .ToListAsync();
+        return sales.Where(s => !string.IsNullOrEmpty(s.ReceiptText)).OrderBy(s => s.InvoiceSequence).ToList();
     }
 }

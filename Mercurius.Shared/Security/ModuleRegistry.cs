@@ -79,6 +79,8 @@ namespace Mercurius.Common
                     ModuleRegistry.Pages.REFUND_CREATE,
                     ModuleRegistry.Pages.CONFIG_CATEGORY_FIELDS,
                     ModuleRegistry.Pages.CONFIG_DATABASE_BACKUPS,
+                    ModuleRegistry.Pages.CONFIG_POS_TERMINALS,
+                    ModuleRegistry.Pages.CONFIG_DISCOUNT_TYPES,
                     ModuleRegistry.Pages.PURCHASE_ORDERS_LIST,
                     ModuleRegistry.Pages.PURCHASE_ORDERS_CREATE,
                     ModuleRegistry.Pages.PURCHASE_ORDERS_EDIT,
@@ -176,6 +178,9 @@ namespace Mercurius.Common
             public const string REFUND_CREATE = "Refund Create";
             public const string CONFIG_CATEGORY_FIELDS = "Configuration - Category Custom Fields";
             public const string CONFIG_DATABASE_BACKUPS = "Configuration - Database Backups";
+            // Changing a till's BIR registration (MIN, serial number, Permit to Use) from the mobile app.
+            public const string CONFIG_POS_TERMINALS = "Configuration - POS Terminals (BIR)";
+            public const string CONFIG_DISCOUNT_TYPES = "Configuration - Discount Types";
             public const string PURCHASE_ORDERS_LIST = "Purchase Order List";
             public const string PURCHASE_ORDERS_CREATE = "Purchase Order Create";
             public const string PURCHASE_ORDERS_EDIT = "Purchase Order Edit";

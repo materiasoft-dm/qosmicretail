@@ -27,6 +27,22 @@
             <MudItem xs="12" sm="4"><MudTextField @bind-Value="_phone" Label="Phone" Variant="Variant.Outlined" /></MudItem>
             <MudItem xs="12" sm="4"><MudTextField @bind-Value="_email" Label="Email" Variant="Variant.Outlined" /></MudItem>
 
+            <MudItem xs="12">
+                <MudText Typo="Typo.subtitle2">BIR registration</MudText>
+                <MudText Typo="Typo.caption" Class="d-block">
+                    As shown on this branch's BIR Certificate of Registration. Printed at the top of every invoice its tills issue;
+                    until the registered name and TIN are filled in, receipts say "NOT A VALID INVOICE".
+                </MudText>
+            </MudItem>
+            <MudItem xs="12" sm="6"><MudTextField @bind-Value="_taxRegisteredName" Label="Registered name" Variant="Variant.Outlined" /></MudItem>
+            <MudItem xs="12" sm="6"><MudTextField @bind-Value="_taxBusinessName" Label="Business / trade name" Variant="Variant.Outlined"
+                                                  HelperText="Blank = the branch name" /></MudItem>
+            <MudItem xs="12"><MudTextField @bind-Value="_taxAddress" Label="Registered address" Variant="Variant.Outlined"
+                                           HelperText="Blank = the address below" /></MudItem>
+            <MudItem xs="12" sm="5"><MudTextField @bind-Value="_tin" Label="TIN" Variant="Variant.Outlined" Placeholder="123-456-789" /></MudItem>
+            <MudItem xs="12" sm="3"><MudTextField @bind-Value="_tinBranchCode" Label="Branch code" Variant="Variant.Outlined" Placeholder="00000" /></MudItem>
+            <MudItem xs="12" sm="4"><MudSwitch @bind-Value="_isVatRegistered" Color="Color.Primary" Label="VAT-registered" /></MudItem>
+
             @if (Existing != null)
             {
                 <MudItem xs="12">
@@ -59,6 +75,9 @@
     private decimal? _monthlyTarget;
     private int? _dailyTarget;
     private bool _isActive = true;
+    private string _taxRegisteredName = string.Empty, _taxBusinessName = string.Empty, _taxAddress = string.Empty,
+        _tin = string.Empty, _tinBranchCode = string.Empty;
+    private bool _isVatRegistered = true;
     private bool _busy;
     private string? _error;
 
@@ -77,12 +96,23 @@
         _monthlyTarget = Existing.MonthlyTargetSalesCount;
         _dailyTarget = Existing.DailySalesTarget;
         _isActive = Existing.IsActive;
+        _taxRegisteredName = Existing.TaxRegisteredName ?? string.Empty;
+        _taxBusinessName = Existing.TaxBusinessName ?? string.Empty;
+        _taxAddress = Existing.TaxAddress ?? string.Empty;
+        _tin = Existing.Tin ?? string.Empty;
+        _tinBranchCode = Existing.TinBranchCode ?? string.Empty;
+        _isVatRegistered = Existing.IsVatRegistered;
     }
 
     private async Task Save()
     {
         _error = null;
         if (string.IsNullOrWhiteSpace(_name)) { _error = "Branch name is required."; return; }
+        var tinDigits = new string(_tin.Where(char.IsDigit).ToArray());
+        if (tinDigits.Length != 0 && tinDigits.Length != 9 && tinDigits.Length != 12 && tinDigits.Length != 14)
+        {
+            _error = "The TIN should have 9 digits (or 12-14 including the branch code)."; return;
+        }
 
         _busy = true;
         try
@@ -100,7 +130,13 @@
                 EmailAddress = _email,
                 MonthlyTargetSalesCount = _monthlyTarget,
                 DailySalesTarget = _dailyTarget,
-                IsActive = _isActive
+                IsActive = _isActive,
+                TaxRegisteredName = _taxRegisteredName,
+                TaxBusinessName = _taxBusinessName,
+                TaxAddress = _taxAddress,
+                Tin = _tin,
+                TinBranchCode = _tinBranchCode,
+                IsVatRegistered = _isVatRegistered
             };
             var ok = Existing == null
                 ? await Api.CreateAsync(request) != null

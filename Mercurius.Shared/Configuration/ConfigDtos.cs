@@ -61,6 +61,13 @@ namespace Mercurius.Shared.Configuration
         public decimal? MonthlyTargetSalesCount { get; set; }
         public int? DailySalesTarget { get; set; }
         public bool IsActive { get; set; }
+        // As registered with BIR; printed at the top of the branch's invoices (see Location).
+        public string? TaxRegisteredName { get; set; }
+        public string? TaxBusinessName { get; set; }
+        public string? TaxAddress { get; set; }
+        public string? Tin { get; set; }
+        public string? TinBranchCode { get; set; }
+        public bool IsVatRegistered { get; set; } = true;
     }
     public class CreateLocationRequest
     {
@@ -75,6 +82,13 @@ namespace Mercurius.Shared.Configuration
         public string? Country { get; set; }
         public decimal? MonthlyTargetSalesCount { get; set; }
         public int? DailySalesTarget { get; set; }
+        // As registered with BIR; printed at the top of the branch's invoices (see Location).
+        public string? TaxRegisteredName { get; set; }
+        public string? TaxBusinessName { get; set; }
+        public string? TaxAddress { get; set; }
+        public string? Tin { get; set; }
+        public string? TinBranchCode { get; set; }
+        public bool IsVatRegistered { get; set; } = true;
     }
     // IsActive=false is the (soft) delete.
     public class UpdateLocationRequest : CreateLocationRequest
@@ -128,5 +142,22 @@ namespace Mercurius.Shared.Configuration
         public string Name { get; set; } = string.Empty;
         public string? Description { get; set; }
         public bool IsActive { get; set; }
+    }
+
+    // Mercurius.Shared.Bir.DiscountRule, as Settings → Discount Types edits it.
+    public class DiscountTypeDto
+    {
+        public int Id { get; set; }
+        public string Name { get; set; } = string.Empty;
+        public string? ShortLabel { get; set; }
+        // Mercurius.Shared.Bir.DiscountValueKind: 0 = percent, 1 = fixed amount.
+        public int ValueKind { get; set; }
+        public decimal Value { get; set; }
+        public bool IsVatExempt { get; set; }
+        public bool RequiresCustomerId { get; set; }
+        public string? IdLabel { get; set; }
+        // Mercurius.Shared.Bir.SpecialDiscountType: 0 = other.
+        public int Category { get; set; }
+        public bool IsActive { get; set; } = true;
     }
 }

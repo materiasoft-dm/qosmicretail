@@ -20,6 +20,8 @@ namespace Mercurius.Models.Sync
         public decimal LowStockCount { get; set; }
         public decimal MarkUpPercentage { get; set; }
         public bool IsActive { get; set; }
+        // Mercurius.Shared.Bir.VatType.
+        public int VatType { get; set; }
         public DateTime LastModifiedUtc { get; set; }
     }
 
@@ -37,6 +39,8 @@ namespace Mercurius.Models.Sync
         public decimal LowStockCount { get; set; }
         public decimal MarkUpPercentage { get; set; }
         public bool IsActive { get; set; } = true;
+        // Null from app builds that don't know about VAT classes: keep the server's value.
+        public int? VatType { get; set; }
     }
 
     public class InvoiceItemSyncDto
@@ -47,6 +51,12 @@ namespace Mercurius.Models.Sync
         public decimal SalePrice { get; set; }
         public decimal CostPrice { get; set; }
         public string? Remarks { get; set; }
+        // BIR fields, sent by tills that print BIR invoices (absent from older builds). NetAmount
+        // is what the customer paid for the line after any special discount.
+        public int? VatType { get; set; }
+        public decimal VatAmount { get; set; }
+        public decimal DiscountAmount { get; set; }
+        public decimal? NetAmount { get; set; }
     }
 
     public class InvoiceSyncDto
@@ -80,6 +90,31 @@ namespace Mercurius.Models.Sync
         public string? CashierUserId { get; set; }
         // Cash | Card. Null from app builds older than this field; the server then reads it from Notes.
         public string? PaymentMethod { get; set; }
+
+        // ---- BIR invoice data (see Invoice). Absent from older app builds, which get a
+        // server-assigned invoice number as before.
+        // The terminal (from RegisterTerminal) and the serial number it printed on the invoice.
+        public int? PosTerminalId { get; set; }
+        public long? TerminalInvoiceSequence { get; set; }
+        public decimal VatableSales { get; set; }
+        public decimal VatAmount { get; set; }
+        public decimal VatExemptSales { get; set; }
+        public decimal ZeroRatedSales { get; set; }
+        public decimal LessVat { get; set; }
+        public decimal DiscountAmount { get; set; }
+        public int? DiscountTypeId { get; set; }
+        public string? DiscountName { get; set; }
+        public int SpecialDiscountType { get; set; }
+        public string? SpecialDiscountIdNumber { get; set; }
+        public string? SpecialDiscountHolderName { get; set; }
+        public string? SpecialDiscountHolderTin { get; set; }
+        public string? BuyerName { get; set; }
+        public string? BuyerTin { get; set; }
+        public string? BuyerAddress { get; set; }
+        public string? BuyerBusinessStyle { get; set; }
+        public string? ReceiptText { get; set; }
+        public string? JournalHash { get; set; }
+
         public List<InvoiceItemSyncDto> Items { get; set; } = new();
     }
 
@@ -105,6 +140,9 @@ namespace Mercurius.Models.Sync
         public decimal SalePrice { get; set; }
         public decimal LineTotal { get; set; }
         public decimal RefundedQuantity { get; set; }
+        public int VatType { get; set; }
+        public decimal VatAmount { get; set; }
+        public decimal DiscountAmount { get; set; }
     }
 
     public class ReceiptSyncDto
@@ -126,6 +164,29 @@ namespace Mercurius.Models.Sync
         public bool HasRefund { get; set; }
         public string Status { get; set; } = "";
         public DateTime LastModifiedUtc { get; set; }
+
+        // BIR invoice data (zero/null on sales made before it existed, or on the web).
+        public int? PosTerminalId { get; set; }
+        public long? TerminalInvoiceSequence { get; set; }
+        public decimal VatableSales { get; set; }
+        public decimal VatAmount { get; set; }
+        public decimal VatExemptSales { get; set; }
+        public decimal ZeroRatedSales { get; set; }
+        public decimal LessVat { get; set; }
+        public decimal DiscountAmount { get; set; }
+        public int? DiscountTypeId { get; set; }
+        public string? DiscountName { get; set; }
+        public int SpecialDiscountType { get; set; }
+        public string? SpecialDiscountIdNumber { get; set; }
+        public string? SpecialDiscountHolderName { get; set; }
+        public string? SpecialDiscountHolderTin { get; set; }
+        public string? BuyerName { get; set; }
+        public string? BuyerTin { get; set; }
+        public string? BuyerAddress { get; set; }
+        public string? BuyerBusinessStyle { get; set; }
+        public string? ReceiptText { get; set; }
+        public string? JournalHash { get; set; }
+
         public List<ReceiptLineSyncDto> Items { get; set; } = new();
     }
 
@@ -143,5 +204,89 @@ namespace Mercurius.Models.Sync
         public bool Created { get; set; }
         public DateTime LastModifiedUtc { get; set; }
         public string? Error { get; set; }
+    }
+
+    // ---- BIR terminal registration (Api/BirSyncController)
+
+    public class TerminalRegisterRequest
+    {
+        // The device's per-install id (also sent as X-Device-Id on every request).
+        public string DeviceId { get; set; } = "";
+        public string? Name { get; set; }
+        public int LocationId { get; set; }
+    }
+
+    // Everything a till needs to print BIR invoices and readings: who it is, the branch it sells
+    // for, the software's accreditation, and its counters as the server last knew them.
+    public class TerminalConfigDto
+    {
+        public int TerminalId { get; set; }
+        public string TerminalCode { get; set; } = "";
+        public string? Name { get; set; }
+        public string? MachineIdentificationNumber { get; set; }
+        public string? SerialNumber { get; set; }
+        public string? PermitToUseNumber { get; set; }
+        public DateTime? PermitToUseDateIssued { get; set; }
+        public long LastInvoiceSequence { get; set; }
+        public int LastZCounter { get; set; }
+        public decimal AccumulatedGrandTotal { get; set; }
+        public int ResetCounter { get; set; }
+
+        public int? LocationId { get; set; }
+        public string? SellerRegisteredName { get; set; }
+        public string? SellerBusinessName { get; set; }
+        public string? SellerAddress { get; set; }
+        public string? SellerTin { get; set; }
+        public string? SellerBranchCode { get; set; }
+        public bool SellerIsVatRegistered { get; set; } = true;
+
+        public string? SupplierName { get; set; }
+        public string? SupplierAddress { get; set; }
+        public string? SupplierTin { get; set; }
+        public string? AccreditationNumber { get; set; }
+        public DateTime? AccreditationDateIssued { get; set; }
+        public DateTime? AccreditationValidUntil { get; set; }
+
+        // Whether the signed-in user may change the BIR registration fields below.
+        public bool CanEditRegistration { get; set; }
+    }
+
+    public class TerminalRegistrationUpdate
+    {
+        public int TerminalId { get; set; }
+        public string? MachineIdentificationNumber { get; set; }
+        public string? SerialNumber { get; set; }
+        public string? PermitToUseNumber { get; set; }
+        public DateTime? PermitToUseDateIssued { get; set; }
+    }
+
+    public class ZReadingPushDto
+    {
+        public Guid SyncId { get; set; }
+        public int PosTerminalId { get; set; }
+        public int ZCounter { get; set; }
+        public int ResetCounter { get; set; }
+        public DateTime ReadingDate { get; set; }
+        public int SalesCount { get; set; }
+        public long BeginningInvoiceSequence { get; set; }
+        public long EndingInvoiceSequence { get; set; }
+        public decimal GrossSales { get; set; }
+        public decimal LessVat { get; set; }
+        public decimal DiscountTotal { get; set; }
+        public decimal SeniorCitizenDiscount { get; set; }
+        public decimal PwdDiscount { get; set; }
+        public decimal SoloParentDiscount { get; set; }
+        public decimal NationalAthleteDiscount { get; set; }
+        public decimal MedalOfValorDiscount { get; set; }
+        public decimal NetSales { get; set; }
+        public decimal VatableSales { get; set; }
+        public decimal VatAmount { get; set; }
+        public decimal VatExemptSales { get; set; }
+        public decimal ZeroRatedSales { get; set; }
+        public decimal CashSales { get; set; }
+        public decimal CardSales { get; set; }
+        public decimal PreviousGrandTotal { get; set; }
+        public decimal NewGrandTotal { get; set; }
+        public string? ReportText { get; set; }
     }
 }

@@ -13,6 +13,9 @@ public class ReceiptLineDto
     [JsonPropertyName("salePrice")] public decimal SalePrice { get; set; }
     [JsonPropertyName("lineTotal")] public decimal LineTotal { get; set; }
     [JsonPropertyName("refundedQuantity")] public decimal RefundedQuantity { get; set; }
+    [JsonPropertyName("vatType")] public int VatType { get; set; }
+    [JsonPropertyName("vatAmount")] public decimal VatAmount { get; set; }
+    [JsonPropertyName("discountAmount")] public decimal DiscountAmount { get; set; }
 }
 
 public class ReceiptDto
@@ -34,6 +37,27 @@ public class ReceiptDto
     [JsonPropertyName("hasRefund")] public bool HasRefund { get; set; }
     [JsonPropertyName("status")] public string Status { get; set; } = "";
     [JsonPropertyName("lastModifiedUtc")] public DateTime LastModifiedUtc { get; set; }
+    // BIR invoice data (absent from older servers, and zero for web or pre-BIR sales).
+    [JsonPropertyName("posTerminalId")] public int? PosTerminalId { get; set; }
+    [JsonPropertyName("terminalInvoiceSequence")] public long? TerminalInvoiceSequence { get; set; }
+    [JsonPropertyName("vatableSales")] public decimal VatableSales { get; set; }
+    [JsonPropertyName("vatAmount")] public decimal VatAmount { get; set; }
+    [JsonPropertyName("vatExemptSales")] public decimal VatExemptSales { get; set; }
+    [JsonPropertyName("zeroRatedSales")] public decimal ZeroRatedSales { get; set; }
+    [JsonPropertyName("lessVat")] public decimal LessVat { get; set; }
+    [JsonPropertyName("discountAmount")] public decimal DiscountAmount { get; set; }
+    [JsonPropertyName("discountTypeId")] public int? DiscountTypeId { get; set; }
+    [JsonPropertyName("discountName")] public string? DiscountName { get; set; }
+    [JsonPropertyName("specialDiscountType")] public int SpecialDiscountType { get; set; }
+    [JsonPropertyName("specialDiscountIdNumber")] public string? SpecialDiscountIdNumber { get; set; }
+    [JsonPropertyName("specialDiscountHolderName")] public string? SpecialDiscountHolderName { get; set; }
+    [JsonPropertyName("specialDiscountHolderTin")] public string? SpecialDiscountHolderTin { get; set; }
+    [JsonPropertyName("buyerName")] public string? BuyerName { get; set; }
+    [JsonPropertyName("buyerTin")] public string? BuyerTin { get; set; }
+    [JsonPropertyName("buyerAddress")] public string? BuyerAddress { get; set; }
+    [JsonPropertyName("buyerBusinessStyle")] public string? BuyerBusinessStyle { get; set; }
+    [JsonPropertyName("receiptText")] public string? ReceiptText { get; set; }
+    [JsonPropertyName("journalHash")] public string? JournalHash { get; set; }
     [JsonPropertyName("items")] public List<ReceiptLineDto> Items { get; set; } = new();
 }
 

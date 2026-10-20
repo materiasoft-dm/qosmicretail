@@ -246,6 +246,7 @@ builder.Services.AddScoped<Mercurius.Services.Admin.DataQueryService>();
 builder.Services.AddScoped<Mercurius.Services.Admin.TenantProvisioningService>();
 
 builder.Services.Configure<DatabaseBackupOptions>(builder.Configuration.GetSection("DatabaseBackup"));
+builder.Services.Configure<Mercurius.Services.BirSupplierOptions>(builder.Configuration.GetSection("Bir:Supplier"));
 // Registered as a singleton (not just via AddHostedService) so DatabaseBackupsApiController can
 // inject the concrete type directly (e.g. to read BackupDirectory) alongside the hosting
 // infrastructure starting/stopping the same instance as an IHostedService. Kept registered
@@ -592,6 +593,10 @@ async Task SeedDataAsync(WebApplication app)
             defaultTenant = new Tenant { Name = "Default Tenant", IsActive = true, CreatedDate = DateTime.UtcNow };
             await tenantRepo.AddAsync(defaultTenant);
             await unitOfWork.SaveChangesAsync();
+            // The SeedDefaultDiscountTypes migration ran before this tenant existed.
+            foreach (var discountType in DiscountTypeDefaults.For(defaultTenant.Id))
+                await unitOfWork.Repository<DiscountType>().AddAsync(discountType);
+            await unitOfWork.SaveChangesAsync();
             logger.LogInformation("Created default tenant");
         }
 
@@ -636,7 +641,8 @@ async Task SeedDataAsync(WebApplication app)
             + await BackfillEntityTenantGenericAsync<LocationSetting>(dbContext, defaultTenant.Id)
             + await BackfillEntityTenantGenericAsync<Address>(dbContext, defaultTenant.Id)
             + await BackfillEntityTenantGenericAsync<ContactInformation>(dbContext, defaultTenant.Id)
-            + await BackfillEntityTenantGenericAsync<Mercurius.Repo.Models.File>(dbContext, defaultTenant.Id);
+            + await BackfillEntityTenantGenericAsync<Mercurius.Repo.Models.File>(dbContext, defaultTenant.Id)
+            + await BackfillEntityTenantGenericAsync<DiscountType>(dbContext, defaultTenant.Id);
 
         // MercuriusUser isn't ITenantScoped (see its own comment — the filter would break
         // sign-in), but it still carries a plain TenantId column that claims-issuing reads, so it

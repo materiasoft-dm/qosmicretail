@@ -289,6 +289,20 @@
                     </Grid>
 
                     <VerticalStackLayout Grid.Row="2" Padding="20,14" Spacing="12" BackgroundColor="#FAFAFB">
+                        <!-- BIR: one of the tenant's discount types (SC/PWD or a store discount) and/or
+                             the buyer's details for the invoice. See InvoiceDetailsPopup. -->
+                        <Button x:Name="InvoiceDetailsButton" AutomationId="InvoiceDetailsButton" Text="+ Discount or customer"
+                                HeightRequest="38" FontSize="13" Padding="12,0"
+                                BackgroundColor="{StaticResource Gray100}" TextColor="{StaticResource MidnightBlue}"
+                                Clicked="OnInvoiceDetailsClicked" />
+                        <Grid x:Name="LessVatRow" ColumnDefinitions="*,Auto" IsVisible="False">
+                            <Label Grid.Column="0" Text="Less: VAT 12%" FontSize="13" TextColor="{StaticResource Gray500}" />
+                            <Label Grid.Column="1" x:Name="LessVatAmountLabel" AutomationId="LessVatAmountLabel" FontSize="13" TextColor="{StaticResource Gray500}" />
+                        </Grid>
+                        <Grid x:Name="DiscountRow" ColumnDefinitions="*,Auto" IsVisible="False">
+                            <Label Grid.Column="0" x:Name="DiscountRowLabel" FontSize="13" TextColor="{StaticResource Gray500}" LineBreakMode="TailTruncation" />
+                            <Label Grid.Column="1" x:Name="DiscountAmountLabel" AutomationId="DiscountAmountLabel" FontSize="13" TextColor="{StaticResource Gray500}" />
+                        </Grid>
                         <Grid ColumnDefinitions="*,Auto">
                             <Label Grid.Column="0" Text="Total" FontSize="15" FontAttributes="Bold" TextColor="{StaticResource MidnightBlue}" />
                             <Label Grid.Column="1" x:Name="TotalLabel" AutomationId="TotalLabel" Text="₱0.00" FontSize="20" FontAttributes="Bold" TextColor="{StaticResource Primary}" />

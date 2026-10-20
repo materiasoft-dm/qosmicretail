@@ -43,6 +43,7 @@ namespace Mercurius.Client
             services.AddScoped<LocationsApiClient>();
             services.AddScoped<CategoryFieldsApiClient>();
             services.AddScoped<RefundReasonsApiClient>();
+            services.AddScoped<DiscountTypesApiClient>();
             services.AddScoped<AdjustmentsApiClient>();
             services.AddScoped<PurchaseOrdersApiClient>();
             services.AddScoped<ShipmentsApiClient>();

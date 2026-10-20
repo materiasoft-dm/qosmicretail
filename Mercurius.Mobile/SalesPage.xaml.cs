@@ -3,6 +3,7 @@ using CommunityToolkit.Maui.Views;
 using Mercurius.Mobile.Data;
 using Mercurius.Mobile.Models;
 using Mercurius.Mobile.Services;
+using Mercurius.Shared.Bir;
 
 namespace Mercurius.Mobile;
 
@@ -40,9 +41,16 @@ public partial class SalesPage : ContentPage
 
     private readonly SyncCoordinator _syncCoordinator;
     private readonly SessionService _sessionService;
+    private readonly BirService _birService;
+
+    // BIR: this device's terminal registration (seller TIN, VAT status), the tenant's discount
+    // types, and the discount/buyer details the cashier added to the current ticket.
+    private LocalTerminal? _terminal;
+    private IReadOnlyList<DiscountRule> _discountRules = Array.Empty<DiscountRule>();
+    private InvoiceDetails _invoiceDetails = new();
 
     public SalesPage(LocalDatabase localDatabase, SyncService syncService, Services.DeviceSettingsService deviceSettingsService,
-        HardwareScannerService hardwareScanner, SyncCoordinator syncCoordinator, SessionService sessionService)
+        HardwareScannerService hardwareScanner, SyncCoordinator syncCoordinator, SessionService sessionService, BirService birService)
     {
         InitializeComponent();
         _localDatabase = localDatabase;
@@ -51,6 +59,7 @@ public partial class SalesPage : ContentPage
         _hardwareScanner = hardwareScanner;
         _syncCoordinator = syncCoordinator;
         _sessionService = sessionService;
+        _birService = birService;
         CartCollectionView.ItemsSource = _cart;
         CameraScanButton.IsVisible = BarcodeScanner.IsCameraScanAvailable;
         SearchEntry.Unfocused += OnSearchEntryUnfocused;
@@ -151,8 +160,16 @@ public partial class SalesPage : ContentPage
         StartListeningForScans();
         _syncCoordinator.SyncCompleted -= OnSyncCompleted;
         _syncCoordinator.SyncCompleted += OnSyncCompleted;
+        await LoadBirSettingsAsync();
         await LoadProductsAsync();
         await RefreshPendingSyncLabelAsync();
+    }
+
+    private async Task LoadBirSettingsAsync()
+    {
+        _terminal = await _birService.GetTerminalAsync();
+        _discountRules = await _birService.GetDiscountRulesAsync();
+        RefreshCartTotals();
     }
 
     private async Task LoadProductsAsync()
@@ -368,7 +385,8 @@ public partial class SalesPage : ContentPage
                 Price = product.CurrentSalePrice ?? 0,
                 CostPrice = product.CurrentCostPrice ?? 0,
                 Quantity = 1,
-                Stock = product.CurrentStock
+                Stock = product.CurrentStock,
+                VatType = product.VatType
             });
             RefreshCartTotals();
         }
@@ -403,18 +421,44 @@ public partial class SalesPage : ContentPage
     private void OnClearClicked(object? sender, EventArgs e)
     {
         _cart.Clear();
+        _invoiceDetails = new InvoiceDetails();
         RefreshCartTotals();
     }
+
+    private async void OnInvoiceDetailsClicked(object? sender, EventArgs e)
+    {
+        var result = await ShowTrackedPopupAsync(new InvoiceDetailsPopup(_invoiceDetails, _discountRules));
+        if (result is InvoiceDetails details)
+        {
+            _invoiceDetails = details;
+            RefreshCartTotals();
+        }
+    }
+
+    private TaxSummary ComputeTicket() => BirService.Compute(_cart, _terminal, _invoiceDetails.Discount);
 
     private void RefreshCartTotals()
     {
         EmptyCartLayout.IsVisible = _cart.Count == 0;
 
+        var summary = ComputeTicket();
         var totalItems = _cart.Sum(c => c.Quantity);
-        var grandTotal = _cart.Sum(c => c.LineTotal);
         CartCountLabel.Text = totalItems == 1 ? "1 item" : $"{totalItems:0.##} items";
-        TotalLabel.Text = $"₱{grandTotal:N2}";
-        ChargeButton.Text = _cart.Count == 0 ? "Charge" : $"Charge ₱{grandTotal:N2}";
+
+        var discount = _invoiceDetails.Discount;
+        LessVatRow.IsVisible = summary.LessVat != 0;
+        LessVatAmountLabel.Text = $"-₱{summary.LessVat:N2}";
+        DiscountRow.IsVisible = discount != null;
+        DiscountRowLabel.Text = discount == null ? "" : $"{discount.Name} ({discount.ValueText})";
+        DiscountAmountLabel.Text = $"-₱{summary.Discount:N2}";
+        InvoiceDetailsButton.Text = _invoiceDetails.IsEmpty
+            ? "+ Discount or customer"
+            : discount != null
+                ? $"Discount: {discount.Code}{(_invoiceDetails.HasBuyer ? " · customer added" : "")}"
+                : "Customer added";
+
+        TotalLabel.Text = $"₱{summary.AmountDue:N2}";
+        ChargeButton.Text = _cart.Count == 0 ? "Charge" : $"Charge ₱{summary.AmountDue:N2}";
         ChargeButton.IsEnabled = _cart.Count > 0;
     }
 
@@ -422,7 +466,9 @@ public partial class SalesPage : ContentPage
     {
         if (_cart.Count == 0) return;
 
-        var grandTotal = _cart.Sum(c => c.LineTotal);
+        var summary = ComputeTicket();
+        var grandTotal = summary.AmountDue;
+        var details = _invoiceDetails;
         var result = await ShowTrackedPopupAsync(new PaymentPage(grandTotal));
         if (result is not Models.PaymentResult payment) return; // cashier backed out of the payment screen
 
@@ -452,23 +498,52 @@ public partial class SalesPage : ContentPage
                 CashierName = await _sessionService.GetFullNameAsync(),
                 SourceChannel = "MobileApp",
                 SourceDeviceId = _deviceSettingsService.GetDeviceId(),
-                SourceDeviceName = _deviceSettingsService.GetTerminalName()
+                SourceDeviceName = _deviceSettingsService.GetTerminalName(),
+                // BIR: the invoice's tax summary and whatever the cashier added to the ticket.
+                GrossAmount = summary.Gross,
+                VatableSales = summary.VatableSales,
+                VatAmount = summary.VatAmount,
+                VatExemptSales = summary.VatExemptSales,
+                ZeroRatedSales = summary.ZeroRatedSales,
+                LessVat = summary.LessVat,
+                DiscountAmount = summary.Discount,
+                DiscountTypeId = details.Discount?.Id,
+                DiscountName = details.Discount?.ReceiptLabel,
+                SpecialDiscountType = (int)(details.Discount?.Category ?? SpecialDiscountType.None),
+                SpecialDiscountIdNumber = details.DiscountIdNumber,
+                SpecialDiscountHolderName = details.DiscountHolderName,
+                SpecialDiscountHolderTin = details.DiscountHolderTin,
+                BuyerName = details.BuyerName,
+                BuyerTin = details.BuyerTin,
+                BuyerAddress = details.BuyerAddress,
+                BuyerBusinessStyle = details.BuyerBusinessStyle
             };
 
-            var items = _cart.Select(c => new LocalSaleItem
+            var items = _cart.Select((c, i) =>
             {
-                SyncId = Guid.NewGuid(),
-                SaleSyncId = sale.SyncId,
-                ProductSyncId = c.ProductSyncId,
-                ProductName = c.Name,
-                Quantity = c.Quantity,
-                SalePrice = c.Price,
-                CostPrice = c.CostPrice
+                var tax = summary.Lines[i];
+                return new LocalSaleItem
+                {
+                    SyncId = Guid.NewGuid(),
+                    SaleSyncId = sale.SyncId,
+                    ProductSyncId = c.ProductSyncId,
+                    ProductName = c.Name,
+                    Quantity = c.Quantity,
+                    SalePrice = c.Price,
+                    CostPrice = c.CostPrice,
+                    VatType = (int)tax.VatType,
+                    VatAmount = tax.VatAmount,
+                    DiscountAmount = tax.Discount,
+                    // Only when it differs from Quantity * SalePrice (see LocalSaleItem.EffectiveLineTotal).
+                    LineTotal = tax.Net != tax.Gross ? tax.Net : 0
+                };
             }).ToList();
 
-            await _localDatabase.SaveSaleAsync(sale, items);
+            // Numbers the invoice against this terminal and prints it, in one transaction.
+            await _localDatabase.SaveSaleAsync(sale, items, (s, t) => _birService.RenderReceipt(s, items, t, details.Discount));
 
             _cart.Clear();
+            _invoiceDetails = new InvoiceDetails();
             RefreshCartTotals();
             await LoadProductsAsync(); // refresh tiles with the locally decremented stock
 
@@ -479,9 +554,7 @@ public partial class SalesPage : ContentPage
             var message = payment.Method == Models.PaymentMethod.Cash && payment.Change > 0
                 ? $"Charged ₱{grandTotal:N2} cash. Change due: ₱{payment.Change:N2}."
                 : $"Charged ₱{grandTotal:N2} ({payment.Method}).";
-            _openPopups++;
-            try { await DisplayAlertAsync("Sale Complete", message, "OK"); }
-            finally { _openPopups--; KeepSearchFocusForScanner(); }
+            await ShowTrackedPopupAsync(new ReceiptPopup("Sale complete", message, sale.ReceiptText ?? ""));
         }
         finally
         {
@@ -501,6 +574,8 @@ public partial class SalesPage : ContentPage
     {
         // Background syncs (timer, reconnect) can upload sales while this page is open.
         await RefreshPendingSyncLabelAsync();
+        // The terminal's registration (TIN, MIN, VAT status) and the discount types may have changed.
+        await LoadBirSettingsAsync();
         if (report.ProductsPulled > 0) await LoadProductsAsync();
     }
 }

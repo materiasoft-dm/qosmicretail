@@ -177,6 +177,8 @@ namespace Mercurius.Controllers.Api
             }
 
             var locationId = await Mercurius.Services.CurrentLocation.GetIdAsync(_unitOfWork, User);
+            var sellerIsVatRegistered = (await _unitOfWork.Repository<Location>().FindAsync(l => l.Id == locationId, ct))
+                .FirstOrDefault()?.IsVatRegistered ?? true;
             var now = DateTime.UtcNow;
             var cashierId = Guid.TryParse(User.FindFirst(ClaimTypes.NameIdentifier)?.Value, out var uid) ? uid : Guid.Empty;
 
@@ -206,11 +208,15 @@ namespace Mercurius.Controllers.Api
                 await _unitOfWork.Repository<Invoice>().AddAsync(invoice, ct);
                 await _unitOfWork.SaveChangesAsync(ct);
 
+                var recorded = new List<(InvoiceItem Item, Product Product)>();
                 foreach (var (line, product, quote, charged) in lines)
                 {
-                    await _saleRecorder.RecordLineAsync(_unitOfWork, invoice, product, line.Quantity, quote, charged, soldBy, ct: ct);
+                    var item = await _saleRecorder.RecordLineAsync(_unitOfWork, invoice, product, line.Quantity, quote, charged, soldBy, ct: ct);
+                    recorded.Add((item, product));
                     grandTotal += charged * line.Quantity;
                 }
+                SaleRecorder.ApplyTax(invoice, recorded, sellerIsVatRegistered);
+                await _unitOfWork.Repository<Invoice>().UpdateAsync(invoice, ct);
                 await _unitOfWork.SaveChangesAsync(ct);
                 await _saleRecorder.RefreshPricesAsync(_unitOfWork, productIds, ct);
                 await _unitOfWork.CommitTransactionAsync(ct);

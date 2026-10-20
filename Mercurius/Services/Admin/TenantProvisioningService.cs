@@ -98,6 +98,8 @@ namespace Mercurius.Services.Admin
 
                 await _unitOfWork.Repository<UserCurrentLocation>().AddAsync(
                     new UserCurrentLocation { UserId = adminUser.Id, LocationId = location.Id }, ct);
+                foreach (var discountType in DiscountTypeDefaults.For(tenant.Id))
+                    await _unitOfWork.Repository<DiscountType>().AddAsync(discountType, ct);
                 await _unitOfWork.SaveChangesAsync(ct);
 
                 await _unitOfWork.CommitTransactionAsync(ct);

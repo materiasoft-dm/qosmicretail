@@ -111,6 +111,7 @@ namespace Mercurius.Controllers.Api
                     LowStockCount = p.LowStockCount,
                     MarkUpPercentage = p.MarkUpPercentage,
                     IsActive = p.IsActive,
+                    VatType = p.VatType,
                     LastModifiedUtc = p.UpdatedDate ?? p.CreateDate
                 })
                 .ToList();
@@ -179,6 +180,7 @@ namespace Mercurius.Controllers.Api
                         existing.LowStockCount = item.LowStockCount;
                         existing.MarkUpPercentage = item.MarkUpPercentage;
                         existing.IsActive = item.IsActive;
+                        if (item.VatType is int vatType && Enum.IsDefined(typeof(Mercurius.Shared.Bir.VatType), vatType)) existing.VatType = vatType;
                         existing.UpdatedDate = now;
                         existing.UpdatedBy = CurrentUserId;
 
@@ -203,6 +205,7 @@ namespace Mercurius.Controllers.Api
                             LowStockCount = item.LowStockCount,
                             MarkUpPercentage = item.MarkUpPercentage,
                             IsActive = item.IsActive,
+                            VatType = item.VatType is int vt && Enum.IsDefined(typeof(Mercurius.Shared.Bir.VatType), vt) ? vt : 0,
                             CreateDate = now,
                             CreatedBy = CurrentUserId
                         };
@@ -311,11 +314,14 @@ namespace Mercurius.Controllers.Api
                     i.Id, i.SyncId, i.InvoiceNumber, i.InvoiceDate, i.LocationId, i.CreatedBy,
                     i.SourceChannel, i.SourceDeviceId, i.SourceDeviceName, i.Notes, i.PaymentMethod, i.PaidAmount,
                     i.HasRefund, i.StatusId,
+                    i.PosTerminalId, i.TerminalInvoiceSequence, i.VatableSales, i.VatAmount, i.VatExemptSales, i.ZeroRatedSales,
+                    i.LessVat, i.DiscountAmount, i.DiscountTypeId, i.DiscountName, i.SpecialDiscountType, i.SpecialDiscountIdNumber, i.SpecialDiscountHolderName,
+                    i.SpecialDiscountHolderTin, i.BuyerName, i.BuyerTin, i.BuyerAddress, i.BuyerBusinessStyle, i.ReceiptText, i.JournalHash,
                     Modified = i.UpdatedDate ?? i.CreatedDate,
                     Items = i.InvoiceItems.Select(ii => new
                     {
                         ii.Id, ii.SyncId, ProductSyncId = ii.Product.SyncId, ProductName = ii.Product.Name,
-                        ii.Quantity, ii.SalePrice, ii.CustomTotalPrice
+                        ii.Quantity, ii.SalePrice, ii.CustomTotalPrice, ii.VatType, ii.VatAmount, ii.DiscountAmount
                     }).ToList()
                 })
                 .ToListAsync(ct);
@@ -364,7 +370,10 @@ namespace Mercurius.Controllers.Api
                         Quantity = ii.Quantity,
                         SalePrice = ii.SalePrice,
                         LineTotal = lineTotal,
-                        RefundedQuantity = refundedQty
+                        RefundedQuantity = refundedQty,
+                        VatType = ii.VatType,
+                        VatAmount = ii.VatAmount,
+                        DiscountAmount = ii.DiscountAmount
                     };
                 }).ToList();
 
@@ -387,6 +396,26 @@ namespace Mercurius.Controllers.Api
                     HasRefund = inv.HasRefund,
                     Status = ((StatusCollection.InvoiceStatus)inv.StatusId).ToString(),
                     LastModifiedUtc = DateTime.SpecifyKind(inv.Modified, DateTimeKind.Utc),
+                    PosTerminalId = inv.PosTerminalId,
+                    TerminalInvoiceSequence = inv.TerminalInvoiceSequence,
+                    VatableSales = inv.VatableSales,
+                    VatAmount = inv.VatAmount,
+                    VatExemptSales = inv.VatExemptSales,
+                    ZeroRatedSales = inv.ZeroRatedSales,
+                    LessVat = inv.LessVat,
+                    DiscountAmount = inv.DiscountAmount,
+                    DiscountTypeId = inv.DiscountTypeId,
+                    DiscountName = inv.DiscountName,
+                    SpecialDiscountType = inv.SpecialDiscountType,
+                    SpecialDiscountIdNumber = inv.SpecialDiscountIdNumber,
+                    SpecialDiscountHolderName = inv.SpecialDiscountHolderName,
+                    SpecialDiscountHolderTin = inv.SpecialDiscountHolderTin,
+                    BuyerName = inv.BuyerName,
+                    BuyerTin = inv.BuyerTin,
+                    BuyerAddress = inv.BuyerAddress,
+                    BuyerBusinessStyle = inv.BuyerBusinessStyle,
+                    ReceiptText = inv.ReceiptText,
+                    JournalHash = inv.JournalHash,
                     Items = lines
                 });
             }
@@ -456,6 +485,25 @@ namespace Mercurius.Controllers.Api
 
                     var cashierId = await ResolveCashierAsync(item.CashierUserId, ct);
 
+                    // A till that prints BIR invoices numbers them itself, per terminal, offline;
+                    // the stored InvoiceNumber is "<terminal code>-<serial>" so two terminals'
+                    // serial 1 don't collide. Older builds still get a server-made number.
+                    PosTerminal? terminal = null;
+                    if (item.PosTerminalId is int terminalId && item.TerminalInvoiceSequence is > 0)
+                    {
+                        terminal = await _unitOfWork.Query<PosTerminal>().FirstOrDefaultAsync(t => t.Id == terminalId, ct);
+                        if (terminal == null)
+                        {
+                            results.Add(new SyncPushResultItem { SyncId = item.SyncId, Error = "This sale's terminal isn't registered on the server." });
+                            continue;
+                        }
+                    }
+
+                    // The amounts are the device's (like the price, it's what the customer was charged);
+                    // the link to the discount type is kept only if it's one of this tenant's.
+                    var discountTypeId = item.DiscountTypeId is int dtId &&
+                        await _unitOfWork.Query<DiscountType>().AnyAsync(d => d.Id == dtId, ct) ? item.DiscountTypeId : null;
+
                     // All-or-nothing per sale. Previously the invoice header was committed before its
                     // lines; if a line then failed, the device retried, the server saw the SyncId
                     // already existed ("create-once, no-op"), and the lines were lost for good.
@@ -466,7 +514,9 @@ namespace Mercurius.Controllers.Api
                     {
                         SyncId = item.SyncId,
                         InvoiceDate = item.InvoiceDate,
-                        InvoiceNumber = Mercurius.Services.SaleRecorder.NewInvoiceNumber(now, item.SyncId),
+                        InvoiceNumber = terminal != null
+                            ? $"{PosTerminal.CodeFor(terminal.Id)}-{Mercurius.Shared.Bir.BirFormat.InvoiceNumber(item.TerminalInvoiceSequence!.Value)}"
+                            : Mercurius.Services.SaleRecorder.NewInvoiceNumber(now, item.SyncId),
                         CustomerId = item.CustomerId,
                         LocationId = resolvedLocationId,
                         StatusId = (int)StatusCollection.InvoiceStatus.Completed,
@@ -478,7 +528,27 @@ namespace Mercurius.Controllers.Api
                         CreatedBy = cashierId,
                         SourceChannel = "MobileApp",
                         SourceDeviceId = deviceId,
-                        SourceDeviceName = deviceName
+                        SourceDeviceName = deviceName,
+                        PosTerminalId = terminal?.Id,
+                        TerminalInvoiceSequence = terminal != null ? item.TerminalInvoiceSequence : null,
+                        VatableSales = item.VatableSales,
+                        VatAmount = item.VatAmount,
+                        VatExemptSales = item.VatExemptSales,
+                        ZeroRatedSales = item.ZeroRatedSales,
+                        LessVat = item.LessVat,
+                        DiscountAmount = item.DiscountAmount,
+                        DiscountTypeId = discountTypeId,
+                        DiscountName = Trim(item.DiscountName, 100),
+                        SpecialDiscountType = Enum.IsDefined(typeof(Mercurius.Shared.Bir.SpecialDiscountType), item.SpecialDiscountType) ? item.SpecialDiscountType : 0,
+                        SpecialDiscountIdNumber = Trim(item.SpecialDiscountIdNumber, 50),
+                        SpecialDiscountHolderName = Trim(item.SpecialDiscountHolderName, 200),
+                        SpecialDiscountHolderTin = Trim(item.SpecialDiscountHolderTin, 20),
+                        BuyerName = Trim(item.BuyerName, 200),
+                        BuyerTin = Trim(item.BuyerTin, 20),
+                        BuyerAddress = Trim(item.BuyerAddress, 500),
+                        BuyerBusinessStyle = Trim(item.BuyerBusinessStyle, 200),
+                        ReceiptText = item.ReceiptText,
+                        JournalHash = Trim(item.JournalHash, 64)
                     };
                     await _unitOfWork.Repository<Invoice>().AddAsync(invoice, ct);
                     await _unitOfWork.SaveChangesAsync(ct);
@@ -503,9 +573,25 @@ namespace Mercurius.Controllers.Api
                         }
 
                         var quote = await _saleRecorder.QuoteAsync(_unitOfWork, product, lineItem.Quantity, ct);
-                        await _saleRecorder.RecordLineAsync(_unitOfWork, invoice, product, lineItem.Quantity, quote, lineItem.SalePrice,
+                        var recorded = await _saleRecorder.RecordLineAsync(_unitOfWork, invoice, product, lineItem.Quantity, quote, lineItem.SalePrice,
                             soldBy, lineItem.SyncId, lineItem.Remarks, ct);
+                        // The tax class the till printed, not the product's current one (it may
+                        // have changed since an offline sale).
+                        recorded.VatType = lineItem.VatType ?? product.VatType;
+                        recorded.VatAmount = lineItem.VatAmount;
+                        recorded.DiscountAmount = lineItem.DiscountAmount;
+                        if (lineItem.NetAmount is decimal net && net != lineItem.Quantity * lineItem.SalePrice)
+                        {
+                            recorded.CustomTotalPrice = net;
+                        }
                         productsSold.Add(product.Id);
+                    }
+
+                    if (terminal != null && item.TerminalInvoiceSequence > terminal.LastInvoiceSequence)
+                    {
+                        terminal.LastInvoiceSequence = item.TerminalInvoiceSequence.Value;
+                        terminal.UpdatedDate = now;
+                        await _unitOfWork.Repository<PosTerminal>().UpdateAsync(terminal, ct);
                     }
                     await _unitOfWork.SaveChangesAsync(ct);
                     await _saleRecorder.RefreshPricesAsync(_unitOfWork, productsSold, ct);
@@ -549,6 +635,13 @@ namespace Mercurius.Controllers.Api
             var sameTenant = await _unitOfWork.Query<Mercurius.Repo.IdentityModel.MercuriusUser>()
                 .AnyAsync(u => u.Id == claimedIdString && u.TenantId == tenantId, ct);
             return sameTenant ? claimed : CurrentUserId;
+        }
+
+        private static string? Trim(string? value, int max)
+        {
+            if (string.IsNullOrWhiteSpace(value)) return null;
+            var trimmed = value.Trim();
+            return trimmed.Length > max ? trimmed[..max] : trimmed;
         }
 
         private string? HeaderOrNull(string name)
