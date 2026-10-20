@@ -138,7 +138,7 @@ builder.Services.AddIdentityCore<MercuriusUser>(options =>
     // model defaults to 450, and Migrate() would refuse to start over the pending model change.
     options.Stores.MaxLengthForKeys = 128;
 })
-    .AddRoles<IdentityRole>()
+    .AddRoles<MercuriusRole>()
     .AddEntityFrameworkStores<MercuriusDbContext>()
     .AddSignInManager()
     .AddDefaultTokenProviders()
@@ -244,6 +244,7 @@ builder.Services.AddScoped<Mercurius.Services.UserPermissions>();
 builder.Services.AddScoped<Mercurius.Services.AdjustmentService>();
 builder.Services.AddScoped<Mercurius.Services.Admin.DataQueryService>();
 builder.Services.AddScoped<Mercurius.Services.Admin.TenantProvisioningService>();
+builder.Services.AddScoped<TenantRoles>();
 
 builder.Services.Configure<DatabaseBackupOptions>(builder.Configuration.GetSection("DatabaseBackup"));
 // Registered as a singleton (not just via AddHostedService) so DatabaseBackupsApiController can
@@ -528,54 +529,11 @@ async Task SeedDataAsync(WebApplication app)
 
     try
     {
-        var roleManager = services.GetRequiredService<RoleManager<IdentityRole>>();
         var userManager = services.GetRequiredService<UserManager<MercuriusUser>>();
         var logger = services.GetRequiredService<ILogger<Program>>();
-
-        var roles = new[] { "Administrator", "Manager", "User", Mercurius.Common.ModuleRegistry.DatabaseAdministratorRole };
-        foreach (var role in roles)
-        {
-            if (!await roleManager.RoleExistsAsync(role))
-            {
-                await roleManager.CreateAsync(new IdentityRole(role));
-                logger.LogInformation($"Created role: {role}");
-            }
-        }
-
-        var databaseModules = Mercurius.Common.ModuleRegistry.DatabaseModules;
-
-        // Administrator gets every permission except the database ones, and loses those if an
-        // earlier version of this seed granted them. They belong to Database Administrator alone.
-        var adminRole = await roleManager.FindByNameAsync("Administrator");
-        if (adminRole != null)
-        {
-            var existingClaims = await roleManager.GetClaimsAsync(adminRole);
-            foreach (var page in Mercurius.Common.ModuleRegistry.Modules.Except(databaseModules))
-            {
-                if (!existingClaims.Any(c => c.Type == MercuriusClaimTypes.AccessPages && c.Value == page))
-                {
-                    await roleManager.AddClaimAsync(adminRole, new System.Security.Claims.Claim(MercuriusClaimTypes.AccessPages, page));
-                }
-            }
-            foreach (var claim in existingClaims.Where(c => c.Type == MercuriusClaimTypes.AccessPages && databaseModules.Contains(c.Value)))
-            {
-                await roleManager.RemoveClaimAsync(adminRole, claim);
-            }
-            logger.LogInformation("Added all non-database permissions to Administrator role");
-        }
-
-        var databaseAdminRole = await roleManager.FindByNameAsync(Mercurius.Common.ModuleRegistry.DatabaseAdministratorRole);
-        if (databaseAdminRole != null)
-        {
-            var existingClaims = await roleManager.GetClaimsAsync(databaseAdminRole);
-            foreach (var page in databaseModules)
-            {
-                if (!existingClaims.Any(c => c.Type == MercuriusClaimTypes.AccessPages && c.Value == page))
-                {
-                    await roleManager.AddClaimAsync(databaseAdminRole, new System.Security.Claims.Claim(MercuriusClaimTypes.AccessPages, page));
-                }
-            }
-        }
+        // Startup has no signed-in user, so anything that reads a tenant's roles picks the tenant
+        // explicitly (roles are filtered to the current tenant plus platform roles).
+        var tenantScope = services.GetRequiredService<ITenantScopeOverride>();
 
         var unitOfWork = services.GetRequiredService<IUnitOfWork>();
 
@@ -652,6 +610,18 @@ async Task SeedDataAsync(WebApplication app)
                 totalBackfilled, backfilledUsers);
         }
 
+        // Roles: each tenant has its own (MercuriusRole.TenantId). Databases from before per-tenant
+        // roles have one shared set, which is split per tenant first so nobody's permissions
+        // change; then every tenant gets any fixed role it's missing, and its Administrator any
+        // new permission. Database Administrator stays a single platform role.
+        var tenantRoles = services.GetRequiredService<TenantRoles>();
+        await tenantRoles.SplitLegacyRolesAsync(defaultTenant.Id);
+        await tenantRoles.EnsurePlatformRolesAsync();
+        foreach (var tenantId in await dbContext.Tenants.IgnoreQueryFilters().OrderBy(t => t.Id).Select(t => t.Id).ToListAsync())
+        {
+            await tenantRoles.EnsureForTenantAsync(tenantId);
+        }
+
         var addressRepo = unitOfWork.Repository<Address>();
         var contactInformationRepo = unitOfWork.Repository<ContactInformation>();
         var locationRepo = unitOfWork.Repository<Location>();
@@ -697,8 +667,11 @@ async Task SeedDataAsync(WebApplication app)
                 var result = await userManager.CreateAsync(adminUser, adminPassword);
                 if (result.Succeeded)
                 {
-                    await userManager.AddToRoleAsync(adminUser, "Administrator");
                     logger.LogInformation($"Created admin user: {adminEmail}");
+                }
+                else
+                {
+                    adminUser = null;
                 }
             }
             else if (!adminUser.IsPlatformAdmin)
@@ -718,7 +691,9 @@ async Task SeedDataAsync(WebApplication app)
             // Administrator from the Users page.
             if (adminUser != null)
             {
-                foreach (var roleName in new[] { "Administrator", Mercurius.Common.ModuleRegistry.DatabaseAdministratorRole })
+                // "Administrator" here means the seed admin's own tenant's Administrator.
+                using var adminTenant = tenantScope.UseTenant(adminUser.TenantId);
+                foreach (var roleName in new[] { TenantRoles.Administrator, Mercurius.Common.ModuleRegistry.DatabaseAdministratorRole })
                 {
                     if (!await userManager.IsInRoleAsync(adminUser, roleName))
                     {

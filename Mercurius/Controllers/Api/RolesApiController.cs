@@ -3,6 +3,8 @@ using System.Linq;
 using System.Security.Claims;
 using System.Threading.Tasks;
 using Mercurius.Common.Constants;
+using Mercurius.Repo.IdentityModel;
+using Mercurius.Repo.Repositories;
 using Mercurius.Shared.Admin;
 using Mercurius.Shared.Common;
 using Microsoft.AspNetCore.Authorization;
@@ -20,15 +22,22 @@ namespace Mercurius.Controllers.Api
     [Authorize(Policy = Mercurius.Common.ModuleRegistry.Pages.ADMIN_ROLES_MANAGEMENT)]
     public class RolesApiController : ControllerBase
     {
-        private readonly RoleManager<IdentityRole> _roleManager;
-        public RolesApiController(RoleManager<IdentityRole> roleManager) => _roleManager = roleManager;
+        private readonly RoleManager<MercuriusRole> _roleManager;
+        private readonly ICurrentTenantContext _tenant;
 
-        // Roles are shared by every tenant, and the database permissions reach every tenant's data,
-        // so only a platform admin may grant or remove them on any role, or change or delete the
-        // Database Administrator role itself.
+        public RolesApiController(RoleManager<MercuriusRole> roleManager, ICurrentTenantContext tenant)
+        {
+            _roleManager = roleManager;
+            _tenant = tenant;
+        }
+
+        // Each tenant manages its own roles: RoleManager only sees the caller's tenant's roles plus
+        // platform roles (MercuriusDbContext's role filter), so another tenant's role ids 404 here.
+        // The database permissions reach every tenant's data, so only a platform admin may grant or
+        // remove them on any role, or change or delete the platform Database Administrator role.
         private bool CallerIsPlatformAdmin => User.HasClaim(MercuriusClaimTypes.IsPlatformAdmin, "true");
 
-        private static bool IsDatabaseAdministratorRole(IdentityRole role) =>
+        private static bool IsDatabaseAdministratorRole(MercuriusRole role) =>
             role.Name == Mercurius.Common.ModuleRegistry.DatabaseAdministratorRole;
 
         private ObjectResult DatabasePermissionsPlatformAdminOnly() =>
@@ -63,7 +72,7 @@ namespace Mercurius.Controllers.Api
             {
                 return DatabasePermissionsPlatformAdminOnly();
             }
-            var role = new IdentityRole(request.Name);
+            var role = new MercuriusRole(request.Name) { TenantId = _tenant.TenantId };
             var result = await _roleManager.CreateAsync(role);
             if (!result.Succeeded) return BadRequest(new { error = string.Join("; ", result.Errors.Select(e => e.Description)) });
 

@@ -20,8 +20,9 @@ namespace Mercurius.Services.Admin
     }
 
     /// <summary>
-    /// Creates a brand-new, fully isolated tenant: its own Tenant row, first pharmacy (Location)
-    /// and admin user — none of it visible to, or overlapping with, any other tenant's data. Shared
+    /// Creates a brand-new, fully isolated tenant: its own Tenant row, first pharmacy (Location),
+    /// roles (Administrator, Manager, User) and admin user — none of it visible to, or
+    /// overlapping with, any other tenant's data. Shared
     /// by the classic Platform Admin page and its API. Everything is written in one transaction,
     /// so an admin account Identity rejects (e.g. a weak password) no longer leaves an orphaned
     /// tenant and branch behind.
@@ -30,11 +31,16 @@ namespace Mercurius.Services.Admin
     {
         private readonly IUnitOfWork _unitOfWork;
         private readonly UserManager<MercuriusUser> _userManager;
+        private readonly TenantRoles _tenantRoles;
+        private readonly ITenantScopeOverride _tenantScope;
 
-        public TenantProvisioningService(IUnitOfWork unitOfWork, UserManager<MercuriusUser> userManager)
+        public TenantProvisioningService(IUnitOfWork unitOfWork, UserManager<MercuriusUser> userManager,
+            TenantRoles tenantRoles, ITenantScopeOverride tenantScope)
         {
             _unitOfWork = unitOfWork;
             _userManager = userManager;
+            _tenantRoles = tenantRoles;
+            _tenantScope = tenantScope;
         }
 
         public async Task<TenantProvisioningResult> CreateAsync(string tenantName, string firstLocationName,
@@ -94,7 +100,18 @@ namespace Mercurius.Services.Admin
                     await _unitOfWork.RollbackTransactionAsync(ct);
                     return new TenantProvisioningResult { Errors = createResult.Errors.Select(e => e.Description).ToList() };
                 }
-                await _userManager.AddToRoleAsync(adminUser, "Administrator");
+                // The new tenant's own roles; the request runs as the platform admin's tenant, so
+                // "Administrator" is resolved as the new tenant's while assigning it.
+                await _tenantRoles.EnsureForTenantAsync(tenant.Id);
+                using (_tenantScope.UseTenant(tenant.Id))
+                {
+                    var roleResult = await _userManager.AddToRoleAsync(adminUser, TenantRoles.Administrator);
+                    if (!roleResult.Succeeded)
+                    {
+                        await _unitOfWork.RollbackTransactionAsync(ct);
+                        return new TenantProvisioningResult { Errors = roleResult.Errors.Select(e => e.Description).ToList() };
+                    }
+                }
 
                 await _unitOfWork.Repository<UserCurrentLocation>().AddAsync(
                     new UserCurrentLocation { UserId = adminUser.Id, LocationId = location.Id }, ct);

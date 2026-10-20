@@ -4,7 +4,8 @@ Status: **partially implemented** (checked against the code on 2026-10-15). The 
 isolation described in §4.1 is in place: `ITenantScoped`, `ICurrentTenantContext` /
 `ITenantScopeOverride` (`HttpContextCurrentTenantContext`), the global query filter in
 `MercuriusDbContext`, `TenantId` auto-stamping in `EfRepository.AddAsync`, and the tenant claim
-on the mobile JWT used by `SyncController`. Other parts of this document (for example the move
+on the mobile JWT used by `SyncController`. Per-tenant roles (§3.4) were implemented on
+2026-10-20. Other parts of this document (for example the move
 back to SQL Server) have not been re-checked and should be read as proposals until verified.
 The text below is otherwise the original design, grounded in the codebase as of 2026-09-12.
 
@@ -216,6 +217,17 @@ independent `Administrator`/`Manager`/`User` rows at tenant-creation time — mi
 `MercuriusUser : IdentityUser` already extends Identity's base class, so this is the established
 pattern, not a new one. Role **claims** (`access.pages`) stay exactly as they are — only which
 role rows exist, and who can see/assign them, changes.
+
+**Implemented (2026-10-20).** `MercuriusRole.TenantId` is null only for platform roles (today just
+`Database Administrator`), which every tenant can see but only a platform admin can grant or
+edit. `MercuriusDbContext` filters roles to the current tenant's plus platform roles, with a unique
+index on (`TenantId`, `NormalizedName`) so two tenants can both have an `Administrator`.
+`TenantRoles` creates each tenant's fixed roles (startup seeding for every tenant, and
+`TenantProvisioningService` for a new one). On the first startup after the `AddTenantRoles`
+migration it also splits the old shared roles: each tenant gets its own copy of the fixed roles,
+and of any custom role its users hold, with the same permissions, so nobody's access changes.
+Sign-in (`MercuriusClaimsPrincipalFactory`) and `UserPermissions` read roles as the user's own
+tenant via `ITenantScopeOverride.UseTenant`, since the request has no tenant claim yet at sign-in.
 
 ### 3.5 Users belong to exactly one tenant
 
