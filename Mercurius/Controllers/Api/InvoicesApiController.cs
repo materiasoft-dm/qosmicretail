@@ -24,11 +24,14 @@ namespace Mercurius.Controllers.Api
     {
         private readonly IUnitOfWork _unitOfWork;
         private readonly Mercurius.Services.AdjustmentService _adjustmentService;
+        private readonly Mercurius.Services.BatchPricingService _batchPricingService;
 
-        public InvoicesApiController(IUnitOfWork unitOfWork, Mercurius.Services.AdjustmentService adjustmentService)
+        public InvoicesApiController(IUnitOfWork unitOfWork, Mercurius.Services.AdjustmentService adjustmentService,
+            Mercurius.Services.BatchPricingService batchPricingService)
         {
             _unitOfWork = unitOfWork;
             _adjustmentService = adjustmentService;
+            _batchPricingService = batchPricingService;
         }
 
         // sortBy: number | date (default) | due | status | paid.
@@ -287,7 +290,8 @@ namespace Mercurius.Controllers.Api
 
         // Never trusts a client-computed max refundable quantity; the "Refund" AdjustmentReason is
         // looked up or created on demand; the invoice flips to Refunded only once every line is
-        // fully refunded.
+        // fully refunded. One transaction, so a failure part-way can't leave a refund number with
+        // no refunded line, or a refund recorded without its restock.
         [HttpPost("refund")]
         [Authorize(Policy = Mercurius.Common.ModuleRegistry.Pages.REFUND_CREATE)]
         public async Task<IActionResult> CreateRefund(CreateRefundRequest request, CancellationToken ct = default)
@@ -313,69 +317,90 @@ namespace Mercurius.Controllers.Api
             var currentUserId = Guid.TryParse(userId, out var uid) ? uid : Guid.Empty;
             var now = DateTime.UtcNow;
 
-            var refundHeader = new InvoiceRefund
+            await _unitOfWork.BeginTransactionAsync(ct);
+            try
             {
-                RefundNumber = $"REF-{now:yyyyMMddHHmmssfff}",
-                DateRefunded = now,
-                RefundedByUserId = currentUserId,
-                InvoiceId = invoice.Id,
-                CreatedDate = now,
-                CreatedBy = currentUserId,
-                Notes = request.Notes ?? string.Empty,
-                IsActive = true
-            };
-            await _unitOfWork.Repository<InvoiceRefund>().AddAsync(refundHeader, ct);
-            await _unitOfWork.SaveChangesAsync(ct);
-
-            var refundLine = new InvoiceItemRefund
-            {
-                InvoiceItemId = item.Id,
-                InvoiceId = invoice.Id,
-                ProductId = item.ProductId,
-                DateRefunded = now,
-                Quantity = request.Quantity,
-                Remarks = request.Notes,
-                InvoiceRefundId = refundHeader.Id,
-                RefundReasonId = request.RefundReasonId,
-                WasRestocked = request.Restock
-            };
-            await _unitOfWork.Repository<InvoiceItemRefund>().AddAsync(refundLine, ct);
-            await _unitOfWork.SaveChangesAsync(ct);
-
-            if (request.Restock)
-            {
-                var refundStockReason = await GetOrCreateRefundAdjustmentReasonAsync(ct);
-                var adjustment = new Adjustment
+                var refundHeader = new InvoiceRefund
                 {
-                    AdjustmentDate = now,
-                    ReasonId = refundStockReason.Id,
-                    Quantity = request.Quantity,
-                    ProductId = item.ProductId,
-                    LocationId = invoice.LocationId,
-                    Note = $"Restocked from refund {refundHeader.RefundNumber}",
-                    CreatedBy = currentUserId,
+                    RefundNumber = $"REF-{now:yyyyMMddHHmmssfff}",
+                    DateRefunded = now,
+                    RefundedByUserId = currentUserId,
+                    InvoiceId = invoice.Id,
                     CreatedDate = now,
-                    IsActive = true,
-                    InvoiceItemRefundId = refundLine.Id
+                    CreatedBy = currentUserId,
+                    Notes = request.Notes ?? string.Empty,
+                    IsActive = true
                 };
-                await _unitOfWork.Repository<Adjustment>().AddAsync(adjustment, ct);
+                await _unitOfWork.Repository<InvoiceRefund>().AddAsync(refundHeader, ct);
                 await _unitOfWork.SaveChangesAsync(ct);
-                await _adjustmentService.ApplyAsync(adjustment, ct);
-            }
 
-            invoice.HasRefund = true;
-            var allItems = await _unitOfWork.Repository<InvoiceItem>().FindAsync(ii => ii.InvoiceId == invoice.Id, ct);
-            var allItemIds = allItems.Select(ii => ii.Id).ToList();
-            var allRefundLines = await _unitOfWork.Repository<InvoiceItemRefund>().FindAsync(r => allItemIds.Contains(r.InvoiceItemId), ct);
-            var refundedByItemId = allRefundLines.GroupBy(r => r.InvoiceItemId).ToDictionary(g => g.Key, g => g.Sum(r => r.Quantity));
-            var fullyRefunded = allItems.All(ii => refundedByItemId.TryGetValue(ii.Id, out var qty) && qty >= ii.Quantity);
-            if (fullyRefunded)
+                var refundLine = new InvoiceItemRefund
+                {
+                    InvoiceItemId = item.Id,
+                    InvoiceId = invoice.Id,
+                    ProductId = item.ProductId,
+                    DateRefunded = now,
+                    Quantity = request.Quantity,
+                    Remarks = request.Notes,
+                    InvoiceRefundId = refundHeader.Id,
+                    RefundReasonId = request.RefundReasonId,
+                    WasRestocked = request.Restock
+                };
+                await _unitOfWork.Repository<InvoiceItemRefund>().AddAsync(refundLine, ct);
+                await _unitOfWork.SaveChangesAsync(ct);
+
+                if (request.Restock)
+                {
+                    var refundStockReason = await GetOrCreateRefundAdjustmentReasonAsync(ct);
+                    var adjustment = new Adjustment
+                    {
+                        AdjustmentDate = now,
+                        ReasonId = refundStockReason.Id,
+                        Quantity = request.Quantity,
+                        ProductId = item.ProductId,
+                        LocationId = invoice.LocationId,
+                        Note = $"Restocked from refund {refundHeader.RefundNumber}",
+                        CreatedBy = currentUserId,
+                        CreatedDate = now,
+                        IsActive = true,
+                        InvoiceItemRefundId = refundLine.Id
+                    };
+                    await _unitOfWork.Repository<Adjustment>().AddAsync(adjustment, ct);
+                    await _unitOfWork.SaveChangesAsync(ct);
+                    await _adjustmentService.ApplyAsync(adjustment, ct);
+
+                    // Back onto the batch the line was sold from, too. Otherwise the batches add up to
+                    // less than the stock on the shelf and FIFO pricing moves on to newer stock early.
+                    if (item.MedicineBatchId is int batchId
+                        && await _unitOfWork.Repository<MedicineBatch>().GetByIdAsync(batchId, ct) is MedicineBatch batch)
+                    {
+                        batch.RemainingQuantity += request.Quantity;
+                        await _unitOfWork.Repository<MedicineBatch>().UpdateAsync(batch, ct);
+                        await _unitOfWork.SaveChangesAsync(ct);
+                        await _batchPricingService.RefreshActivePriceAsync(_unitOfWork, item.ProductId, ct);
+                    }
+                }
+
+                invoice.HasRefund = true;
+                var allItems = await _unitOfWork.Repository<InvoiceItem>().FindAsync(ii => ii.InvoiceId == invoice.Id, ct);
+                var allItemIds = allItems.Select(ii => ii.Id).ToList();
+                var allRefundLines = await _unitOfWork.Repository<InvoiceItemRefund>().FindAsync(r => allItemIds.Contains(r.InvoiceItemId), ct);
+                var refundedByItemId = allRefundLines.GroupBy(r => r.InvoiceItemId).ToDictionary(g => g.Key, g => g.Sum(r => r.Quantity));
+                var fullyRefunded = allItems.All(ii => refundedByItemId.TryGetValue(ii.Id, out var qty) && qty >= ii.Quantity);
+                if (fullyRefunded)
+                {
+                    invoice.StatusId = (int)StatusCollection.InvoiceStatus.Refunded;
+                }
+
+                await _unitOfWork.Repository<Invoice>().UpdateAsync(invoice, ct);
+                await _unitOfWork.SaveChangesAsync(ct);
+                await _unitOfWork.CommitTransactionAsync(ct);
+            }
+            catch
             {
-                invoice.StatusId = (int)StatusCollection.InvoiceStatus.Refunded;
+                await _unitOfWork.RollbackTransactionAsync(CancellationToken.None);
+                throw;
             }
-
-            await _unitOfWork.Repository<Invoice>().UpdateAsync(invoice, ct);
-            await _unitOfWork.SaveChangesAsync(ct);
 
             return Ok(new { success = true });
         }

@@ -45,6 +45,10 @@ public class SalePushDto
     [JsonPropertyName("paidAmount")]
     public decimal PaidAmount { get; set; }
 
+    // "Cash" | "Card". Null for sales queued by an older build; the server then reads Notes.
+    [JsonPropertyName("paymentMethod")]
+    public string? PaymentMethod { get; set; }
+
     // Who actually rang the sale up on this device. Usually the same person whose token pushes
     // it — but not after a "log out anyway" with sales still queued, when the next person to
     // sign in uploads them. The server verifies it (same tenant) before trusting it.

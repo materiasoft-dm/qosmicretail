@@ -99,8 +99,15 @@ public class SyncCoordinator
             return report;
         }
 
-        await Step(report, "products upload", async () => report.ProductsPushed = await _syncService.PushProductsAsync());
-        await Step(report, "sales upload", async () => report.SalesPushed = await _syncService.SyncSalesAsync());
+        // Records the server turned down (rather than failed to reach) stay queued; say why, so
+        // "N sales pending sync" that never goes down has a visible reason.
+        var productRejections = new List<string>();
+        var saleRejections = new List<string>();
+        await Step(report, "products upload", async () => report.ProductsPushed = await _syncService.PushProductsAsync(rejections: productRejections));
+        await Step(report, "sales upload", async () => report.SalesPushed = await _syncService.SyncSalesAsync(rejections: saleRejections));
+        report.Errors.AddRange(productRejections.Select(r => $"products upload: {r}"));
+        report.Errors.AddRange(saleRejections.Select(r => $"sales upload: {r}"));
+        report.SaleRejections.AddRange(saleRejections);
         await Step(report, "products download", async () => report.ProductsPulled = await _syncService.SyncProductsAsync());
         await Step(report, "receipts download", async () => report.ReceiptsPulled = await _syncService.PullReceiptsAsync());
 
@@ -137,5 +144,7 @@ public class SyncReport
     public int ProductsPulled { get; set; }
     public int ReceiptsPulled { get; set; }
     public List<string> Errors { get; } = new();
+    // Why the server refused queued sales this pass (not connection failures), one per reason.
+    public List<string> SaleRejections { get; } = new();
     public bool Succeeded => !Offline && Errors.Count == 0;
 }

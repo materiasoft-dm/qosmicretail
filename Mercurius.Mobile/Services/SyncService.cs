@@ -23,8 +23,9 @@ public class SyncService
 
     // Pushes products created on this device that the server hasn't confirmed yet. Like sales, a
     // product is only flipped to synced once the server reports success for its SyncId, so a
-    // failure just leaves it queued. Returns how many were confirmed.
-    public async Task<int> PushProductsAsync(CancellationToken ct = default)
+    // failure just leaves it queued. Returns how many were confirmed; the server's reason for each
+    // one it turned down (e.g. no permission) is added to rejections.
+    public async Task<int> PushProductsAsync(CancellationToken ct = default, ICollection<string>? rejections = null)
     {
         var pending = await _localDatabase.GetUnsyncedProductsAsync();
         if (pending.Count == 0) return 0;
@@ -56,6 +57,10 @@ public class SyncService
             {
                 await _localDatabase.MarkProductSyncedAsync(result.SyncId);
                 syncedCount++;
+            }
+            else
+            {
+                AddRejection(rejections, result.Error);
             }
         }
         return syncedCount;
@@ -107,7 +112,7 @@ public class SyncService
     // that partially succeeds — or gets retried after a dropped connection — never double-charges
     // inventory; we only flip a sale's local IsSynced flag once the server confirms it, so a
     // failed push just leaves it queued for the next attempt.
-    public async Task<int> SyncSalesAsync(CancellationToken ct = default)
+    public async Task<int> SyncSalesAsync(CancellationToken ct = default, ICollection<string>? rejections = null)
     {
         var pending = await _localDatabase.GetUnsyncedSalesAsync();
         if (pending.Count == 0) return 0;
@@ -130,6 +135,7 @@ public class SyncService
                 CustomerId = sale.CustomerId,
                 LocationId = sale.LocationId,
                 Notes = sale.Notes,
+                PaymentMethod = sale.PaymentMethod,
                 PaidAmount = sale.PaidAmount,
                 CashierUserId = sale.CashierUserId,
                 Items = items.Select(i => new SaleItemPushDto
@@ -154,8 +160,19 @@ public class SyncService
                 await _localDatabase.MarkSaleSyncedAsync(result.SyncId);
                 syncedCount++;
             }
+            else
+            {
+                AddRejection(rejections, result.Error);
+            }
         }
         return syncedCount;
+    }
+
+    // One line per distinct reason, so fifty queued sales refused for the same reason read as one.
+    private static void AddRejection(ICollection<string>? rejections, string? error)
+    {
+        if (rejections == null || string.IsNullOrWhiteSpace(error) || rejections.Contains(error)) return;
+        rejections.Add(error);
     }
 
     // ---------------------------------------------------------------- receipts (all sales)
@@ -209,6 +226,7 @@ public class SyncService
             InvoiceDate = r.InvoiceDate,
             LocationId = r.LocationId,
             Notes = r.Notes,
+            PaymentMethod = r.PaymentMethod,
             PaidAmount = r.PaidAmount,
             GrandTotal = r.GrandTotal,
             IsSynced = true,
