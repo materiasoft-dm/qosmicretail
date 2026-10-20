@@ -13,7 +13,7 @@
     var visible = section.Items.Where(i => i.Visible(_user, CurrentUser.User)).ToList();
     if (visible.Count == 0) continue;
 
-    <MudText Typo="Typo.overline" Class="d-block mb-2 mt-4 settings-section-title">@section.Title</MudText>
+    <MudText Typo="Typo.overline" Class="d-block mb-2 mt-4 settings-section-title">@(section.Title)</MudText>
     <MudGrid Spacing="3">
         @foreach (var item in visible)
         {
