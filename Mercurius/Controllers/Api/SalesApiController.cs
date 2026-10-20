@@ -7,6 +7,7 @@ using System.Threading.Tasks;
 using Mercurius.Common.Constants;
 using Mercurius.Repo.Models;
 using Mercurius.Repo.Repositories;
+using Mercurius.Services;
 using Mercurius.Shared.Sales;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -14,20 +15,20 @@ using Microsoft.AspNetCore.Mvc;
 namespace Mercurius.Controllers.Api
 {
     // Web checkout (the Sell page), including sales the page queued while offline. Batch pricing,
-    // unconditional stock deduction, the zero-stock audit log and the per-sale transaction match
-    // SyncController.PushInvoices, the mobile app's equivalent.
+    // stock deduction and the zero-stock audit log go through SaleRecorder, shared with
+    // SyncController.PushInvoices (the mobile app's equivalent); each sale is one transaction.
     [ApiController]
     [Route("api/sales")]
     [Authorize(Policy = Mercurius.Common.ModuleRegistry.Pages.NEWSALE_CREATE)]
     public class SalesApiController : ControllerBase
     {
         private readonly IUnitOfWork _unitOfWork;
-        private readonly Mercurius.Services.BatchPricingService _batchPricingService;
+        private readonly SaleRecorder _saleRecorder;
 
-        public SalesApiController(IUnitOfWork unitOfWork, Mercurius.Services.BatchPricingService batchPricingService)
+        public SalesApiController(IUnitOfWork unitOfWork, SaleRecorder saleRecorder)
         {
             _unitOfWork = unitOfWork;
-            _batchPricingService = batchPricingService;
+            _saleRecorder = saleRecorder;
         }
 
         [HttpGet("customers")]
@@ -83,7 +84,8 @@ namespace Mercurius.Controllers.Api
             var existing = await FindExistingSaleAsync(syncId, ct);
             if (existing != null) return Ok(existing);
 
-            return await ProcessCheckoutAsync(request, syncId, request.CreatedAtUtc, ct);
+            // The customer already paid the ticket's prices, so they're kept, same as a mobile sale.
+            return await ProcessCheckoutAsync(request, syncId, request.CreatedAtUtc, keepTicketPrices: true, ct);
         }
 
         // Idempotent by SyncId too: the Sell page picks one per sale, so a retry after a lost
@@ -96,9 +98,9 @@ namespace Mercurius.Controllers.Api
             {
                 var existing = await FindExistingSaleAsync(syncId, ct);
                 if (existing != null) return Ok(existing);
-                return await ProcessCheckoutAsync(request, syncId, DateTime.UtcNow, ct);
+                return await ProcessCheckoutAsync(request, syncId, DateTime.UtcNow, keepTicketPrices: false, ct);
             }
-            return await ProcessCheckoutAsync(request, Guid.NewGuid(), DateTime.UtcNow, ct);
+            return await ProcessCheckoutAsync(request, Guid.NewGuid(), DateTime.UtcNow, keepTicketPrices: false, ct);
         }
 
         private async Task<CheckoutResultDto?> FindExistingSaleAsync(Guid syncId, CancellationToken ct)
@@ -107,7 +109,7 @@ namespace Mercurius.Controllers.Api
             if (invoice == null) return null;
             var items = await _unitOfWork.Repository<InvoiceItem>().FindAsync(ii => ii.InvoiceId == invoice.Id, ct);
             var total = items.Sum(ii => ii.SalePrice * ii.Quantity);
-            var paidByCard = invoice.Notes != null && invoice.Notes.Contains("Paid by card", StringComparison.OrdinalIgnoreCase);
+            var paidByCard = PaymentMethods.Normalize(invoice.PaymentMethod, invoice.Notes) == PaymentMethods.Card;
             return new CheckoutResultDto
             {
                 InvoiceNumber = invoice.InvoiceNumber,
@@ -117,12 +119,19 @@ namespace Mercurius.Controllers.Api
             };
         }
 
-        private async Task<IActionResult> ProcessCheckoutAsync(CheckoutRequest request, Guid syncId, DateTime invoiceDateUtc, CancellationToken ct)
+        // keepTicketPrices: charge what the ticket showed (an offline sale the customer already
+        // paid). Otherwise the server's price is charged, and a ticket showing anything else is
+        // turned back with the current prices before anything is saved.
+        private async Task<IActionResult> ProcessCheckoutAsync(CheckoutRequest request, Guid syncId, DateTime invoiceDateUtc, bool keepTicketPrices, CancellationToken ct)
         {
             ct.ThrowIfCancellationRequested();
             if (request.Items == null || request.Items.Count == 0)
             {
                 return BadRequest(new { error = "Add at least one item before charging." });
+            }
+            if (request.Items.Any(i => i.Quantity <= 0))
+            {
+                return BadRequest(new { error = "Every item needs a quantity of at least 1." });
             }
 
             Customer? customer = null;
@@ -132,11 +141,44 @@ namespace Mercurius.Controllers.Api
                 if (customer == null) return BadRequest(new { error = "Selected customer not found." });
             }
 
-            var isCard = string.Equals(request.PaymentMethod, "Card", StringComparison.OrdinalIgnoreCase);
+            var paymentMethod = PaymentMethods.Normalize(request.PaymentMethod);
+            var isCard = paymentMethod == PaymentMethods.Card;
             var paymentNote = isCard ? "Paid by card" : "Paid by cash";
             var resolvedNotes = string.IsNullOrWhiteSpace(request.Notes) ? paymentNote : $"{request.Notes} ({paymentNote})";
 
+            var productIds = request.Items.Select(i => i.ProductId).Distinct().ToList();
+            var productMap = (await _unitOfWork.Repository<Product>().FindAsync(p => productIds.Contains(p.Id), ct)).ToDictionary(p => p.Id);
+            if (productIds.Any(id => !productMap.ContainsKey(id)))
+            {
+                // Used to skip the line and save the rest, so the sale was recorded short of what
+                // the customer paid for.
+                return BadRequest(new { error = "An item on this ticket is no longer in the catalog. Remove it and try again." });
+            }
+
+            // Price every line before writing anything, so a stale ticket can be turned back cleanly.
+            var lines = new List<(CartLineRequest Line, Product Product, SaleRecorder.LineQuote Quote, decimal Charged)>();
+            foreach (var line in request.Items)
+            {
+                var product = productMap[line.ProductId];
+                var quote = await _saleRecorder.QuoteAsync(_unitOfWork, product, line.Quantity, ct);
+                var charged = keepTicketPrices && line.UnitPrice is decimal paid ? paid : quote.SalePrice;
+                lines.Add((line, product, quote, charged));
+            }
+
+            var stale = lines.Where(l => !keepTicketPrices && l.Line.UnitPrice is decimal shown && shown != l.Quote.SalePrice).ToList();
+            if (stale.Count > 0)
+            {
+                var names = string.Join(", ", stale.Select(l => l.Product.Name));
+                return Conflict(new CheckoutPriceChangeDto
+                {
+                    Error = $"The price changed for {names}. The ticket has been updated; check the new total and charge again.",
+                    Prices = lines.Select(l => new CartLinePriceDto { ProductId = l.Product.Id, UnitPrice = l.Quote.SalePrice }).ToList()
+                });
+            }
+
             var locationId = await Mercurius.Services.CurrentLocation.GetIdAsync(_unitOfWork, User);
+            var now = DateTime.UtcNow;
+            var cashierId = Guid.TryParse(User.FindFirst(ClaimTypes.NameIdentifier)?.Value, out var uid) ? uid : Guid.Empty;
 
             var invoice = new Invoice
             {
@@ -145,18 +187,17 @@ namespace Mercurius.Controllers.Api
                 LocationId = locationId,
                 StatusId = (int)StatusCollection.InvoiceStatus.Completed,
                 InvoiceDate = invoiceDateUtc,
-                InvoiceNumber = $"INV-{DateTime.UtcNow:yyyyMMddHHmmssfff}",
+                InvoiceNumber = SaleRecorder.NewInvoiceNumber(now, syncId),
                 Notes = resolvedNotes,
+                PaymentMethod = paymentMethod,
                 PaidAmount = request.AmountReceived,
-                CreatedDate = DateTime.UtcNow,
+                CreatedDate = now,
                 // Cashier + origin, shown on every mobile terminal's Receipts list (the Blazor app
                 // is the web app, so it reports as Web too).
-                CreatedBy = Guid.TryParse(User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value, out var cashierId) ? cashierId : Guid.Empty,
+                CreatedBy = cashierId,
                 SourceChannel = "Web"
             };
-
-            var productIds = request.Items.Select(i => i.ProductId).Distinct().ToList();
-            var productMap = (await _unitOfWork.Repository<Product>().FindAsync(p => productIds.Contains(p.Id), ct)).ToDictionary(p => p.Id);
+            var soldBy = new SaleRecorder.SoldBy(cashierId, User.Identity?.Name ?? "Unknown", "web");
 
             var grandTotal = 0m;
             await _unitOfWork.BeginTransactionAsync(ct);
@@ -165,63 +206,14 @@ namespace Mercurius.Controllers.Api
                 await _unitOfWork.Repository<Invoice>().AddAsync(invoice, ct);
                 await _unitOfWork.SaveChangesAsync(ct);
 
-                var userId = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
-                var userName = User.Identity?.Name ?? "Unknown";
-
-                var productsWithBatchActivity = new HashSet<int>();
-                foreach (var line in request.Items)
+                foreach (var (line, product, quote, charged) in lines)
                 {
-                    if (line.Quantity <= 0 || !productMap.TryGetValue(line.ProductId, out var product)) continue;
-
-                    var batch = await _batchPricingService.FindFulfillingBatchAsync(_unitOfWork, line.ProductId, line.Quantity, ct);
-
-                    var invoiceItem = new InvoiceItem
-                    {
-                        InvoiceId = invoice.Id,
-                        ProductId = line.ProductId,
-                        Quantity = line.Quantity,
-                        SalePrice = batch?.UnitSalePrice ?? product.CurrentSalePrice ?? 0,
-                        CostPrice = batch?.UnitCost ?? product.CurrentCostPrice ?? 0,
-                        MedicineBatchId = batch?.Id,
-                        StatusId = (int)StatusCollection.InvoiceStatus.Completed
-                    };
-                    await _unitOfWork.Repository<InvoiceItem>().AddAsync(invoiceItem, ct);
-                    grandTotal += invoiceItem.SalePrice * invoiceItem.Quantity;
-
-                    if (batch != null)
-                    {
-                        batch.RemainingQuantity -= line.Quantity;
-                        await _unitOfWork.Repository<MedicineBatch>().UpdateAsync(batch, ct);
-                    }
-                    product.CurrentStock -= line.Quantity;
-                    await _unitOfWork.Repository<Product>().UpdateAsync(product, ct);
-                    productsWithBatchActivity.Add(line.ProductId);
-
-                    if (product.CurrentStock <= 0)
-                    {
-                        await _unitOfWork.Repository<ZeroStockSaleAuditLog>().AddAsync(new ZeroStockSaleAuditLog
-                        {
-                            ProductId = product.Id,
-                            ProductName = product.Name,
-                            ProductCode = product.ProductCode,
-                            QuantitySold = line.Quantity,
-                            StockAtTimeOfSale = product.CurrentStock,
-                            InvoiceNumber = invoice.InvoiceNumber,
-                            InvoiceId = invoice.Id,
-                            SoldByUserId = Guid.TryParse(userId, out var uid) ? uid : Guid.Empty,
-                            SoldByUserName = userName,
-                            SaleDate = DateTime.UtcNow,
-                            Notes = $"Zero-stock sale: inventory was {product.CurrentStock} before this sale of {line.Quantity} units"
-                        }, ct);
-                    }
+                    await _saleRecorder.RecordLineAsync(_unitOfWork, invoice, product, line.Quantity, quote, charged, soldBy, ct: ct);
+                    grandTotal += charged * line.Quantity;
                 }
                 await _unitOfWork.SaveChangesAsync(ct);
+                await _saleRecorder.RefreshPricesAsync(_unitOfWork, productIds, ct);
                 await _unitOfWork.CommitTransactionAsync(ct);
-
-                foreach (var productId in productsWithBatchActivity)
-                {
-                    await _batchPricingService.RefreshActivePriceAsync(_unitOfWork, productId, ct);
-                }
             }
             catch
             {

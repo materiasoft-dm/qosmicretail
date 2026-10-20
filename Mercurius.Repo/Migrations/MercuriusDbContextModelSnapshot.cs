@@ -635,6 +635,10 @@ namespace Mercurius.Repo.Migrations
                         .HasPrecision(18, 4)
                         .HasColumnType("TEXT");
 
+                    b.Property<string>("PaymentMethod")
+                        .HasMaxLength(20)
+                        .HasColumnType("TEXT");
+
                     b.Property<string>("SourceChannel")
                         .HasMaxLength(20)
                         .HasColumnType("TEXT");

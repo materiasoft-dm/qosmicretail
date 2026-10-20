@@ -47,6 +47,10 @@ public DateTime? UpdatedDate { get; set; }
     [StringLength(200)]
     public string? SourceDeviceName { get; set; }
 public decimal PaidAmount { get; set; }
+    // Cash | Card. Used to live only in Notes ("Paid by cash"/"Paid by card"), which reports
+    // can't rely on; null only for invoices made before either was recorded.
+    [StringLength(20)]
+    public string? PaymentMethod { get; set; }
 public virtual Customer Customer { get; set; }
 public virtual ICollection<InvoiceItem> InvoiceItems { get; set; } = new List<InvoiceItem>();
 public virtual InvoiceStatus Status { get; set; }

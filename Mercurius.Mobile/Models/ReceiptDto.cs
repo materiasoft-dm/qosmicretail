@@ -27,6 +27,7 @@ public class ReceiptDto
     [JsonPropertyName("sourceDeviceId")] public string? SourceDeviceId { get; set; }
     [JsonPropertyName("sourceDeviceName")] public string? SourceDeviceName { get; set; }
     [JsonPropertyName("notes")] public string? Notes { get; set; }
+    [JsonPropertyName("paymentMethod")] public string? PaymentMethod { get; set; }
     [JsonPropertyName("paidAmount")] public decimal PaidAmount { get; set; }
     [JsonPropertyName("grandTotal")] public decimal GrandTotal { get; set; }
     [JsonPropertyName("refundedAmount")] public decimal RefundedAmount { get; set; }

@@ -33,6 +33,39 @@ namespace Mercurius.Services
         }
 
         /// <summary>
+        /// Takes <paramref name="quantity"/> units out of the batch ledger for a sale line priced
+        /// from <paramref name="chosenBatch"/> (FindFulfillingBatchAsync's pick). Normally that
+        /// batch covers the whole line on its own and nothing else is touched. When no single
+        /// batch could, the chosen batch is emptied and the shortfall comes out of the product's
+        /// other batches, oldest first, so the batches still add up to the stock actually on the
+        /// shelf instead of the chosen one going negative. A shortfall beyond every batch (an
+        /// oversell, already logged as a zero-stock sale) leaves the batches at zero.
+        /// </summary>
+        public async Task DeductAsync(
+            IUnitOfWork unitOfWork, MedicineBatch chosenBatch, decimal quantity, CancellationToken ct = default)
+        {
+            var fromChosen = Math.Min(quantity, Math.Max(0, chosenBatch.RemainingQuantity));
+            chosenBatch.RemainingQuantity -= fromChosen;
+            await unitOfWork.Repository<MedicineBatch>().UpdateAsync(chosenBatch, ct);
+
+            var shortfall = quantity - fromChosen;
+            if (shortfall <= 0) return;
+
+            var others = (await unitOfWork.Repository<MedicineBatch>()
+                .FindAsync(b => b.ProductId == chosenBatch.ProductId && b.IsActive && b.RemainingQuantity > 0 && b.Id != chosenBatch.Id, ct))
+                .OrderBy(b => b.ReceivedDate)
+                .ToList();
+            foreach (var batch in others)
+            {
+                if (shortfall <= 0) break;
+                var take = Math.Min(shortfall, batch.RemainingQuantity);
+                batch.RemainingQuantity -= take;
+                shortfall -= take;
+                await unitOfWork.Repository<MedicineBatch>().UpdateAsync(batch, ct);
+            }
+        }
+
+        /// <summary>
         /// Re-syncs Product.CurrentSalePrice/CurrentCostPrice to whichever batch is now the
         /// oldest with stock remaining, so every screen that reads those flat fields (product
         /// lists, DataTables, the mobile sync API) keeps working without needing to know batches
