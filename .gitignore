@@ -60,3 +60,5 @@ npm-debug.log*
 
 # Package caches
 **/.nuget/
+# graphify knowledge graph output (regenerate with /graphify)
+graphify-out/
