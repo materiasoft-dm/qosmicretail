@@ -239,6 +239,7 @@ builder.Services.AddScoped<Mercurius.Client.Services.ICurrentUserProfileSource, 
 
 builder.Services.AddScoped<ILoggerService, LoggerService>();
 builder.Services.AddScoped<Mercurius.Services.BatchPricingService>();
+builder.Services.AddScoped<Mercurius.Services.SaleStockService>();
 builder.Services.AddScoped<Mercurius.Services.AdjustmentService>();
 builder.Services.AddScoped<Mercurius.Services.Admin.DataQueryService>();
 builder.Services.AddScoped<Mercurius.Services.Admin.TenantProvisioningService>();

@@ -140,6 +140,12 @@
             new("Customers", "customers", "bi-people-fill", Page(ModuleRegistry.Pages.CUSTOMER_LIST)),
             new("Refunds", "refunds", "bi-arrow-counterclockwise", Page(ModuleRegistry.Pages.INVOICE_INDEX)),
         }),
+        // Its own module, separate from the POS Sell page (see WholesaleApiController). New orders
+        // start from the list page's button.
+        new("Wholesale", "bi-boxes", new()
+        {
+            new("Wholesale", "wholesale", "bi-boxes", Page(ModuleRegistry.Pages.WHOLESALE_INDEX)),
+        }),
         new("Catalog", "bi-box-seam", new()
         {
             new("Products", "products", "bi-capsule", Page(ModuleRegistry.Pages.PRODUCTS_INDEX)),

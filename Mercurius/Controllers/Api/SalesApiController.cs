@@ -14,8 +14,9 @@ using Microsoft.AspNetCore.Mvc;
 namespace Mercurius.Controllers.Api
 {
     // Web checkout (the Sell page), including sales the page queued while offline. Batch pricing,
-    // unconditional stock deduction, the zero-stock audit log and the per-sale transaction match
-    // SyncController.PushInvoices, the mobile app's equivalent.
+    // unconditional stock deduction and the zero-stock audit log (SaleStockService, shared with
+    // wholesale orders) and the per-sale transaction match SyncController.PushInvoices, the
+    // mobile app's equivalent.
     [ApiController]
     [Route("api/sales")]
     [Authorize(Policy = Mercurius.Common.ModuleRegistry.Pages.NEWSALE_CREATE)]
@@ -23,11 +24,14 @@ namespace Mercurius.Controllers.Api
     {
         private readonly IUnitOfWork _unitOfWork;
         private readonly Mercurius.Services.BatchPricingService _batchPricingService;
+        private readonly Mercurius.Services.SaleStockService _saleStockService;
 
-        public SalesApiController(IUnitOfWork unitOfWork, Mercurius.Services.BatchPricingService batchPricingService)
+        public SalesApiController(IUnitOfWork unitOfWork, Mercurius.Services.BatchPricingService batchPricingService,
+            Mercurius.Services.SaleStockService saleStockService)
         {
             _unitOfWork = unitOfWork;
             _batchPricingService = batchPricingService;
+            _saleStockService = saleStockService;
         }
 
         [HttpGet("customers")]
@@ -165,15 +169,13 @@ namespace Mercurius.Controllers.Api
                 await _unitOfWork.Repository<Invoice>().AddAsync(invoice, ct);
                 await _unitOfWork.SaveChangesAsync(ct);
 
-                var userId = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
-                var userName = User.Identity?.Name ?? "Unknown";
-
                 var productsWithBatchActivity = new HashSet<int>();
                 foreach (var line in request.Items)
                 {
                     if (line.Quantity <= 0 || !productMap.TryGetValue(line.ProductId, out var product)) continue;
 
-                    var batch = await _batchPricingService.FindFulfillingBatchAsync(_unitOfWork, line.ProductId, line.Quantity, ct);
+                    var batch = await _saleStockService.DeductAsync(_unitOfWork, product, line.Quantity, invoice, User, ct);
+                    productsWithBatchActivity.Add(line.ProductId);
 
                     var invoiceItem = new InvoiceItem
                     {
@@ -187,33 +189,6 @@ namespace Mercurius.Controllers.Api
                     };
                     await _unitOfWork.Repository<InvoiceItem>().AddAsync(invoiceItem, ct);
                     grandTotal += invoiceItem.SalePrice * invoiceItem.Quantity;
-
-                    if (batch != null)
-                    {
-                        batch.RemainingQuantity -= line.Quantity;
-                        await _unitOfWork.Repository<MedicineBatch>().UpdateAsync(batch, ct);
-                    }
-                    product.CurrentStock -= line.Quantity;
-                    await _unitOfWork.Repository<Product>().UpdateAsync(product, ct);
-                    productsWithBatchActivity.Add(line.ProductId);
-
-                    if (product.CurrentStock <= 0)
-                    {
-                        await _unitOfWork.Repository<ZeroStockSaleAuditLog>().AddAsync(new ZeroStockSaleAuditLog
-                        {
-                            ProductId = product.Id,
-                            ProductName = product.Name,
-                            ProductCode = product.ProductCode,
-                            QuantitySold = line.Quantity,
-                            StockAtTimeOfSale = product.CurrentStock,
-                            InvoiceNumber = invoice.InvoiceNumber,
-                            InvoiceId = invoice.Id,
-                            SoldByUserId = Guid.TryParse(userId, out var uid) ? uid : Guid.Empty,
-                            SoldByUserName = userName,
-                            SaleDate = DateTime.UtcNow,
-                            Notes = $"Zero-stock sale: inventory was {product.CurrentStock} before this sale of {line.Quantity} units"
-                        }, ct);
-                    }
                 }
                 await _unitOfWork.SaveChangesAsync(ct);
                 await _unitOfWork.CommitTransactionAsync(ct);

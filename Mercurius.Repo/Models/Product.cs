@@ -44,6 +44,11 @@ public string Model { get; set; }
 public decimal? CurrentCostPrice { get; set; }
 public decimal? CurrentSalePrice { get; set; }
 
+    // Price per unit on a wholesale order (the Wholesale module). Null = no wholesale price set,
+    // in which case a wholesale order falls back to the retail price. Fixed, not batch-tracked:
+    // FIFO batches only carry the retail price.
+    public decimal? WholesalePrice { get; set; }
+
     public int? LeadTimeDays { get; set; }
 
     // CurrentStock + LowStockCount widened from int to decimal (R11) so pharmacy products

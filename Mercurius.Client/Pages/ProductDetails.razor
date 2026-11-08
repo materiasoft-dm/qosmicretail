@@ -62,6 +62,7 @@ else
             @Field("Category", _product.CategoryName)
             @Field("Cost price", _product.CurrentCostPrice.HasValue ? Money.Format(_product.CurrentCostPrice.Value) : null)
             @Field("Sale price", _product.CurrentSalePrice.HasValue ? Money.Format(_product.CurrentSalePrice.Value) : null)
+            @Field("Wholesale price", _product.WholesalePrice.HasValue ? Money.Format(_product.WholesalePrice.Value) : null)
             @Field("Markup", _product.MarkUpPercentage.ToString("0.##") + "%")
             @Field("Stock", _product.CurrentStock.ToString("0.##"))
             @Field("Low stock warning", _product.LowStockCount.ToString("0.##"))

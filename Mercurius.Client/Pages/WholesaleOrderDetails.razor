@@ -1,0 +1,149 @@
+@page "/wholesale/{Id:int}"
+@attribute [Authorize(Policy = ModuleRegistry.Pages.WHOLESALE_VIEW)]
+@inject WholesaleApiClient Api
+@inject ISnackbar Snackbar
+
+<PageTitle>Wholesale Order</PageTitle>
+
+@if (_notFound)
+{
+    <MudAlert Severity="Severity.Warning">That wholesale order doesn't exist, or isn't visible to your account.</MudAlert>
+    <MudButton Class="mt-3" Href="wholesale" StartIcon="@Icons.Material.Filled.ArrowBack">Back to wholesale orders</MudButton>
+}
+else if (_order is null)
+{
+    <MudProgressLinear Indeterminate="true" Color="Color.Primary" />
+}
+else
+{
+    <div class="d-flex justify-space-between align-center mb-4">
+        <div class="d-flex align-center">
+            <MudText Typo="Typo.h4">@_order.OrderNumber</MudText>
+            <MudChip T="string" Size="Size.Small" Color="@WholesaleStatus.Color(_order.StatusId)" Class="ms-3">@WholesaleStatus.Label(_order.StatusId)</MudChip>
+            @if (WholesaleStatus.IsOverdue(_order.DueDate, _order.Balance))
+            {
+                <MudChip T="string" Size="Size.Small" Color="Color.Error">Overdue</MudChip>
+            }
+        </div>
+        <MudButton Href="wholesale" StartIcon="@Icons.Material.Filled.ArrowBack">Wholesale orders</MudButton>
+    </div>
+
+    <MudPaper Class="pa-4 mb-4" Elevation="2">
+        <MudGrid>
+            <MudItem xs="6" md="3"><MudText Typo="Typo.caption" Color="Color.Secondary">Customer</MudText><MudText>@_order.CustomerName</MudText></MudItem>
+            <MudItem xs="6" md="3"><MudText Typo="Typo.caption" Color="Color.Secondary">Order date</MudText><MudText>@LocalTime.FormatDateTime(_order.OrderDate)</MudText></MudItem>
+            <MudItem xs="6" md="3"><MudText Typo="Typo.caption" Color="Color.Secondary">Payment due</MudText><MudText>@WholesaleStatus.FormatDueDate(_order.DueDate)</MudText></MudItem>
+            <MudItem xs="6" md="3"><MudText Typo="Typo.caption" Color="Color.Secondary">Created by</MudText><MudText>@(string.IsNullOrEmpty(_order.CreatedBy) ? "—" : _order.CreatedBy)</MudText></MudItem>
+            @if (!string.IsNullOrEmpty(_order.Notes))
+            {
+                <MudItem xs="12"><MudText Typo="Typo.caption" Color="Color.Secondary">Notes</MudText><MudText>@_order.Notes</MudText></MudItem>
+            }
+        </MudGrid>
+    </MudPaper>
+
+    <MudPaper Class="pa-2 mb-4" Elevation="2">
+        <MudTable Items="_order.Lines" Hover="true" Dense="true">
+            <HeaderContent>
+                <MudTh>Product</MudTh>
+                <MudTh Style="text-align:right;">Quantity</MudTh>
+                <MudTh Style="text-align:right;">Refunded</MudTh>
+                <MudTh Style="text-align:right;">Unit price</MudTh>
+                <MudTh Style="text-align:right;">Line total</MudTh>
+            </HeaderContent>
+            <RowTemplate>
+                <MudTd DataLabel="Product">@context.ProductName (@context.ProductCode)</MudTd>
+                <MudTd DataLabel="Quantity" Style="text-align:right;">@context.Quantity.ToString("0.##")</MudTd>
+                <MudTd DataLabel="Refunded" Style="text-align:right;">@(context.QuantityRefunded > 0 ? context.QuantityRefunded.ToString("0.##") : "—")</MudTd>
+                <MudTd DataLabel="Unit price" Style="text-align:right;">@Money.Format(context.UnitPrice)</MudTd>
+                <MudTd DataLabel="Line total" Style="text-align:right;">@Money.Format(context.LineTotal)</MudTd>
+            </RowTemplate>
+        </MudTable>
+    </MudPaper>
+
+    <MudGrid>
+        <MudItem xs="12" md="6">
+            @if (_canRecordPayment && _order.Balance > 0)
+            {
+                <MudPaper Class="pa-4" Elevation="2">
+                    <MudText Typo="Typo.h6" Class="mb-2">Record a payment</MudText>
+                    <div class="d-flex align-center gap-2">
+                        <MudNumericField T="decimal" @bind-Value="_payment" Label="Amount received" Min="0" Format="N2" Variant="Variant.Outlined"
+                                         HideSpinButtons="true" Margin="Margin.Dense" Style="max-width:200px;" />
+                        <MudButton Variant="Variant.Text" Size="Size.Small" OnClick="@(() => _payment = _order.Balance)">Full balance</MudButton>
+                        <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="RecordPaymentAsync" Disabled="_busy || _payment <= 0">Record payment</MudButton>
+                    </div>
+                    @if (_error != null)
+                    {
+                        <MudAlert Severity="Severity.Error" Class="mt-3">@_error</MudAlert>
+                    }
+                </MudPaper>
+            }
+        </MudItem>
+        <MudItem xs="12" md="6">
+            <MudPaper Class="pa-4" Elevation="2">
+                <div class="d-flex justify-space-between"><MudText>Total</MudText><MudText>@Money.Format(_order.Total)</MudText></div>
+                @if (_order.RefundedAmount > 0)
+                {
+                    <div class="d-flex justify-space-between"><MudText>Refunded</MudText><MudText>−@Money.Format(_order.RefundedAmount)</MudText></div>
+                }
+                <div class="d-flex justify-space-between"><MudText>Paid</MudText><MudText>−@Money.Format(_order.PaidAmount)</MudText></div>
+                <MudDivider Class="my-2" />
+                <div class="d-flex justify-space-between">
+                    <MudText><b>@(_order.Balance < 0 ? "Owed to customer" : "Balance due")</b></MudText>
+                    <MudText><b>@Money.Format(Math.Abs(_order.Balance))</b></MudText>
+                </div>
+            </MudPaper>
+            @if (_canSeeInvoice)
+            {
+                @* Refunds go through the usual flow on the invoice page. *@
+                <MudButton Class="mt-2" Size="Size.Small" Href="@($"invoices/{_order.Id}")" StartIcon="@Icons.Material.Filled.Receipt">Open as invoice (refunds)</MudButton>
+            }
+        </MudItem>
+    </MudGrid>
+}
+
+@code {
+    [Parameter] public int Id { get; set; }
+    [CascadingParameter] private Task<AuthenticationState> AuthState { get; set; } = default!;
+
+    private WholesaleOrderDetailDto? _order;
+    private bool _notFound;
+    private bool _busy;
+    private bool _canRecordPayment;
+    private bool _canSeeInvoice;
+    private decimal _payment;
+    private string? _error;
+
+    protected override async Task OnParametersSetAsync()
+    {
+        if (!RendererInfo.IsInteractive) return; // prerendering: show the loading state; the browser loads the data
+        var user = (await AuthState).User;
+        _canRecordPayment = user.Can(ModuleRegistry.Pages.WHOLESALE_RECORD_PAYMENT);
+        // The invoice page needs Invoice List; its data needs Invoice View.
+        _canSeeInvoice = user.Can(ModuleRegistry.Pages.INVOICE_INDEX) && user.Can(ModuleRegistry.Pages.INVOICE_VIEW);
+        _order = await Api.GetDetailAsync(Id);
+        _notFound = _order == null;
+    }
+
+    private async Task RecordPaymentAsync()
+    {
+        _error = null;
+        _busy = true;
+        try
+        {
+            var (order, error) = await Api.RecordPaymentAsync(Id, _payment);
+            if (order == null)
+            {
+                _error = error;
+                return;
+            }
+            _order = order;
+            _payment = 0;
+            Snackbar.Add("Payment recorded.", Severity.Success);
+        }
+        finally
+        {
+            _busy = false;
+        }
+    }
+}

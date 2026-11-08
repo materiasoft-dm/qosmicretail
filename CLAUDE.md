@@ -59,9 +59,9 @@ If a `dotnet run` process is left running, a subsequent `dotnet build` will fail
 - Gives every `decimal`/`decimal?` property explicit `HasPrecision(18, 4)` — SQL Server requires an explicit precision/scale or defaults silently; SQLite doesn't care.
 - Mirrors the index list from the old LiteDB implementation (see `EnsureCoreIndexes`-style grouping by entity) directly as `HasIndex` calls.
 
-### Schema changes go through EF Core Migrations (Sqlite only)
+### Schema changes go through EF Core Migrations (one history per provider)
 
-`Mercurius.Repo/Migrations/` holds versioned migrations, applied via `Database.Migrate()` at startup in `Program.cs` — this preserves existing data, unlike the `EnsureCreated()` approach used earlier in this project's history. The `SqlServer` provider path still calls `EnsureCreated()` instead: that provider is currently dormant (no live SQL Server database exists), so a second migrations assembly for it isn't worth building until it's back in active use.
+`Database.Migrate()` runs at startup in `Program.cs` for whichever provider is active — this preserves existing data, unlike the `EnsureCreated()` approach used earlier in this project's history. The two providers' migrations aren't interchangeable (column type strings are baked in at generation time), so each has its own history: SQLite's lives in `Mercurius.Repo/Migrations/`, SQL Server's in the separate `Mercurius.Repo.Migrations.SqlServer` assembly, selected via `MigrationsAssembly(...)` in `Program.cs`. SQL Server used to call `EnsureCreated()` while it was dormant; it is now the live provider and has a real history (see `MULTITENANCY_ARCHITECTURE.md` §6.1).
 
 To add a schema change: edit the model, then from `Mercurius/`, run:
 ```
@@ -532,7 +532,37 @@ not assumed — the fixes are in `Infrastructure/`, but the reasoning is worth k
 
 ### FIFO batch pricing (`BatchPricingService`)
 
-`MedicineBatch` rows (created via `MedicineBatchesApiController`, one per stock receipt) each carry their own `UnitCost`/`UnitSalePrice`. A new shipment at a different price is just a new batch queued behind older stock — web checkout (`SalesApiController`) and mobile invoice push (`SyncController.PushInvoices`) call `BatchPricingService.FindFulfillingBatchAsync` to pick, oldest first, the first batch whose `RemainingQuantity` alone covers the full line quantity; if the oldest batch falls short, the *whole* line is priced and drawn from the next batch that can cover it rather than splitting across two batches' ledgers (a deliberate simplification, confirmed with the product owner). `InvoiceItem.MedicineBatchId` records which batch a line was actually priced/deducted from, for refund credit and lot-recall tracing. Products with no batches at all (most non-drug items) fall back to `Product.CurrentSalePrice`/`CurrentCostPrice` unchanged — this feature is purely additive. `BatchPricingService.RefreshActivePriceAsync` keeps those flat fields in sync with whichever batch is now the oldest non-depleted one, so every screen that reads them (the Products list, the Sell page, the mobile sync API) keeps working without knowing batches exist.
+`MedicineBatch` rows (created via `MedicineBatchesApiController`, one per stock receipt) each carry their own `UnitCost`/`UnitSalePrice`. A new shipment at a different price is just a new batch queued behind older stock — web checkout (`SalesApiController`, via `SaleStockService`), wholesale orders (same service) and mobile invoice push (`SyncController.PushInvoices`) call `BatchPricingService.FindFulfillingBatchAsync` to pick, oldest first, the first batch whose `RemainingQuantity` alone covers the full line quantity; if the oldest batch falls short, the *whole* line is priced and drawn from the next batch that can cover it rather than splitting across two batches' ledgers (a deliberate simplification, confirmed with the product owner). `InvoiceItem.MedicineBatchId` records which batch a line was actually priced/deducted from, for refund credit and lot-recall tracing. Products with no batches at all (most non-drug items) fall back to `Product.CurrentSalePrice`/`CurrentCostPrice` unchanged — this feature is purely additive. `BatchPricingService.RefreshActivePriceAsync` keeps those flat fields in sync with whichever batch is now the oldest non-depleted one, so every screen that reads them (the Products list, the Sell page, the mobile sync API) keeps working without knowing batches exist.
+
+### Wholesale module (`WholesaleApiController`, `/wholesale`)
+
+A separate screen from the POS Sell page, with its own permissions: `WHOLESALE_INDEX` (list),
+`WHOLESALE_VIEW` (order details), `WHOLESALE_CREATE` (new order), `WHOLESALE_RECORD_PAYMENT`
+(record a later payment). `WHOLESALE_DELETE` predates the module and is unused: wholesale orders
+are financial records, and refunds go through the usual invoice refund flow.
+
+- **Pricing**: `Product.WholesalePrice` (nullable, set on the product form) is charged per unit.
+  A product without one falls back to its retail price, and the order form says so on that line.
+  The wholesale price is flat. FIFO batches only carry the retail price, but the line's cost and
+  stock still come from the batch it's drawn from.
+- **Storage**: a wholesale order is an ordinary `Invoice` with `SourceChannel = "Wholesale"`, a
+  `WS-` invoice number and `InvoiceItem.IsWholeSale = true` on every line. So it counts in sales,
+  the dashboard and the Invoices list like any other sale. A customer is required.
+  `InvoiceItem.WholeSaleId` and the `BulkPackage` table are leftovers from an older version and
+  are unused.
+- **Credit**: an order can be sold with nothing or part paid up front. Its status follows the
+  payment: `Completed` (shown as Paid), `PartiallyPaid` or `DeferredPayment` (shown as Unpaid).
+  An optional due date makes an unpaid order show as Overdue once it passes. Recording a payment
+  adds to `Invoice.PaidAmount`. There's no separate payment ledger; the audit trail records each
+  change.
+- **Stock**: deducted exactly like a web POS sale, through `SaleStockService` (FIFO batch,
+  product stock, zero-stock audit log), which `SalesApiController` also uses.
+  `SyncController.PushInvoices` still has its own copy of these rules.
+- **Web only, for now.** The mobile app (`Mercurius.Mobile`) doesn't sell wholesale.
+  `WholesalePrice` isn't in the product sync DTOs, and the Receipts page shows a pulled wholesale
+  order as "Earlier sale", because `ReceiptRow.SourceDisplay` doesn't know the `Wholesale`
+  channel. Worth revisiting later whether wholesale belongs in the native app too. If it does,
+  that means the sync DTOs, local DB schema, an order screen and a new app release.
 
 ### Audit trail (`AuditLog`, Settings → Audit Trail)
 

@@ -103,6 +103,11 @@ else
                                  HelperText="Cost × (1 + markup). Changing it updates the markup." />
             </MudItem>
             <MudItem xs="12" sm="6" md="4">
+                <MudNumericField T="decimal?" @bind-Value="_form.WholesalePrice" Label="Wholesale price" Format="N2" Min="0"
+                                 Variant="Variant.Outlined" HideSpinButtons="true" Clearable="true"
+                                 HelperText="Charged on wholesale orders. Leave blank to use the sale price." />
+            </MudItem>
+            <MudItem xs="12" sm="6" md="4">
                 <MudNumericField @bind-Value="_form.LeadTimeDays" Label="Lead time (days)" Variant="Variant.Outlined" HideSpinButtons="true" />
             </MudItem>
             <MudItem xs="12" sm="6" md="4">
@@ -357,6 +362,7 @@ else
                     CurrentCostPrice = _form.CurrentCostPrice,
                     MarkUpPercentage = _form.MarkUpPercentage,
                     CurrentSalePrice = _form.CurrentSalePrice,
+                    WholesalePrice = _form.WholesalePrice,
                     LeadTimeDays = _form.LeadTimeDays,
                     LowStockCount = _form.LowStockCount,
                     Note = _form.Note,
@@ -381,6 +387,7 @@ else
                     CurrentCostPrice = _form.CurrentCostPrice,
                     MarkUpPercentage = _form.MarkUpPercentage,
                     CurrentSalePrice = _form.CurrentSalePrice,
+                    WholesalePrice = _form.WholesalePrice,
                     LeadTimeDays = _form.LeadTimeDays,
                     LowStockCount = _form.LowStockCount,
                     Note = _form.Note,

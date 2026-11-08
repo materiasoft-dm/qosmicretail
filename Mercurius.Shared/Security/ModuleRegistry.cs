@@ -89,7 +89,9 @@ namespace Mercurius.Common
                     ModuleRegistry.Pages.ADMIN_AUDIT_TRAIL,
                     ModuleRegistry.Pages.WHOLESALE_INDEX,
                     ModuleRegistry.Pages.WHOLESALE_DELETE,
-            ModuleRegistry.Pages.WHOLESALE_VIEW
+                    ModuleRegistry.Pages.WHOLESALE_VIEW,
+                    ModuleRegistry.Pages.WHOLESALE_CREATE,
+            ModuleRegistry.Pages.WHOLESALE_RECORD_PAYMENT
         };
 
         public static class Pages
@@ -175,6 +177,8 @@ namespace Mercurius.Common
             public const string WHOLESALE_INDEX = "Whole Sale List Page";
             public const string WHOLESALE_DELETE = "Whole Sale Delete";
             public const string WHOLESALE_VIEW = "Whole Sale View";
+            public const string WHOLESALE_CREATE = "Whole Sale Create";
+            public const string WHOLESALE_RECORD_PAYMENT = "Whole Sale Record Payment";
         }
     }
 }

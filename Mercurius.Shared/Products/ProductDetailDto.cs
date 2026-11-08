@@ -12,6 +12,7 @@ namespace Mercurius.Shared.Products
         public decimal? CurrentCostPrice { get; set; }
         public decimal MarkUpPercentage { get; set; }
         public decimal? CurrentSalePrice { get; set; }
+        public decimal? WholesalePrice { get; set; }
         public int? LeadTimeDays { get; set; }
         public decimal CurrentStock { get; set; }
         public decimal LowStockCount { get; set; }
@@ -51,6 +52,7 @@ namespace Mercurius.Shared.Products
         public decimal? CurrentCostPrice { get; set; }
         public decimal MarkUpPercentage { get; set; }
         public decimal? CurrentSalePrice { get; set; }
+        public decimal? WholesalePrice { get; set; }
         public int? LeadTimeDays { get; set; }
         public decimal LowStockCount { get; set; }
         public string? Note { get; set; }
@@ -68,6 +70,7 @@ namespace Mercurius.Shared.Products
         public decimal? CurrentCostPrice { get; set; }
         public decimal MarkUpPercentage { get; set; }
         public decimal? CurrentSalePrice { get; set; }
+        public decimal? WholesalePrice { get; set; }
         public int? LeadTimeDays { get; set; }
         public decimal LowStockCount { get; set; }
         public string? Note { get; set; }

@@ -137,6 +137,7 @@ namespace Mercurius.Controllers.Api
                 CurrentCostPrice = request.CurrentCostPrice,
                 MarkUpPercentage = request.MarkUpPercentage,
                 CurrentSalePrice = request.CurrentSalePrice,
+                WholesalePrice = request.WholesalePrice,
                 LeadTimeDays = request.LeadTimeDays,
                 LowStockCount = request.LowStockCount,
                 Note = request.Note ?? string.Empty,
@@ -176,6 +177,7 @@ namespace Mercurius.Controllers.Api
                 CurrentCostPrice = product.CurrentCostPrice,
                 MarkUpPercentage = product.MarkUpPercentage,
                 CurrentSalePrice = product.CurrentSalePrice,
+                WholesalePrice = product.WholesalePrice,
                 LeadTimeDays = product.LeadTimeDays,
                 CurrentStock = product.CurrentStock,
                 LowStockCount = product.LowStockCount,
@@ -212,6 +214,7 @@ namespace Mercurius.Controllers.Api
             product.CurrentCostPrice = request.CurrentCostPrice;
             product.MarkUpPercentage = request.MarkUpPercentage;
             product.CurrentSalePrice = request.CurrentSalePrice;
+            product.WholesalePrice = request.WholesalePrice;
             product.LeadTimeDays = request.LeadTimeDays;
             product.LowStockCount = request.LowStockCount;
             product.Note = request.Note ?? string.Empty;

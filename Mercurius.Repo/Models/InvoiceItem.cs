@@ -29,6 +29,8 @@ public string Remarks { get; set; }
     public int StatusId { get; set; }
 public decimal? CustomTotalPrice { get; set; }
 
+    // True on every line of a wholesale order (WholesaleApiController), whose invoice also has
+    // SourceChannel "Wholesale". WholeSaleId is a leftover from an older version and is unused.
     public bool IsWholeSale { get; set; }
 
     public int? WholeSaleId { get; set; }

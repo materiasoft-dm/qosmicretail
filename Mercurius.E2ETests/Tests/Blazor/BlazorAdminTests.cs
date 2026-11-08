@@ -209,7 +209,22 @@ public class BlazorAdminTests : BlazorTestBase
     private async Task SwitchBranchAsync(string name)
     {
         await Page.Locator("#branchSwitcher").ClickAsync();
-        await Page.Locator(".branch-option").Filter(new LocatorFilterOptions { HasTextString = name }).ClickAsync();
-        await Page.Locator("article.content").WaitForAsync(new LocatorWaitForOptions { Timeout = BootTimeoutMs });
+        // Switching force-reloads the page. The prerendered sidebar already shows the new branch,
+        // but its switcher button does nothing until WebAssembly takes over, so a second switch
+        // clicked before then never opens the list. Wait for the reload itself (the old page is
+        // still interactive until it goes), then for the new page to become interactive.
+        var reloaded = new TaskCompletionSource();
+        void OnLoad(object? sender, IPage page) => reloaded.TrySetResult();
+        Page.Load += OnLoad;
+        try
+        {
+            await Page.Locator(".branch-option").Filter(new LocatorFilterOptions { HasTextString = name }).ClickAsync();
+            await reloaded.Task.WaitAsync(TimeSpan.FromMilliseconds(BootTimeoutMs));
+        }
+        finally
+        {
+            Page.Load -= OnLoad;
+        }
+        await WaitForInteractiveAsync();
     }
 }

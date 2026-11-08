@@ -1,0 +1,178 @@
+@page "/wholesale/new"
+@attribute [Authorize(Policy = ModuleRegistry.Pages.WHOLESALE_CREATE)]
+@inject WholesaleApiClient Api
+@inject NavigationManager Nav
+@inject ISnackbar Snackbar
+
+<PageTitle>New Wholesale Order</PageTitle>
+
+<MudText Typo="Typo.h4" Class="mb-4">New wholesale order</MudText>
+
+<MudPaper Class="pa-4" Elevation="2" Style="max-width:1100px;">
+    <MudGrid Spacing="3">
+        <MudItem xs="12" md="5">
+            <MudAutocomplete T="CustomerOptionDto" @bind-Value="_customer" SearchFunc="SearchCustomersAsync" ToStringFunc="@(c => c?.Name ?? string.Empty)"
+                             Label="Customer" Placeholder="Type a name or phone" Variant="Variant.Outlined" Required="true"
+                             Clearable="true" ResetValueOnEmptyText="true" DebounceInterval="300" MaxItems="50" Dense="true" />
+        </MudItem>
+        <MudItem xs="12" md="3">
+            <MudDatePicker @bind-Date="_dueDate" Label="Payment due" DateFormat="yyyy-MM-dd" Variant="Variant.Outlined" Clearable="true" MinDate="DateTime.Today" />
+        </MudItem>
+        <MudItem xs="12">
+            <MudTextField @bind-Value="_notes" Label="Notes" Variant="Variant.Outlined" Lines="2" />
+        </MudItem>
+    </MudGrid>
+
+    <MudText Typo="Typo.h6" Class="mt-6 mb-2">Products</MudText>
+    @for (var i = 0; i < _lines.Count; i++)
+    {
+        var line = _lines[i];
+        var number = i + 1;
+        <MudGrid Spacing="2" Class="mb-1 align-center">
+            <MudItem xs="12" md="5">
+                <MudAutocomplete T="WholesaleProductOptionDto" @bind-Value="line.Product" SearchFunc="SearchProductsAsync" ToStringFunc="DescribeProduct"
+                                 Label="@($"Product {number}")" Placeholder="Type a name, SKU or barcode" Variant="Variant.Outlined"
+                                 DebounceInterval="300" MaxItems="50" ResetValueOnEmptyText="true" Dense="true" />
+            </MudItem>
+            <MudItem xs="4" md="2">
+                <MudNumericField T="decimal" @bind-Value="line.Quantity" Label="Quantity" Min="0" Format="0.##" Variant="Variant.Outlined" HideSpinButtons="true" />
+            </MudItem>
+            <MudItem xs="4" md="2">
+                <MudText Typo="Typo.caption" Class="mud-text-secondary d-block">Unit price</MudText>
+                @if (line.Product == null)
+                {
+                    <MudText>-</MudText>
+                }
+                else
+                {
+                    <MudText>@Money.Format(line.Product.UnitPrice)</MudText>
+                    @if (line.Product.UsesRetailPrice)
+                    {
+                        <MudText Typo="Typo.caption" Color="Color.Warning">No wholesale price — retail</MudText>
+                    }
+                }
+            </MudItem>
+            <MudItem xs="3" md="2">
+                <MudText Typo="Typo.caption" Class="mud-text-secondary d-block">Line total</MudText>
+                <MudText>@(line.Product == null ? "-" : Money.Format(line.Product.UnitPrice * line.Quantity))</MudText>
+                @if (line.Product != null && line.Quantity > line.Product.Stock)
+                {
+                    <MudText Typo="Typo.caption" Color="Color.Warning">Only @line.Product.Stock.ToString("0.##") in stock</MudText>
+                }
+            </MudItem>
+            <MudItem xs="1" md="1">
+                <MudIconButton Icon="@Icons.Material.Filled.Close" Size="Size.Small" Color="Color.Error" aria-label="@($"Remove line {number}")"
+                               Disabled="_lines.Count == 1" OnClick="@(() => _lines.Remove(line))" />
+            </MudItem>
+        </MudGrid>
+    }
+    <div class="d-flex justify-space-between align-center mt-2">
+        <MudButton Variant="Variant.Outlined" Size="Size.Small" StartIcon="@Icons.Material.Filled.Add" OnClick="@(() => _lines.Add(new LineModel()))">Add product</MudButton>
+        <MudText><b>Order total:</b> @Money.Format(Total)</MudText>
+    </div>
+
+    <MudGrid Spacing="3" Class="mt-4 align-center">
+        <MudItem xs="12" sm="6" md="3">
+            <MudNumericField T="decimal" @bind-Value="_amountPaid" Label="Amount paid now" Min="0" Format="N2" Variant="Variant.Outlined" HideSpinButtons="true"
+                             HelperText="Leave at 0 to sell on credit." />
+        </MudItem>
+        <MudItem xs="12" sm="6" md="3">
+            <MudButton Variant="Variant.Text" Size="Size.Small" OnClick="@(() => _amountPaid = Total)" Disabled="Total <= 0">Paid in full</MudButton>
+        </MudItem>
+        <MudItem xs="12" md="6" Class="d-flex justify-end">
+            <MudText><b>Balance due:</b> @Money.Format(Total - _amountPaid)</MudText>
+        </MudItem>
+    </MudGrid>
+
+    @if (_error != null)
+    {
+        <MudAlert Severity="Severity.Error" Class="mt-4">@_error</MudAlert>
+    }
+
+    <div class="d-flex justify-space-between mt-6">
+        <MudButton Href="wholesale" Disabled="_busy">Cancel</MudButton>
+        <MudButton Color="Color.Primary" Variant="Variant.Filled" OnClick="SaveAsync" Disabled="_busy">Create wholesale order</MudButton>
+    </div>
+</MudPaper>
+
+@code {
+    // One per order, so resubmitting after a lost response returns the order already made.
+    private readonly Guid _syncId = Guid.NewGuid();
+    private bool _busy;
+    private string? _error;
+    private CustomerOptionDto? _customer;
+    private DateTime? _dueDate;
+    private string? _notes;
+    private decimal _amountPaid;
+    private List<LineModel> _lines = new() { new() };
+
+    private decimal Total => _lines.Where(l => l.Product != null).Sum(l => l.Product!.UnitPrice * l.Quantity);
+
+    private sealed class LineModel
+    {
+        public WholesaleProductOptionDto? Product { get; set; }
+        public decimal Quantity { get; set; } = 1;
+    }
+
+    private async Task<IEnumerable<CustomerOptionDto>> SearchCustomersAsync(string? value, CancellationToken token) =>
+        await Api.GetCustomersAsync(value, token);
+
+    private async Task<IEnumerable<WholesaleProductOptionDto>> SearchProductsAsync(string? value, CancellationToken token) =>
+        await Api.GetProductsAsync(value, token);
+
+    private static string DescribeProduct(WholesaleProductOptionDto? product) =>
+        product == null ? string.Empty : $"{product.Name} ({product.ProductCode})";
+
+    private async Task SaveAsync()
+    {
+        _error = null;
+        var lines = _lines.Where(l => l.Product != null && l.Quantity > 0)
+            .Select(l => new WholesaleOrderLineRequest { ProductId = l.Product!.Id, Quantity = l.Quantity })
+            .ToList();
+        if (_customer == null)
+        {
+            _error = "Choose the customer this order is for.";
+            return;
+        }
+        if (lines.Count == 0)
+        {
+            _error = "Add at least one product with a quantity above zero.";
+            return;
+        }
+        if (_lines.Count > 1 && _lines.Any(l => l.Product == null))
+        {
+            _error = "Every line needs a product — remove the lines you don't need.";
+            return;
+        }
+        if (_amountPaid > Total)
+        {
+            _error = "The amount paid can't be more than the order total.";
+            return;
+        }
+
+        _busy = true;
+        try
+        {
+            var (order, error) = await Api.CreateAsync(new CreateWholesaleOrderRequest
+            {
+                SyncId = _syncId,
+                CustomerId = _customer.Id,
+                DueDate = _dueDate,
+                AmountPaid = _amountPaid,
+                Notes = _notes,
+                Lines = lines
+            });
+            if (order == null)
+            {
+                _error = error;
+                return;
+            }
+            Snackbar.Add($"Wholesale order {order.OrderNumber} created.", Severity.Success);
+            Nav.NavigateTo($"wholesale/{order.Id}");
+        }
+        finally
+        {
+            _busy = false;
+        }
+    }
+}

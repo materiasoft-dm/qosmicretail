@@ -1115,6 +1115,10 @@ namespace Mercurius.Repo.Migrations
                     b.Property<DateTime?>("UpdatedDate")
                         .HasColumnType("TEXT");
 
+                    b.Property<decimal?>("WholesalePrice")
+                        .HasPrecision(18, 4)
+                        .HasColumnType("TEXT");
+
                     b.HasKey("Id");
 
                     b.HasIndex("Barcode");

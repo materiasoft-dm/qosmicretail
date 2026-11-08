@@ -1,0 +1,109 @@
+@page "/wholesale"
+@attribute [Authorize(Policy = ModuleRegistry.Pages.WHOLESALE_INDEX)]
+@inject WholesaleApiClient Api
+@inject NavigationManager Nav
+
+<PageTitle>Wholesale</PageTitle>
+
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <MudText Typo="Typo.h4">Wholesale orders</MudText>
+    @if (_canCreate)
+    {
+        <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Filled.Add" Href="wholesale/new">New wholesale order</MudButton>
+    }
+</div>
+
+<MudTextField T="string" Value="_search" ValueChanged="OnSearchChanged" Label="Search by order # or customer..." Variant="Variant.Outlined"
+              Immediate="true" Clearable="true" Adornment="Adornment.Start" AdornmentIcon="@Icons.Material.Filled.Search" Class="mb-4" Style="max-width:320px;" />
+
+<MudPaper Class="pa-2" Elevation="2">
+    <MudTable T="WholesaleOrderListItemDto" @ref="_table" ServerData="LoadPageAsync" Hover="true" Dense="true" RowsPerPage="25"
+              OnRowClick="@((TableRowClickEventArgs<WholesaleOrderListItemDto> e) => GoToOrder(e.Item?.Id ?? 0))" RowStyle="cursor:pointer;">
+        <HeaderContent>
+            <MudTh><MudTableSortLabel T="WholesaleOrderListItemDto" SortLabel="number">Order #</MudTableSortLabel></MudTh>
+            <MudTh><MudTableSortLabel T="WholesaleOrderListItemDto" SortLabel="date" InitialDirection="SortDirection.Descending">Date</MudTableSortLabel></MudTh>
+            <MudTh>Customer</MudTh>
+            <MudTh><MudTableSortLabel T="WholesaleOrderListItemDto" SortLabel="due">Due date</MudTableSortLabel></MudTh>
+            <MudTh>Status</MudTh>
+            <MudTh Style="text-align:right;">Total</MudTh>
+            <MudTh Style="text-align:right;">Paid</MudTh>
+            <MudTh Style="text-align:right;">Balance</MudTh>
+        </HeaderContent>
+        <RowTemplate>
+            <MudTd DataLabel="Order #">@context.OrderNumber</MudTd>
+            <MudTd DataLabel="Date">@LocalTime.FormatDateTime(context.OrderDate)</MudTd>
+            <MudTd DataLabel="Customer">@context.CustomerName</MudTd>
+            <MudTd DataLabel="Due date">
+                @WholesaleStatus.FormatDueDate(context.DueDate)
+                @if (WholesaleStatus.IsOverdue(context.DueDate, context.Balance))
+                {
+                    <MudChip T="string" Size="Size.Small" Color="Color.Error" Class="ms-1">Overdue</MudChip>
+                }
+            </MudTd>
+            <MudTd DataLabel="Status">
+                <MudChip T="string" Size="Size.Small" Color="@WholesaleStatus.Color(context.StatusId)">@WholesaleStatus.Label(context.StatusId)</MudChip>
+                @if (context.HasRefund)
+                {
+                    <MudTooltip Text="Has refund">
+                        <MudIcon Icon="@Icons.Material.Filled.Replay" Size="Size.Small" Color="Color.Error" Class="ms-1" />
+                    </MudTooltip>
+                }
+            </MudTd>
+            <MudTd DataLabel="Total" Style="text-align:right;">@Money.Format(context.Total)</MudTd>
+            <MudTd DataLabel="Paid" Style="text-align:right;">@Money.Format(context.PaidAmount)</MudTd>
+            <MudTd DataLabel="Balance" Style="text-align:right;">@Money.Format(context.Balance)</MudTd>
+        </RowTemplate>
+        <NoRecordsContent>
+            <MudText>No wholesale orders yet.</MudText>
+        </NoRecordsContent>
+        <PagerContent>
+            <MudTablePager PageSizeOptions="@(new[] { 10, 25, 50, 100 })" />
+        </PagerContent>
+    </MudTable>
+</MudPaper>
+
+@code {
+    [CascadingParameter] private Task<AuthenticationState> AuthState { get; set; } = default!;
+
+    private bool _canCreate;
+    private bool _canView;
+    private MudTable<WholesaleOrderListItemDto>? _table;
+    private string _search = string.Empty;
+    private CancellationTokenSource? _debounce;
+
+    protected override async Task OnInitializedAsync()
+    {
+        var user = (await AuthState).User;
+        _canCreate = user.Can(ModuleRegistry.Pages.WHOLESALE_CREATE);
+        _canView = user.Can(ModuleRegistry.Pages.WHOLESALE_VIEW);
+    }
+
+    private async Task<TableData<WholesaleOrderListItemDto>> LoadPageAsync(TableState state, CancellationToken token)
+    {
+        var desc = state.SortDirection != SortDirection.Ascending;
+        var result = await Api.GetAsync(_search, state.Page + 1, state.PageSize, state.SortLabel, desc, token);
+        return new TableData<WholesaleOrderListItemDto> { Items = result.Items, TotalItems = result.Total };
+    }
+
+    private void GoToOrder(int id)
+    {
+        if (id > 0 && _canView) Nav.NavigateTo($"wholesale/{id}");
+    }
+
+    private async Task OnSearchChanged(string? value)
+    {
+        _search = value ?? string.Empty;
+        _debounce?.Cancel();
+        _debounce = new CancellationTokenSource();
+        var token = _debounce.Token;
+        try
+        {
+            await Task.Delay(300, token);
+            if (_table != null) await _table.ReloadServerData();
+        }
+        catch (TaskCanceledException)
+        {
+            // Superseded by a newer keystroke.
+        }
+    }
+}
