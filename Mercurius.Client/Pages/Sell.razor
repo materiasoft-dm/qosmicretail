@@ -365,11 +365,22 @@
             { d => d.Total, CartTotal() },
             { d => d.CustomerId, _customer?.Id ?? 0 },
             { d => d.Notes, _notes },
-            { d => d.Items, _cart.Select(l => new CartLineRequest { ProductId = l.ProductId, Quantity = l.Quantity }).ToList() }
+            { d => d.Items, _cart.Select(l => new CartLineRequest { ProductId = l.ProductId, Quantity = l.Quantity, UnitPrice = l.Price }).ToList() }
         };
         var options = new DialogOptions { MaxWidth = MaxWidth.ExtraSmall, FullWidth = true };
         var dialog = await DialogService.ShowAsync<PaymentDialog>("Payment", parameters, options);
         var result = await dialog.Result;
+        if (result is { Canceled: false, Data: SaleOutcome { PriceChange: { } priceChange } })
+        {
+            foreach (var price in priceChange.Prices)
+            {
+                var line = _cart.FirstOrDefault(l => l.ProductId == price.ProductId);
+                if (line != null) line.Price = price.UnitPrice;
+            }
+            Snackbar.Add(priceChange.Error, Severity.Warning, o => o.RequireInteraction = true);
+            await LoadProductsAsync();
+            return;
+        }
         if (result is { Canceled: false })
         {
             _cart.Clear();

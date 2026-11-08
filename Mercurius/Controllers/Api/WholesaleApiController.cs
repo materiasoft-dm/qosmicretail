@@ -21,7 +21,7 @@ namespace Mercurius.Controllers.Api
     // required, lines are priced at Product.WholesalePrice (retail when none is set), and it can be
     // sold on credit — the status says whether it's paid (Completed), partly paid (PartiallyPaid)
     // or unpaid (DeferredPayment), and later payments are recorded against it.
-    // Stock moves exactly as for a POS sale (SaleStockService). Web only for now; the mobile app
+    // Stock moves exactly as for a POS sale (SaleRecorder). Web only for now; the mobile app
     // doesn't sell wholesale (see CLAUDE.md).
     [ApiController]
     [Route("api/wholesale")]
@@ -31,15 +31,12 @@ namespace Mercurius.Controllers.Api
         public const string SourceChannel = "Wholesale";
 
         private readonly IUnitOfWork _unitOfWork;
-        private readonly Mercurius.Services.BatchPricingService _batchPricingService;
-        private readonly Mercurius.Services.SaleStockService _saleStockService;
+        private readonly Mercurius.Services.SaleRecorder _saleRecorder;
 
-        public WholesaleApiController(IUnitOfWork unitOfWork, Mercurius.Services.BatchPricingService batchPricingService,
-            Mercurius.Services.SaleStockService saleStockService)
+        public WholesaleApiController(IUnitOfWork unitOfWork, Mercurius.Services.SaleRecorder saleRecorder)
         {
             _unitOfWork = unitOfWork;
-            _batchPricingService = batchPricingService;
-            _saleStockService = saleStockService;
+            _saleRecorder = saleRecorder;
         }
 
         // sortBy: number | date (default) | due.
@@ -195,23 +192,25 @@ namespace Mercurius.Controllers.Api
                 return BadRequest(new { error = "The amount paid can't be more than the order total." });
             }
 
+            var now = DateTime.UtcNow;
             var order = new Invoice
             {
                 SyncId = syncId,
                 CustomerId = customer.Id,
                 LocationId = await Mercurius.Services.CurrentLocation.GetIdAsync(_unitOfWork, User),
                 StatusId = (int)PaymentStatus(request.AmountPaid, orderTotal),
-                InvoiceDate = DateTime.UtcNow,
-                // Unlike POS sales (INV-), so a wholesale order is recognisable anywhere it's listed.
-                InvoiceNumber = $"WS-{DateTime.UtcNow:yyyyMMddHHmmssfff}",
+                InvoiceDate = now,
+                // WS- rather than POS sales' INV-, so a wholesale order is recognisable anywhere it's listed.
+                InvoiceNumber = Mercurius.Services.SaleRecorder.NewInvoiceNumber(now, syncId).Replace("INV-", "WS-"),
                 // Sales without a due date store DateTime.MinValue rather than null.
                 InvoiceDueDate = request.DueDate?.Date ?? DateTime.MinValue,
                 Notes = request.Notes?.Trim() ?? string.Empty,
                 PaidAmount = request.AmountPaid,
-                CreatedDate = DateTime.UtcNow,
+                CreatedDate = now,
                 CreatedBy = CurrentUserId,
                 SourceChannel = SourceChannel
             };
+            var soldBy = new Mercurius.Services.SaleRecorder.SoldBy(CurrentUserId, User.Identity?.Name ?? "Unknown", "wholesale");
 
             await _unitOfWork.BeginTransactionAsync(ct);
             try
@@ -222,31 +221,18 @@ namespace Mercurius.Controllers.Api
                 foreach (var line in request.Lines)
                 {
                     var product = productMap[line.ProductId];
-                    var batch = await _saleStockService.DeductAsync(_unitOfWork, product, line.Quantity, order, User, ct);
-                    await _unitOfWork.Repository<InvoiceItem>().AddAsync(new InvoiceItem
-                    {
-                        InvoiceId = order.Id,
-                        ProductId = product.Id,
-                        Quantity = line.Quantity,
-                        SalePrice = UnitPrice(product),
-                        CostPrice = batch?.UnitCost ?? product.CurrentCostPrice ?? 0,
-                        MedicineBatchId = batch?.Id,
-                        IsWholeSale = true,
-                        StatusId = (int)StatusCollection.InvoiceStatus.Completed
-                    }, ct);
+                    var quote = await _saleRecorder.QuoteAsync(_unitOfWork, product, line.Quantity, ct);
+                    var item = await _saleRecorder.RecordLineAsync(_unitOfWork, order, product, line.Quantity, quote, UnitPrice(product), soldBy, ct: ct);
+                    item.IsWholeSale = true;
                 }
                 await _unitOfWork.SaveChangesAsync(ct);
+                await _saleRecorder.RefreshPricesAsync(_unitOfWork, productIds, ct);
                 await _unitOfWork.CommitTransactionAsync(ct);
             }
             catch
             {
                 await _unitOfWork.RollbackTransactionAsync(ct);
                 throw;
-            }
-
-            foreach (var productId in productIds)
-            {
-                await _batchPricingService.RefreshActivePriceAsync(_unitOfWork, productId, ct);
             }
 
             return Ok(new CreatedWholesaleOrderDto { Id = order.Id, OrderNumber = order.InvoiceNumber });

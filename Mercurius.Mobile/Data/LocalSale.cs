@@ -25,6 +25,7 @@ public class LocalSale
     public int? CustomerId { get; set; }
     public int LocationId { get; set; }
     public string? Notes { get; set; }
+    public string? PaymentMethod { get; set; }     // "Cash" | "Card"; null on sales from older builds
     public decimal PaidAmount { get; set; }
     public decimal GrandTotal { get; set; }
 

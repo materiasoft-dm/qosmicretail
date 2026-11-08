@@ -36,16 +36,29 @@ namespace Mercurius.Controllers.Api
     public class SyncController : ControllerBase
     {
         private readonly IUnitOfWork _unitOfWork;
-        private readonly Mercurius.Services.BatchPricingService _batchPricingService;
+        private readonly Mercurius.Services.SaleRecorder _saleRecorder;
+        private readonly Mercurius.Services.UserPermissions _userPermissions;
+        private HashSet<string>? _permissions;
 
-        public SyncController(IUnitOfWork unitOfWork, Mercurius.Services.BatchPricingService batchPricingService)
+        public SyncController(IUnitOfWork unitOfWork, Mercurius.Services.SaleRecorder saleRecorder, Mercurius.Services.UserPermissions userPermissions)
         {
             _unitOfWork = unitOfWork;
-            _batchPricingService = batchPricingService;
+            _saleRecorder = saleRecorder;
+            _userPermissions = userPermissions;
         }
 
         private Guid CurrentUserId =>
             Guid.TryParse(User.FindFirstValue(ClaimTypes.NameIdentifier), out var uid) ? uid : Guid.Empty;
+
+        // Pushes are checked against the same permissions as the web pages that do the same thing
+        // (selling, creating/editing products). A refusal comes back per item, like any other
+        // push error, so the device keeps the record queued: nothing is lost, and it goes up once
+        // an admin grants the permission or someone who has it signs in on that device.
+        private async Task<bool> CanAsync(string permission)
+        {
+            _permissions ??= await _userPermissions.GetAsync(User.FindFirstValue(ClaimTypes.NameIdentifier));
+            return _permissions.Contains(permission);
+        }
 
         // ============================================
         // LOCATIONS (which clinic/branch this device is assigned to)
@@ -118,6 +131,18 @@ namespace Mercurius.Controllers.Api
                 {
                     var existing = (await _unitOfWork.Repository<Product>()
                         .FindAsync(p => p.SyncId == item.SyncId, ct)).FirstOrDefault();
+
+                    // Without this, anyone who could sign in to the app could change sale prices.
+                    if (existing != null && !await CanAsync(Mercurius.Common.ModuleRegistry.Pages.PRODUCTS_EDIT))
+                    {
+                        results.Add(new SyncPushResultItem { SyncId = item.SyncId, Error = "This account isn't allowed to edit products." });
+                        continue;
+                    }
+                    if (existing == null && !await CanAsync(Mercurius.Common.ModuleRegistry.Pages.PRODUCTS_CREATE))
+                    {
+                        results.Add(new SyncPushResultItem { SyncId = item.SyncId, Error = "This account isn't allowed to add products." });
+                        continue;
+                    }
 
                     int? categoryId = null;
                     if (!string.IsNullOrWhiteSpace(item.CategoryName))
@@ -284,7 +309,7 @@ namespace Mercurius.Controllers.Api
                 .Select(i => new
                 {
                     i.Id, i.SyncId, i.InvoiceNumber, i.InvoiceDate, i.LocationId, i.CreatedBy,
-                    i.SourceChannel, i.SourceDeviceId, i.SourceDeviceName, i.Notes, i.PaidAmount,
+                    i.SourceChannel, i.SourceDeviceId, i.SourceDeviceName, i.Notes, i.PaymentMethod, i.PaidAmount,
                     i.HasRefund, i.StatusId,
                     Modified = i.UpdatedDate ?? i.CreatedDate,
                     Items = i.InvoiceItems.Select(ii => new
@@ -355,6 +380,7 @@ namespace Mercurius.Controllers.Api
                     SourceDeviceId = inv.SourceDeviceId,
                     SourceDeviceName = inv.SourceDeviceName,
                     Notes = inv.Notes,
+                    PaymentMethod = Mercurius.Services.PaymentMethods.Normalize(inv.PaymentMethod, inv.Notes),
                     PaidAmount = inv.PaidAmount,
                     GrandTotal = lines.Sum(l => l.LineTotal),
                     RefundedAmount = lines.Sum(l => l.Quantity == 0 ? 0 : l.LineTotal / l.Quantity * l.RefundedQuantity),
@@ -379,6 +405,7 @@ namespace Mercurius.Controllers.Api
             var results = new List<SyncPushResultItem>();
             var deviceId = HeaderOrNull(Mercurius.Services.Auditing.HttpAuditContextProvider.DeviceIdHeader);
             var deviceName = HeaderOrNull(Mercurius.Services.Auditing.HttpAuditContextProvider.DeviceNameHeader);
+            var canSell = await CanAsync(Mercurius.Common.ModuleRegistry.Pages.NEWSALE_CREATE);
 
             foreach (var item in items ?? new List<InvoicePushDto>())
             {
@@ -396,6 +423,18 @@ namespace Mercurius.Controllers.Api
                     {
                         // Already synced — invoices are create-once, so this push is a no-op.
                         results.Add(new SyncPushResultItem { SyncId = item.SyncId, Created = false, LastModifiedUtc = existing.UpdatedDate ?? existing.CreatedDate });
+                        continue;
+                    }
+
+                    if (!canSell)
+                    {
+                        results.Add(new SyncPushResultItem { SyncId = item.SyncId, Error = "This account isn't allowed to make sales." });
+                        continue;
+                    }
+                    if (item.Items.Count == 0 || item.Items.Any(i => i.Quantity <= 0))
+                    {
+                        // A zero or negative quantity would put stock back on the shelf.
+                        results.Add(new SyncPushResultItem { SyncId = item.SyncId, Error = "Every item in a sale needs a quantity above zero." });
                         continue;
                     }
 
@@ -427,14 +466,13 @@ namespace Mercurius.Controllers.Api
                     {
                         SyncId = item.SyncId,
                         InvoiceDate = item.InvoiceDate,
-                        // SyncId suffix: two terminals syncing in the same millisecond must still
-                        // get distinct numbers (the web checkout's plain timestamp can't collide
-                        // with these, since it has no suffix).
-                        InvoiceNumber = $"INV-{now:yyyyMMddHHmmssfff}-{item.SyncId.ToString("N").Substring(0, 4).ToUpperInvariant()}",
+                        InvoiceNumber = Mercurius.Services.SaleRecorder.NewInvoiceNumber(now, item.SyncId),
                         CustomerId = item.CustomerId,
                         LocationId = resolvedLocationId,
                         StatusId = (int)StatusCollection.InvoiceStatus.Completed,
                         Notes = item.Notes,
+                        // Older app builds only say how it was paid in the notes.
+                        PaymentMethod = Mercurius.Services.PaymentMethods.Normalize(item.PaymentMethod, item.Notes),
                         PaidAmount = item.PaidAmount,
                         CreatedDate = now,
                         CreatedBy = cashierId,
@@ -445,13 +483,11 @@ namespace Mercurius.Controllers.Api
                     await _unitOfWork.Repository<Invoice>().AddAsync(invoice, ct);
                     await _unitOfWork.SaveChangesAsync(ct);
 
-                    // Mirrors SalesController.NewSale's inventory bookkeeping: the price the
-                    // device actually charged is trusted as-is (it's what the customer agreed to
-                    // pay), but which batch it's drawn from — and the resulting stock/COGS
-                    // ledger — is decided here, server-side, same as any web-created sale. Without
-                    // this, a synced mobile sale would record revenue without ever touching
-                    // inventory, silently drifting Product.CurrentStock out of sync with reality.
-                    var productsWithBatchActivity = new HashSet<int>();
+                    // Same inventory bookkeeping as a web sale (SaleRecorder): the price the device
+                    // charged is kept (it's what the customer paid, possibly offline hours ago), but
+                    // which batch it's drawn from, its cost, and the stock ledger are decided here.
+                    var soldBy = new Mercurius.Services.SaleRecorder.SoldBy(CurrentUserId, User.Identity?.Name ?? "Unknown", "mobile");
+                    var productsSold = new HashSet<int>();
                     foreach (var lineItem in item.Items)
                     {
                         var product = (await _unitOfWork.Repository<Product>()
@@ -466,56 +502,13 @@ namespace Mercurius.Controllers.Api
                                 $"Product {lineItem.ProductSyncId} is not on the server yet; the sale will be retried after products sync.");
                         }
 
-                        var batch = await _batchPricingService.FindFulfillingBatchAsync(_unitOfWork, product.Id, lineItem.Quantity, ct);
-
-                        var invoiceItem = new InvoiceItem
-                        {
-                            SyncId = lineItem.SyncId,
-                            InvoiceId = invoice.Id,
-                            ProductId = product.Id,
-                            Quantity = lineItem.Quantity,
-                            SalePrice = lineItem.SalePrice,
-                            CostPrice = lineItem.CostPrice,
-                            MedicineBatchId = batch?.Id,
-                            Remarks = lineItem.Remarks ?? "",
-                            StatusId = (int)StatusCollection.InvoiceStatus.Completed
-                        };
-                        await _unitOfWork.Repository<InvoiceItem>().AddAsync(invoiceItem, ct);
-
-                        if (batch != null)
-                        {
-                            batch.RemainingQuantity -= lineItem.Quantity;
-                            await _unitOfWork.Repository<MedicineBatch>().UpdateAsync(batch, ct);
-                        }
-                        product.CurrentStock -= lineItem.Quantity;
-                        await _unitOfWork.Repository<Product>().UpdateAsync(product, ct);
-                        productsWithBatchActivity.Add(product.Id);
-
-                        if (product.CurrentStock <= 0)
-                        {
-                            var auditLog = new ZeroStockSaleAuditLog
-                            {
-                                ProductId = product.Id,
-                                ProductName = product.Name,
-                                ProductCode = product.ProductCode,
-                                QuantitySold = lineItem.Quantity,
-                                StockAtTimeOfSale = product.CurrentStock,
-                                InvoiceNumber = invoice.InvoiceNumber,
-                                InvoiceId = invoice.Id,
-                                SoldByUserId = CurrentUserId,
-                                SoldByUserName = User.Identity?.Name ?? "Unknown",
-                                SaleDate = now,
-                                Notes = $"Zero-stock mobile sale: inventory was {product.CurrentStock} before this sale of {lineItem.Quantity} units"
-                            };
-                            await _unitOfWork.Repository<ZeroStockSaleAuditLog>().AddAsync(auditLog, ct);
-                        }
+                        var quote = await _saleRecorder.QuoteAsync(_unitOfWork, product, lineItem.Quantity, ct);
+                        await _saleRecorder.RecordLineAsync(_unitOfWork, invoice, product, lineItem.Quantity, quote, lineItem.SalePrice,
+                            soldBy, lineItem.SyncId, lineItem.Remarks, ct);
+                        productsSold.Add(product.Id);
                     }
                     await _unitOfWork.SaveChangesAsync(ct);
-
-                    foreach (var productId in productsWithBatchActivity)
-                    {
-                        await _batchPricingService.RefreshActivePriceAsync(_unitOfWork, productId, ct);
-                    }
+                    await _saleRecorder.RefreshPricesAsync(_unitOfWork, productsSold, ct);
 
                     await _unitOfWork.CommitTransactionAsync(ct);
                     transactionStarted = false;

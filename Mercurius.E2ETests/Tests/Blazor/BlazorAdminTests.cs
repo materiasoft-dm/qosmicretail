@@ -75,6 +75,11 @@ public class BlazorAdminTests : BlazorTestBase
         // The E2E server runs on SQLite, so daily snapshots exist and are listed.
         await GotoAppAsync("database-backups");
         await Assertions.Expect(Page.Locator("article.content table")).ToBeVisibleAsync(new LocatorAssertionsToBeVisibleOptions { Timeout = UiTimeoutMs });
+
+        // The seed admin holds Database Administrator, which carries Server Logs.
+        await GotoAppAsync("logs");
+        await Assertions.Expect(Page.GetByRole(AriaRole.Button, new PageGetByRoleOptions { Name = "Clear all logs" }))
+            .ToBeVisibleAsync(new LocatorAssertionsToBeVisibleOptions { Timeout = UiTimeoutMs });
         await AssertNoBlazorErrorAsync();
     }
 
@@ -128,6 +133,68 @@ public class BlazorAdminTests : BlazorTestBase
             .ToBeVisibleAsync(new LocatorAssertionsToBeVisibleOptions { Timeout = UiTimeoutMs });
         await Assertions.Expect(Page.Locator("article.content").GetByText("Tenants", new LocatorGetByTextOptions { Exact = true })).ToHaveCountAsync(0);
         await Assertions.Expect(Page.Locator(".sidebar-nav").GetByText("Tenants", new LocatorGetByTextOptions { Exact = true })).ToHaveCountAsync(0);
+        await AssertNoBlazorErrorAsync();
+    }
+
+    /// <summary>
+    /// Data Query, Database Backups and Server Logs reach every tenant's data, so they belong to the
+    /// Database Administrator role, not Administrator: a new tenant's admin is neither offered nor
+    /// let into them, and can't grant itself that role. It is also created active, so it appears in
+    /// its own Users list.
+    /// </summary>
+    [Fact]
+    public async Task TenantAdmin_HasNoDatabaseTools_AndCantGrantDatabaseRole()
+    {
+        await LoginAsAdminAsync();
+        var stamp = Stamp();
+        var email = $"tenant-db-{stamp}@example.com";
+        const string password = "Tenant@12345";
+
+        await GotoAppAsync("platform-admin");
+        await Page.GetByRole(AriaRole.Button, new PageGetByRoleOptions { Name = "New tenant" }).ClickAsync();
+        await FillFieldAsync("Business name", $"E2E Pharmacy {stamp}");
+        await FillFieldAsync("First branch", $"Branch {stamp}");
+        await FillFieldAsync("Address", "12 Rizal Ave, Manila");
+        await FillFieldAsync("Contact number", "0917 555 0101");
+        await FillFieldAsync("Email (sign-in)", email);
+        await FillFieldAsync("Password", password);
+        await Page.GetByRole(AriaRole.Button, new PageGetByRoleOptions { Name = "Create tenant" }).ClickAsync();
+        await Assertions.Expect(Rows.Filter(new LocatorFilterOptions { HasTextString = $"E2E Pharmacy {stamp}" })).ToHaveCountAsync(1, new LocatorAssertionsToHaveCountOptions { Timeout = UiTimeoutMs });
+
+        await Context.ClearCookiesAsync();
+        await LoginAsync(email, password);
+
+        await GotoAppAsync("settings");
+        var content = Page.Locator("article.content");
+        await Assertions.Expect(content.GetByText("Audit Trail", new LocatorGetByTextOptions { Exact = true }))
+            .ToBeVisibleAsync(new LocatorAssertionsToBeVisibleOptions { Timeout = UiTimeoutMs });
+        await Assertions.Expect(content.GetByText("Data Query", new LocatorGetByTextOptions { Exact = true })).ToHaveCountAsync(0);
+        await Assertions.Expect(content.GetByText("Database Backups", new LocatorGetByTextOptions { Exact = true })).ToHaveCountAsync(0);
+        await Assertions.Expect(content.GetByText("Logs", new LocatorGetByTextOptions { Exact = true })).ToHaveCountAsync(0);
+
+        var dataQuery = await Page.APIRequest.PostAsync("/api/admin/data-query", new APIRequestContextOptions
+        {
+            DataObject = new { apiKey = DevAdminQueryKey, sql = "SELECT 1" }
+        });
+        Assert.True(dataQuery.Status is 401 or 403, $"data-query returned {dataQuery.Status}");
+        var backups = await Page.APIRequest.GetAsync("/api/admin/backups");
+        Assert.True(backups.Status is 401 or 403, $"backups returned {backups.Status}");
+        var logs = await Page.APIRequest.GetAsync("/api/logs");
+        Assert.True(logs.Status is 401 or 403, $"logs returned {logs.Status}");
+
+        // Granting itself Database Administrator is refused.
+        var users = await (await Page.APIRequest.GetAsync("/api/users")).JsonAsync();
+        var myId = users!.Value.GetProperty("items").EnumerateArray()
+            .First(u => u.GetProperty("isCurrentUser").GetBoolean()).GetProperty("id").GetString();
+        var roles = await (await Page.APIRequest.GetAsync("/api/roles")).JsonAsync();
+        var roleIds = roles!.Value.GetProperty("items").EnumerateArray()
+            .Where(r => r.GetProperty("name").GetString() is "Administrator" or "Database Administrator")
+            .Select(r => r.GetProperty("id").GetString()).ToArray();
+        var assign = await Page.APIRequest.PostAsync($"/api/users/{myId}/roles", new APIRequestContextOptions
+        {
+            DataObject = new { roleIds }
+        });
+        Assert.Equal(403, assign.Status);
         await AssertNoBlazorErrorAsync();
     }
 

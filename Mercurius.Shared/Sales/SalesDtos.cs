@@ -4,6 +4,11 @@ namespace Mercurius.Shared.Sales
     {
         public int ProductId { get; set; }
         public int Quantity { get; set; }
+        // The unit price the ticket showed the customer. Checkout refuses the sale (409, with the
+        // current prices) if the server would charge something else, so the cashier never charges
+        // a total the customer wasn't shown; an offline sale replayed later keeps it, since the
+        // customer already paid it. Null from tills older than this: the server's price is used.
+        public decimal? UnitPrice { get; set; }
     }
 
     public class CheckoutRequest
@@ -25,6 +30,20 @@ namespace Mercurius.Shared.Sales
         public int InvoiceId { get; set; }
         public decimal Total { get; set; }
         public decimal Change { get; set; }
+    }
+
+    // 409 body from checkout when the ticket's prices are out of date (a batch ran out, or the
+    // price changed since the page loaded). Nothing was saved.
+    public class CheckoutPriceChangeDto
+    {
+        public string Error { get; set; } = string.Empty;
+        public List<CartLinePriceDto> Prices { get; set; } = new();
+    }
+
+    public class CartLinePriceDto
+    {
+        public int ProductId { get; set; }
+        public decimal UnitPrice { get; set; }
     }
 
     public class CustomerOptionDto

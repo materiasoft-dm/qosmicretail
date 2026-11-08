@@ -4,11 +4,13 @@ using Mercurius.Repo.Repositories;
 
 namespace Mercurius.Services
 {
-    // Lets work that runs outside an HTTP request (background jobs) act on behalf of a specific
-    // tenant for the lifetime of its DI scope.
+    // Lets work that runs outside an HTTP request (background jobs, startup seeding) or before
+    // the request has a tenant claim (sign-in) act on behalf of a specific tenant. The override
+    // lasts until the returned handle is disposed, which restores whatever was in effect before;
+    // callers that want it for the rest of their DI scope can simply ignore the handle.
     public interface ITenantScopeOverride
     {
-        void UseTenant(int tenantId);
+        IDisposable UseTenant(int tenantId);
     }
 
     // Reads the tenant boundary from whichever ClaimsPrincipal authenticated the current
@@ -32,7 +34,32 @@ namespace Mercurius.Services
             _httpContextAccessor = httpContextAccessor;
         }
 
-        public void UseTenant(int tenantId) => _override = tenantId;
+        public IDisposable UseTenant(int tenantId)
+        {
+            var previous = _override;
+            _override = tenantId;
+            return new Restore(this, previous);
+        }
+
+        private sealed class Restore : IDisposable
+        {
+            private readonly HttpContextCurrentTenantContext _owner;
+            private readonly int? _previous;
+            private bool _disposed;
+
+            public Restore(HttpContextCurrentTenantContext owner, int? previous)
+            {
+                _owner = owner;
+                _previous = previous;
+            }
+
+            public void Dispose()
+            {
+                if (_disposed) return;
+                _disposed = true;
+                _owner._override = _previous;
+            }
+        }
 
         public int TenantId
         {

@@ -78,6 +78,8 @@ namespace Mercurius.Models.Sync
         // left queued across a logout. Only trusted after SyncController verifies it's a real
         // user in the pushing user's own tenant; otherwise the pushing user is recorded.
         public string? CashierUserId { get; set; }
+        // Cash | Card. Null from app builds older than this field; the server then reads it from Notes.
+        public string? PaymentMethod { get; set; }
         public List<InvoiceItemSyncDto> Items { get; set; } = new();
     }
 
@@ -117,6 +119,7 @@ namespace Mercurius.Models.Sync
         public string? SourceDeviceId { get; set; }
         public string? SourceDeviceName { get; set; }
         public string? Notes { get; set; }
+        public string? PaymentMethod { get; set; }
         public decimal PaidAmount { get; set; }
         public decimal GrandTotal { get; set; }
         public decimal RefundedAmount { get; set; }

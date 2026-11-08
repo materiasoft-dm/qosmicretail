@@ -90,15 +90,22 @@ JwtBearerDefaults.AuthenticationScheme)]`) exposes `GET .../pull?since=<utc time
   (older app builds), `""` means "cleared".
 - **Invoices** are create-once/idempotent by `SyncId` — a synced sale is a completed financial
   record; re-pushing the same `SyncId` is a safe no-op rather than overwriting it. Edits to a
-  submitted sale should go through a refund/void flow, not sync. `PushInvoices` mirrors
-  web checkout's (`SalesApiController`) inventory bookkeeping for every line: it calls
-  `BatchPricingService.FindFulfillingBatchAsync` to pick a batch, decrements
-  `MedicineBatch.RemainingQuantity`/`Product.CurrentStock`, writes a `ZeroStockSaleAuditLog` row
-  when stock goes to zero or below, and calls `RefreshActivePriceAsync` afterward — the price the
-  device actually charged (`SalePrice`/`CostPrice` in the push body) is trusted as-is (it's what
-  the customer agreed to pay), but which batch it's drawn from and the resulting stock ledger are
-  always decided server-side, same as a web-created sale. Before this existed, a synced mobile
-  sale recorded revenue without ever touching inventory.
+  submitted sale should go through a refund/void flow, not sync. `PushInvoices` and web checkout
+  (`SalesApiController`) record every line through the same `SaleRecorder` (`Mercurius/Services/`):
+  it picks the batch (`BatchPricingService.FindFulfillingBatchAsync`), takes the line's cost from
+  that batch, decrements `MedicineBatch.RemainingQuantity`/`Product.CurrentStock`, writes a
+  `ZeroStockSaleAuditLog` row when stock goes to zero or below, and refreshes the active price
+  afterward. **Pricing rule for both tills:** a sale the customer has already paid keeps the price
+  the till charged (a mobile push's `SalePrice`, a web offline sale's `CartLineRequest.UnitPrice`);
+  a web sale charged online is priced by the server, and if the ticket showed a different unit
+  price checkout returns 409 with the current prices and saves nothing, so the cashier re-quotes
+  before charging. The device's `CostPrice` is ignored (cost is server bookkeeping). The payment
+  method is stored in `Invoice.PaymentMethod` (`Cash`/`Card`); older tills only wrote it into
+  `Notes` ("Paid by card"), which `PaymentMethods.Normalize` falls back to.
+- **Permissions on push.** Mobile JWTs carry no `access.pages` claims, so `SyncController` reads the
+  user's role permissions from the database (`UserPermissions`): invoice push needs
+  `NEWSALE_CREATE`, product push needs `PRODUCTS_CREATE` (new) or `PRODUCTS_EDIT` (existing).
+  A refusal is a per-item error, so the device keeps the record queued and shows the reason.
 - Conflict resolution is last-write-wins using the **server's own clock**, never a client-supplied
   timestamp — `UpdatedDate`/`CreatedDate` are always stamped server-side on write acceptance, whether
   the write came from the admin UI or a sync push. Business-meaning dates the client actually observed
@@ -532,7 +539,7 @@ not assumed — the fixes are in `Infrastructure/`, but the reasoning is worth k
 
 ### FIFO batch pricing (`BatchPricingService`)
 
-`MedicineBatch` rows (created via `MedicineBatchesApiController`, one per stock receipt) each carry their own `UnitCost`/`UnitSalePrice`. A new shipment at a different price is just a new batch queued behind older stock — web checkout (`SalesApiController`, via `SaleStockService`), wholesale orders (same service) and mobile invoice push (`SyncController.PushInvoices`) call `BatchPricingService.FindFulfillingBatchAsync` to pick, oldest first, the first batch whose `RemainingQuantity` alone covers the full line quantity; if the oldest batch falls short, the *whole* line is priced and drawn from the next batch that can cover it rather than splitting across two batches' ledgers (a deliberate simplification, confirmed with the product owner). `InvoiceItem.MedicineBatchId` records which batch a line was actually priced/deducted from, for refund credit and lot-recall tracing. Products with no batches at all (most non-drug items) fall back to `Product.CurrentSalePrice`/`CurrentCostPrice` unchanged — this feature is purely additive. `BatchPricingService.RefreshActivePriceAsync` keeps those flat fields in sync with whichever batch is now the oldest non-depleted one, so every screen that reads them (the Products list, the Sell page, the mobile sync API) keeps working without knowing batches exist.
+`MedicineBatch` rows (created via `MedicineBatchesApiController`, one per stock receipt) each carry their own `UnitCost`/`UnitSalePrice`. A new shipment at a different price is just a new batch queued behind older stock — web checkout (`SalesApiController`) and mobile invoice push (`SyncController.PushInvoices`) call `BatchPricingService.FindFulfillingBatchAsync` to pick, oldest first, the first batch whose `RemainingQuantity` alone covers the full line quantity; if the oldest batch falls short, the *whole* line is priced and drawn from the next batch that can cover it rather than splitting across two batches' ledgers (a deliberate simplification, confirmed with the product owner). Only when *no* single batch covers the line is it priced from the newest batch, which is emptied with the shortfall taken from the other batches oldest first (`BatchPricingService.DeductAsync`), so batches never go negative and still add up to the shelf stock. A refund with restock puts the units back on the line's batch. `InvoiceItem.MedicineBatchId` records which batch a line was actually priced/deducted from, for refund credit and lot-recall tracing. Products with no batches at all (most non-drug items) fall back to `Product.CurrentSalePrice`/`CurrentCostPrice` unchanged — this feature is purely additive. `BatchPricingService.RefreshActivePriceAsync` keeps those flat fields in sync with whichever batch is now the oldest non-depleted one, so every screen that reads them (the Products list, the Sell page, the mobile sync API) keeps working without knowing batches exist.
 
 ### Wholesale module (`WholesaleApiController`, `/wholesale`)
 
@@ -555,9 +562,9 @@ are financial records, and refunds go through the usual invoice refund flow.
   An optional due date makes an unpaid order show as Overdue once it passes. Recording a payment
   adds to `Invoice.PaidAmount`. There's no separate payment ledger; the audit trail records each
   change.
-- **Stock**: deducted exactly like a web POS sale, through `SaleStockService` (FIFO batch,
-  product stock, zero-stock audit log), which `SalesApiController` also uses.
-  `SyncController.PushInvoices` still has its own copy of these rules.
+- **Stock**: deducted exactly like a POS sale, through `SaleRecorder` (FIFO batch,
+  product stock, zero-stock audit log), which `SalesApiController` and
+  `SyncController.PushInvoices` also use.
 - **Web only, for now.** The mobile app (`Mercurius.Mobile`) doesn't sell wholesale.
   `WholesalePrice` isn't in the product sync DTOs, and the Receipts page shows a pulled wholesale
   order as "Earlier sale", because `ReceiptRow.SourceDisplay` doesn't know the `Wholesale`
@@ -594,7 +601,7 @@ Nothing persists until `IUnitOfWork.SaveChangesAsync()` is called — every `Add
 
 ### Authorization is claim-driven from a single registry
 
-`Mercurius.Common.ModuleRegistry` defines every permission as a `Pages.*` string constant, plus a `Modules` array listing all of them. The file lives in `Mercurius.Shared/Security/` (still namespace `Mercurius.Common`, and `Mercurius.Common` references `Mercurius.Shared`, so no `using` changed) so the Blazor client can build its UI from the same names. `Program.cs` turns that array into one ASP.NET Core authorization policy per entry (`options.AddPolicy(module, policy => policy.RequireClaim(...))`) and, at seed time, grants every one of them to the `Administrator` role; `Mercurius.Client/ClientServices.cs` registers the same policies client-side. Adding a new protected page means: add the constant, add it to `Modules`, gate the API with `[Authorize(Policy = ModuleRegistry.Pages.X)]`, gate the Blazor page the same way, and give it a guarded entry in `Mercurius.Client/Layout/NavMenu.razor`.
+`Mercurius.Common.ModuleRegistry` defines every permission as a `Pages.*` string constant, plus a `Modules` array listing all of them. The file lives in `Mercurius.Shared/Security/` (still namespace `Mercurius.Common`, and `Mercurius.Common` references `Mercurius.Shared`, so no `using` changed) so the Blazor client can build its UI from the same names. `Program.cs` turns that array into one ASP.NET Core authorization policy per entry (`options.AddPolicy(module, policy => policy.RequireClaim(...))`) and, at seed time, grants every one of them to each tenant's `Administrator` role except `ModuleRegistry.DatabaseModules` (Data Query, Database Backups, Server Logs), which reach every tenant's data and belong only to the seeded `Database Administrator` role (`ModuleRegistry.DatabaseAdministratorRole`). Only a platform admin can grant or remove that role on a user (`UsersApiController`), or add those permissions to any role or edit/delete that role (`RolesApiController`); the seed admin (`SeedAdmin:Email`) is given both `Administrator` and `Database Administrator` on every startup; `Mercurius.Client/ClientServices.cs` registers the same policies client-side. Roles are per tenant (`MercuriusRole.TenantId`, see MULTITENANCY_ARCHITECTURE.md §3.4): each tenant has its own `Administrator`/`Manager`/`User` and custom roles, and the role query filter hides other tenants' roles, so role lookups by name resolve to the current tenant's. `Database Administrator` is the one platform role (`TenantId` null). Code that resolves roles without a tenant claim on the request (sign-in, seeding, provisioning a new tenant) must wrap the lookup in `ITenantScopeOverride.UseTenant(...)`, which returns a handle that restores the previous tenant when disposed. Adding a new protected page means: add the constant, add it to `Modules`, gate the API with `[Authorize(Policy = ModuleRegistry.Pages.X)]`, gate the Blazor page the same way, and give it a guarded entry in `Mercurius.Client/Layout/NavMenu.razor`.
 
 ### Blazor client (`Mercurius.Client`, served from the site root)
 
@@ -661,7 +668,7 @@ Gotchas hit while building it:
 
 ### Startup seeding
 
-`Program.cs`'s `SeedDataAsync` runs on every startup (idempotent — checks before creating): the three fixed roles, all `ModuleRegistry.Modules` claims on `Administrator`, a default `Address`/`ContactInformation`/`Location`, the admin user from `SeedAdmin:Email`/`SeedAdmin:Password` config, pharmacy reference data (`PharmacySeedData`: product categories, per-category custom fields, dosage forms), and `InvoiceStatuses` (from the `StatusCollection.InvoiceStatus` enum — `Invoice.StatusId`/`InvoiceItem.StatusId` are required FKs to this table; it was missing entirely until this was added, which meant creating any invoice on a freshly created database failed with a FOREIGN KEY constraint violation).
+`Program.cs`'s `SeedDataAsync` runs on every startup (idempotent — checks before creating): a one-time split of the old shared roles into per-tenant copies (`TenantRoles.SplitLegacyRolesAsync`, a no-op once done), the platform `Database Administrator` role, each tenant's fixed roles (`Administrator`, `Manager`, `User`), every non-database `ModuleRegistry.Modules` claim on each tenant's `Administrator` (removing any database claim it still has), the database claims on `Database Administrator` (Data Query, Database Backups, Server Logs), a default `Address`/`ContactInformation`/`Location`, the admin user from `SeedAdmin:Email`/`SeedAdmin:Password` config, pharmacy reference data (`PharmacySeedData`: product categories, per-category custom fields, dosage forms), and `InvoiceStatuses` (from the `StatusCollection.InvoiceStatus` enum — `Invoice.StatusId`/`InvoiceItem.StatusId` are required FKs to this table; it was missing entirely until this was added, which meant creating any invoice on a freshly created database failed with a FOREIGN KEY constraint violation).
 
 ### Legacy artifacts — do not treat as current
 

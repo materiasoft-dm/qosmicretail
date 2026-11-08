@@ -7,5 +7,8 @@ namespace Mercurius.Client
     {
         public bool SavedOffline { get; set; }
         public string? InvoiceNumber { get; set; }
+        // Set when nothing was charged because the ticket's prices were out of date: the current
+        // prices to put on the ticket before the cashier charges again.
+        public Mercurius.Shared.Sales.CheckoutPriceChangeDto? PriceChange { get; set; }
     }
 }

@@ -3,9 +3,12 @@ using System.Linq;
 using System.Security.Claims;
 using System.Threading.Tasks;
 using Mercurius.Common.Constants;
+using Mercurius.Repo.IdentityModel;
+using Mercurius.Repo.Repositories;
 using Mercurius.Shared.Admin;
 using Mercurius.Shared.Common;
 using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
 
@@ -19,8 +22,26 @@ namespace Mercurius.Controllers.Api
     [Authorize(Policy = Mercurius.Common.ModuleRegistry.Pages.ADMIN_ROLES_MANAGEMENT)]
     public class RolesApiController : ControllerBase
     {
-        private readonly RoleManager<IdentityRole> _roleManager;
-        public RolesApiController(RoleManager<IdentityRole> roleManager) => _roleManager = roleManager;
+        private readonly RoleManager<MercuriusRole> _roleManager;
+        private readonly ICurrentTenantContext _tenant;
+
+        public RolesApiController(RoleManager<MercuriusRole> roleManager, ICurrentTenantContext tenant)
+        {
+            _roleManager = roleManager;
+            _tenant = tenant;
+        }
+
+        // Each tenant manages its own roles: RoleManager only sees the caller's tenant's roles plus
+        // platform roles (MercuriusDbContext's role filter), so another tenant's role ids 404 here.
+        // The database permissions reach every tenant's data, so only a platform admin may grant or
+        // remove them on any role, or change or delete the platform Database Administrator role.
+        private bool CallerIsPlatformAdmin => User.HasClaim(MercuriusClaimTypes.IsPlatformAdmin, "true");
+
+        private static bool IsDatabaseAdministratorRole(MercuriusRole role) =>
+            role.Name == Mercurius.Common.ModuleRegistry.DatabaseAdministratorRole;
+
+        private ObjectResult DatabasePermissionsPlatformAdminOnly() =>
+            StatusCode(StatusCodes.Status403Forbidden, new { error = "Only a platform admin can change database permissions or the Database Administrator role." });
 
         [HttpGet]
         public ActionResult<ListResultDto<RoleDto>> Get()
@@ -47,7 +68,11 @@ namespace Mercurius.Controllers.Api
         public async Task<IActionResult> Create(CreateRoleRequest request)
         {
             if (string.IsNullOrWhiteSpace(request.Name)) return BadRequest(new { error = "Role name is required." });
-            var role = new IdentityRole(request.Name);
+            if (!CallerIsPlatformAdmin && request.Pages.Any(p => Mercurius.Common.ModuleRegistry.DatabaseModules.Contains(p)))
+            {
+                return DatabasePermissionsPlatformAdminOnly();
+            }
+            var role = new MercuriusRole(request.Name) { TenantId = _tenant.TenantId };
             var result = await _roleManager.CreateAsync(role);
             if (!result.Succeeded) return BadRequest(new { error = string.Join("; ", result.Errors.Select(e => e.Description)) });
 
@@ -66,6 +91,19 @@ namespace Mercurius.Controllers.Api
             if (role == null) return NotFound();
 
             var existingClaims = await _roleManager.GetClaimsAsync(role);
+            if (!CallerIsPlatformAdmin)
+            {
+                var databaseModules = Mercurius.Common.ModuleRegistry.DatabaseModules;
+                var currentDatabasePages = existingClaims
+                    .Where(c => c.Type == MercuriusClaimTypes.AccessPages && databaseModules.Contains(c.Value))
+                    .Select(c => c.Value).ToHashSet();
+                var requestedDatabasePages = request.Pages.Where(p => databaseModules.Contains(p)).ToHashSet();
+                if (IsDatabaseAdministratorRole(role) || !currentDatabasePages.SetEquals(requestedDatabasePages))
+                {
+                    return DatabasePermissionsPlatformAdminOnly();
+                }
+            }
+
             foreach (var claim in existingClaims.Where(c => c.Type == MercuriusClaimTypes.AccessPages))
             {
                 await _roleManager.RemoveClaimAsync(role, claim);
@@ -84,6 +122,7 @@ namespace Mercurius.Controllers.Api
         {
             var role = await _roleManager.FindByIdAsync(id);
             if (role == null) return NotFound();
+            if (IsDatabaseAdministratorRole(role) && !CallerIsPlatformAdmin) return DatabasePermissionsPlatformAdminOnly();
             await _roleManager.DeleteAsync(role);
             return Ok();
         }
