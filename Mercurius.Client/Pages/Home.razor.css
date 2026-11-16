@@ -11,13 +11,10 @@
 }
 
     .dashboard-header ::deep .dashboard-greeting {
-        font-size: 1.9rem;
+        font-size: 1.75rem;
         font-weight: 700;
-        letter-spacing: -.025em;
-        background: linear-gradient(90deg, #0f2847 0%, #0369a1 60%, #0ea5e9 100%);
-        -webkit-background-clip: text;
-        background-clip: text;
-        color: transparent;
+        letter-spacing: -.01em;
+        color: #0c0a09;
     }
 
 /* Sales overview: four KPI tiles. */
@@ -31,19 +28,20 @@
     position: relative;
     padding: 16px 18px;
     border-radius: 12px;
-    background: linear-gradient(180deg, #f7fbff 0%, #eef6fd 100%);
-    border: 1px solid #e1ecf7;
+    background: #fff;
+    border: 1px solid #e7e5e4;
+    box-shadow: 0 1px 2px rgba(12, 10, 9, .05);
     overflow: hidden;
 }
 
     .kpi:first-child {
-        background: linear-gradient(135deg, #0f2847 0%, #0369a1 70%, #0ea5e9 100%);
+        background: linear-gradient(135deg, #10b981 0%, #047857 100%);
         border-color: transparent;
-        box-shadow: 0 10px 24px rgba(3, 105, 161, .25);
+        box-shadow: 0 10px 24px rgba(5, 150, 105, .28);
     }
 
         .kpi:first-child .kpi-label {
-            color: rgba(224, 242, 254, .85);
+            color: rgba(255, 255, 255, .85);
         }
 
         .kpi:first-child .kpi-value {
@@ -60,9 +58,9 @@
 
 .kpi-value {
     margin-top: 6px;
-    font-size: 1.55rem;
+    font-size: 1.6rem;
     font-weight: 700;
-    letter-spacing: -.02em;
+    letter-spacing: -.01em;
     color: var(--mud-palette-text-primary);
     font-variant-numeric: tabular-nums;
 }
@@ -89,10 +87,7 @@
     font-weight: 700;
     letter-spacing: -.03em;
     line-height: 1.1;
-    background: linear-gradient(135deg, #0f2847 0%, #0284c7 100%);
-    -webkit-background-clip: text;
-    background-clip: text;
-    color: transparent;
+    color: #0c0a09;
 }
 
 /* Ranked lists (items sold, stock watch, expiry). */
@@ -154,8 +149,8 @@
     gap: 8px;
     padding: 18px 14px;
     border-radius: 10px;
-    background: #f6f9fc;
-    border: 1px dashed #d6e1ec;
+    background: #fafaf9;
+    border: 1px dashed #d6d3d1;
     color: var(--mud-palette-text-secondary);
     font-size: .88rem;
 }
@@ -179,8 +174,8 @@
     gap: 10px;
     padding: 14px;
     border-radius: 12px;
-    border: 1px solid #e1ecf7;
-    background: #f9fcff;
+    border: 1px solid #e7e5e4;
+    background: #fff;
     color: var(--mud-palette-text-primary);
     font-size: .84rem;
     font-weight: 600;
@@ -196,22 +191,22 @@
         height: 34px;
         border-radius: 10px;
         font-size: 1.05rem;
-        color: #0284c7;
-        background: rgba(56, 189, 248, .14);
+        color: #047857;
+        background: #e6f8f0;
         transition: background .16s ease, color .16s ease;
     }
 
     .shortcut:hover {
         color: var(--mud-palette-text-primary);
         background: #fff;
-        border-color: rgba(56, 189, 248, .55);
-        box-shadow: 0 8px 22px rgba(2, 132, 199, .14);
-        transform: translateY(-2px);
+        border-color: #d6d3d1;
+        box-shadow: 0 4px 12px rgba(12, 10, 9, .10);
+        transform: translateY(-1px);
     }
 
         .shortcut:hover i {
             color: #fff;
-            background: linear-gradient(135deg, #38bdf8 0%, #0284c7 100%);
+            background: #10b981;
         }
 
 /* Expiry alerts: three counters. */
@@ -250,15 +245,15 @@
 }
 
 .expiry-soon {
-    background: #fffbeb;
-    border-color: #fdecc8;
+    background: #fef3c7;
+    border-color: #fde68a;
     color: #b45309;
 }
 
 .expiry-later {
-    background: #f0f9ff;
-    border-color: #dbeefc;
-    color: #0369a1;
+    background: #e6f8f0;
+    border-color: #c6eedc;
+    color: #047857;
 }
 
 .dashboard-empty-icon {

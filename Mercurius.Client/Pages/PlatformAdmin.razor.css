@@ -18,5 +18,5 @@
     .tenant-link:focus-visible {
         outline: none;
         border-radius: 4px;
-        box-shadow: 0 0 0 3px rgba(56, 189, 248, .35);
+        box-shadow: 0 0 0 3px rgba(16, 185, 129, .35);
     }

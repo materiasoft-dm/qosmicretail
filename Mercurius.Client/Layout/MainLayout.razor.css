@@ -9,29 +9,25 @@ main {
     min-width: 0;
 }
 
+/* White sidebar column with a hairline edge; the brand sits at its top (NavMenu). */
 .sidebar {
-    background-color: #0b1730;
-    background-image:
-        radial-gradient(120% 60% at 0% 0%, rgba(56, 189, 248, 0.16) 0%, rgba(56, 189, 248, 0) 60%),
-        linear-gradient(180deg, #0b1730 0%, #0f2847 55%, #0c2340 100%);
-    border-right: 1px solid rgba(148, 197, 255, 0.06);
+    background: var(--mc-card);
+    border-right: 1px solid var(--mc-border);
 }
 
-/* Frosted bar: content scrolls underneath it, softly blurred. */
+/* Top bar: plain white, holds only context and actions. */
 .topbar {
     position: sticky;
     top: 0;
     z-index: 1000;
-    height: 3.5rem;
+    height: 64px;
     display: flex;
     align-items: center;
     justify-content: space-between;
     gap: 1rem;
-    padding: 0 1rem;
-    background: rgba(255, 255, 255, 0.78);
-    -webkit-backdrop-filter: saturate(180%) blur(12px);
-    backdrop-filter: saturate(180%) blur(12px);
-    border-bottom: 1px solid var(--mud-palette-lines-default);
+    padding: 0 1.25rem;
+    background: var(--mc-card);
+    border-bottom: 1px solid var(--mc-border);
 }
 
 .topbar-context {
@@ -39,40 +35,61 @@ main {
     align-items: center;
     gap: 0.75rem;
     min-width: 0;
-    font-size: 0.85rem;
+    font-size: 0.875rem;
 }
 
 .topbar-tenant {
     font-weight: 600;
+    color: var(--mc-text);
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
 }
 
 .topbar-branch {
-    color: var(--mud-palette-text-secondary);
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+    color: var(--mc-text-muted);
     white-space: nowrap;
 }
 
 .topbar-actions {
     display: flex;
     align-items: center;
-    gap: 0.75rem;
+    gap: 0.5rem;
 }
 
 .user-chip {
     display: flex;
     align-items: center;
-    gap: 0.6rem;
-    padding: 0.25rem 0.5rem;
+    gap: 0.5rem;
+    padding: 0.25rem 0.5rem 0.25rem 0.25rem;
     border: none;
-    border-radius: 999px;
+    border-radius: 9999px;
     background: transparent;
-    color: inherit;
+    color: var(--mc-text);
+    font-weight: 500;
     cursor: pointer;
+    transition: background-color var(--mc-transition);
 }
 
-/* The account dropdown: anchored under the chip, same shape as the sidebar's branch switcher. */
+    .user-chip:hover,
+    .user-chip[aria-expanded="true"] {
+        background: var(--mc-neutral-100);
+    }
+
+    .user-chip:focus-visible {
+        outline: none;
+        box-shadow: var(--mc-ring);
+    }
+
+    .user-chip > .bi-chevron-down {
+        font-size: 0.75rem;
+        color: var(--mc-text-muted);
+    }
+
+/* The account dropdown: anchored under the chip. */
 .account-menu {
     position: relative;
 }
@@ -83,52 +100,55 @@ main {
     right: 0;
     z-index: 40;
     min-width: 13rem;
-    padding: 0.25rem;
-    border-radius: 0.6rem;
-    background: var(--mud-palette-surface);
-    border: 1px solid var(--mud-palette-lines-default);
-    box-shadow: 0 10px 30px rgba(15, 23, 42, 0.18);
+    padding: 0.35rem;
+    border-radius: var(--mc-radius-sm);
+    background: var(--mc-card);
+    border: 1px solid var(--mc-border);
+    box-shadow: var(--mc-shadow-pop);
+    transform-origin: top right;
+    animation: mc-pop-in 0.14s var(--mc-ease-out);
+}
+
+@keyframes mc-pop-in {
+    from { opacity: 0; transform: translateY(-4px) scale(0.98); }
+    to { opacity: 1; transform: none; }
 }
 
 .account-menu-item {
     display: flex;
     align-items: center;
-    gap: 0.75rem;
-    padding: 0.5rem 1rem;
-    border-radius: 0.45rem;
-    color: inherit;
+    gap: 0.6rem;
+    padding: 0.5rem 0.75rem;
+    border-radius: 6px;
+    color: var(--mc-text);
     text-decoration: none;
-    font-size: 0.9rem;
+    font-size: 0.875rem;
+    transition: background-color 0.1s ease;
 }
 
-.account-menu-item:hover {
-    background: var(--mud-palette-action-default-hover);
-    color: inherit;
-}
+    .account-menu-item:hover {
+        background: var(--mc-neutral-100);
+        color: var(--mc-text);
+    }
 
 .account-menu-divider {
     height: 1px;
-    margin: 0.25rem 0;
-    background: var(--mud-palette-lines-default);
+    margin: 0.35rem 0;
+    background: var(--mc-border);
 }
 
-    .user-chip:hover {
-        background: var(--mud-palette-action-default-hover);
-    }
-
 .user-avatar {
-    width: 2rem;
-    height: 2rem;
+    width: 32px;
+    height: 32px;
     border-radius: 50%;
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    background: linear-gradient(135deg, #38bdf8 0%, #0284c7 100%);
-    color: #fff;
-    font-size: 0.78rem;
-    font-weight: 700;
+    background: var(--mc-primary-light);
+    color: var(--mc-primary-text);
+    font-size: 0.72rem;
+    font-weight: 600;
     letter-spacing: 0.02em;
-    box-shadow: 0 0 0 2px #fff, 0 0 0 3px rgba(2, 132, 199, 0.25);
 }
 
 .user-text {
@@ -144,7 +164,7 @@ main {
 
 .user-email {
     font-size: 0.72rem;
-    color: var(--mud-palette-text-secondary);
+    color: var(--mc-text-muted);
 }
 
 .logout-form {
@@ -155,18 +175,21 @@ main {
     width: 100%;
     display: flex;
     align-items: center;
-    gap: 0.75rem;
-    padding: 0.5rem 1rem;
+    gap: 0.6rem;
+    padding: 0.5rem 0.75rem;
     border: none;
+    border-radius: 6px;
     background: transparent;
     color: var(--mud-palette-error);
     font: inherit;
+    font-size: 0.875rem;
     text-align: left;
     cursor: pointer;
+    transition: background-color 0.1s ease;
 }
 
     .logout-button:hover {
-        background: var(--mud-palette-action-default-hover);
+        background: var(--mc-neutral-100);
     }
 
 @media (min-width: 992px) {
@@ -176,17 +199,18 @@ main {
 
     .sidebar {
         width: 260px;
+        flex-shrink: 0;
         height: 100vh;
         position: sticky;
         top: 0;
     }
 
     .topbar {
-        padding: 0 1.5rem 0 2rem;
+        padding: 0 1.5rem;
     }
 
     article {
-        padding-left: 2rem !important;
+        padding-left: 1.5rem !important;
         padding-right: 1.5rem !important;
         padding-top: 1.5rem;
     }
@@ -195,6 +219,13 @@ main {
 @media (max-width: 991.98px) {
     /* On phones/tablets the sidebar's own top bar (brand + menu toggle) sits above this one. */
     .topbar {
-        top: 3.5rem;
+        top: 64px;
+    }
+}
+
+@media print {
+    .sidebar,
+    .topbar {
+        display: none !important;
     }
 }

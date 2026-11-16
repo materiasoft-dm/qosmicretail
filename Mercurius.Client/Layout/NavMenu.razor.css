@@ -1,112 +1,113 @@
-/* The accent colours (--mc-accent, --mc-accent-strong, --mc-accent-soft) are defined in
+/* Light sidebar in IntelliMed's style. The colour tokens (--mc-*) are defined in
    wwwroot/css/app.css: a :root rule here would be rewritten by CSS isolation to :root[b-…] and
    never match. */
 
 .sidebar-topbar {
-    height: 3.5rem;
+    height: 64px;
     display: flex;
     align-items: center;
     justify-content: space-between;
     padding: 0 1rem;
-    background: rgba(2, 8, 23, 0.28);
-    border-bottom: 1px solid rgba(148, 197, 255, 0.08);
+    background: var(--mc-card);
+    border-bottom: 1px solid var(--mc-border);
 }
 
 .brand {
     display: flex;
     align-items: center;
-    gap: 0.65rem;
+    gap: 10px;
     text-decoration: none;
-    color: #fff;
+    color: var(--mc-text);
 }
+
+    .brand:hover {
+        color: var(--mc-text);
+    }
 
 .brand-icon {
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    width: 2.1rem;
-    height: 2.1rem;
-    border-radius: 0.6rem;
-    background: linear-gradient(135deg, #7dd3fc 0%, var(--mc-accent) 45%, var(--mc-accent-strong) 100%);
+    width: 30px;
+    height: 30px;
+    border-radius: 8px;
+    background: var(--mc-primary);
     color: #fff;
-    font-size: 1.05rem;
-    box-shadow: 0 6px 16px rgba(14, 165, 233, 0.35), inset 0 1px 0 rgba(255, 255, 255, 0.35);
+    font-weight: 700;
+    font-size: 0.85rem;
     flex-shrink: 0;
 }
 
 .brand-text {
     display: flex;
     flex-direction: column;
-    line-height: 1.1;
+    line-height: 1.15;
 }
 
 .brand-name {
     font-weight: 700;
-    font-size: 1.05rem;
-    letter-spacing: 0.02em;
+    font-size: 1rem;
 }
 
 .brand-sub {
     font-size: 0.68rem;
-    text-transform: uppercase;
-    letter-spacing: 0.08em;
-    color: rgba(255, 255, 255, 0.5);
+    color: var(--mc-text-muted);
 }
 
 .mobile-toggle {
-    background: rgba(255, 255, 255, 0.08);
-    border: none;
-    color: #fff;
-    width: 2.25rem;
-    height: 2.25rem;
-    border-radius: 0.5rem;
-    display: flex;
+    display: inline-flex;
     align-items: center;
     justify-content: center;
-    font-size: 1.1rem;
+    width: 36px;
+    height: 36px;
+    padding: 0;
+    border: none;
+    border-radius: var(--mc-radius-sm);
+    background: transparent;
+    color: var(--mc-text-secondary);
+    font-size: 1.15rem;
+    cursor: pointer;
+    transition: background-color var(--mc-transition), color var(--mc-transition);
 }
+
+    .mobile-toggle:hover {
+        background: var(--mc-neutral-100);
+        color: var(--mc-text);
+    }
 
 .sidebar-backdrop {
     position: fixed;
     inset: 0;
-    background: rgba(0, 0, 0, 0.5);
+    background: rgba(12, 10, 9, 0.32);
     z-index: 1040;
+    animation: mc-fade-in 0.2s ease;
+}
+
+@keyframes mc-fade-in {
+    from { opacity: 0; }
+    to { opacity: 1; }
 }
 
 .sidebar-nav {
-    padding: 0.9rem 0.75rem 1.5rem;
+    padding: 0.75rem;
     display: flex;
     flex-direction: column;
-    gap: 0.2rem;
+    gap: 2px;
+    background: var(--mc-card);
 }
-
-/* Thin, unobtrusive scrollbar for the nav column */
-.sidebar-nav {
-    scrollbar-width: thin;
-    scrollbar-color: rgba(255, 255, 255, 0.2) transparent;
-}
-
-    .sidebar-nav::-webkit-scrollbar {
-        width: 6px;
-    }
-
-    .sidebar-nav::-webkit-scrollbar-thumb {
-        background: rgba(255, 255, 255, 0.18);
-        border-radius: 3px;
-    }
 
 .sidebar-nav ::deep .nav-link {
+    position: relative;
     display: flex;
     align-items: center;
-    gap: 0.75rem;
-    padding: 0.55rem 0.75rem;
-    border-radius: 0.55rem;
-    color: rgba(255, 255, 255, 0.75);
+    gap: 0.5rem;
+    padding: 9px 12px;
+    border-radius: var(--mc-radius-sm);
+    color: var(--mc-text-secondary);
     text-decoration: none;
-    font-size: 0.88rem;
+    font-size: 0.875rem;
     font-weight: 500;
-    border-left: 3px solid transparent;
-    transition: background-color 0.15s ease, color 0.15s ease, border-color 0.15s ease;
+    transition: background-color var(--mc-transition), color var(--mc-transition);
 }
 
     .sidebar-nav ::deep .nav-link i {
@@ -114,78 +115,99 @@
         width: 1.1rem;
         text-align: center;
         flex-shrink: 0;
-        opacity: 0.85;
+        color: var(--mc-text-muted);
+        transition: color var(--mc-transition);
     }
 
     .sidebar-nav ::deep .nav-link:hover {
-        background: rgba(255, 255, 255, 0.06);
-        color: #fff;
+        background: var(--mc-neutral-100);
+        color: var(--mc-text);
+    }
+
+    .sidebar-nav ::deep .nav-link:focus-visible {
+        outline: none;
+        box-shadow: var(--mc-ring);
     }
 
     .sidebar-nav ::deep .nav-link.active {
-        background: linear-gradient(90deg, rgba(56, 189, 248, 0.2) 0%, rgba(56, 189, 248, 0.06) 100%);
-        color: #fff;
-        border-left-color: var(--mc-accent);
-        box-shadow: inset 0 0 0 1px rgba(56, 189, 248, 0.12);
+        background: var(--mc-primary-light);
+        color: var(--mc-primary-text);
     }
 
         .sidebar-nav ::deep .nav-link.active i {
-            color: var(--mc-accent);
-            opacity: 1;
+            color: var(--mc-primary-text);
         }
 
-.sidebar-nav ::deep .nav-link.standalone {
-    margin-bottom: 0.15rem;
+        /* A short emerald bar at the sidebar's edge marks the current page. */
+        .sidebar-nav ::deep .nav-link.active::before {
+            content: '';
+            position: absolute;
+            left: -0.75rem;
+            top: 22%;
+            bottom: 22%;
+            width: 3px;
+            border-radius: 0 3px 3px 0;
+            background: var(--mc-primary);
+        }
+
+/* "Install app" is a <button>, so undo the browser's button styling to match the links. */
+.sidebar-nav .install-button {
+    width: 100%;
+    justify-content: flex-start;
+    text-align: left;
+    border: none;
+    background: transparent;
+    font-family: inherit;
+    cursor: pointer;
 }
 
+/* Sell: the one primary action, so it's a solid emerald button. */
 .sidebar-nav ::deep .nav-link.nav-link-cta {
-    background: linear-gradient(135deg, var(--mc-accent) 0%, var(--mc-accent-strong) 100%);
+    background: var(--mc-primary);
     color: #fff;
-    font-weight: 700;
-    border-left-color: transparent;
-    box-shadow: 0 6px 18px rgba(14, 165, 233, 0.3), inset 0 1px 0 rgba(255, 255, 255, 0.25);
-    margin-bottom: 0.6rem;
+    font-weight: 600;
+    margin: 0.25rem 0 0.5rem;
+    box-shadow: 0 4px 10px -4px rgba(5, 150, 105, 0.55);
 }
 
     .sidebar-nav ::deep .nav-link.nav-link-cta i,
     .sidebar-nav ::deep .nav-link.nav-link-cta.active i {
-        opacity: 1;
         color: #fff;
-    }
-
-    /* On the Sell page itself: a white ring instead of the usual active styling. */
-    .sidebar-nav ::deep .nav-link.nav-link-cta.active {
-        background: linear-gradient(135deg, var(--mc-accent) 0%, var(--mc-accent-strong) 100%);
-        border-left-color: transparent;
-        box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.55), 0 6px 18px rgba(14, 165, 233, 0.35);
     }
 
     .sidebar-nav ::deep .nav-link.nav-link-cta:hover {
-        filter: brightness(1.08);
+        background: var(--mc-primary-dark);
         color: #fff;
     }
 
+    .sidebar-nav ::deep .nav-link.nav-link-cta.active {
+        background: var(--mc-primary-dark);
+        color: #fff;
+    }
+
+/* Branch switcher: a quiet bordered box at the top of the nav. */
 .branch-switcher {
-    margin-bottom: 0.7rem;
+    margin-bottom: 0.5rem;
 }
 
 .branch-current {
     width: 100%;
     display: flex;
     align-items: center;
-    gap: 0.7rem;
+    gap: 0.6rem;
     padding: 0.5rem 0.75rem;
-    border-radius: 0.55rem;
-    background: rgba(148, 197, 255, 0.07);
-    border: 1px solid rgba(148, 197, 255, 0.12);
-    color: #fff;
+    border-radius: var(--mc-radius-sm);
+    background: #fafaf9;
+    border: 1px solid var(--mc-border);
+    color: var(--mc-text);
     text-align: left;
     cursor: pointer;
-    transition: background-color 0.15s ease;
+    transition: background-color var(--mc-transition), border-color var(--mc-transition);
 }
 
     .branch-current:hover:not(:disabled) {
-        background: rgba(255, 255, 255, 0.1);
+        background: var(--mc-neutral-100);
+        border-color: var(--mc-border-hover);
     }
 
     .branch-current:disabled {
@@ -194,7 +216,7 @@
     }
 
     .branch-current > i:first-child {
-        color: var(--mc-accent);
+        color: var(--mc-primary-text);
         font-size: 1rem;
     }
 
@@ -208,13 +230,14 @@
 
 .branch-label {
     font-size: 0.62rem;
+    font-weight: 600;
     text-transform: uppercase;
     letter-spacing: 0.08em;
-    color: rgba(255, 255, 255, 0.5);
+    color: var(--mc-text-muted);
 }
 
 .branch-name {
-    font-size: 0.88rem;
+    font-size: 0.875rem;
     font-weight: 600;
     white-space: nowrap;
     overflow: hidden;
@@ -223,6 +246,7 @@
 
 .branch-chevron {
     font-size: 0.7rem;
+    color: var(--mc-text-muted);
     transition: transform 0.2s ease;
 }
 
@@ -233,71 +257,75 @@
 .branch-options {
     display: flex;
     flex-direction: column;
-    gap: 0.1rem;
+    gap: 2px;
     margin-top: 0.25rem;
-    padding-left: 0.35rem;
+    padding: 0.35rem;
+    border: 1px solid var(--mc-border);
+    border-radius: var(--mc-radius-sm);
+    background: var(--mc-card);
+    box-shadow: var(--mc-shadow-pop);
 }
 
 .branch-option {
     display: flex;
     align-items: center;
-    gap: 0.75rem;
-    padding: 0.45rem 0.75rem;
+    gap: 0.6rem;
+    padding: 0.45rem 0.6rem;
     border: none;
-    border-radius: 0.55rem;
+    border-radius: 6px;
     background: transparent;
-    color: rgba(255, 255, 255, 0.75);
-    font-size: 0.84rem;
+    color: var(--mc-text-secondary);
+    font-size: 0.85rem;
     text-align: left;
     cursor: pointer;
 }
 
     .branch-option:hover {
-        background: rgba(255, 255, 255, 0.06);
-        color: #fff;
+        background: var(--mc-neutral-100);
+        color: var(--mc-text);
     }
 
     .branch-option.current {
-        color: #fff;
+        background: var(--mc-primary-light);
+        color: var(--mc-primary-text);
         font-weight: 600;
     }
 
-        .branch-option.current i {
-            color: var(--mc-accent);
-        }
-
+/* Group headers read as IntelliMed's section labels: small uppercase muted text, with a
+   chevron because Mercurius's groups collapse. */
 .nav-group {
-    margin: 0.1rem 0;
+    margin: 0;
 }
 
 .nav-group-header {
     width: 100%;
     display: flex;
     align-items: center;
-    gap: 0.75rem;
-    padding: 0.5rem 0.75rem;
+    gap: 0.5rem;
+    padding: 1rem 0.75rem 0.35rem;
     background: transparent;
     border: none;
-    color: rgba(186, 214, 245, 0.6);
-    font-size: 0.7rem;
-    font-weight: 700;
+    color: var(--mc-text-muted);
+    font-size: 0.68rem;
+    font-weight: 600;
     text-transform: uppercase;
     letter-spacing: 0.08em;
-    border-radius: 0.5rem;
     cursor: pointer;
-    transition: background-color 0.15s ease, color 0.15s ease;
+    transition: color var(--mc-transition);
 }
 
     .nav-group-header i:first-child {
-        font-size: 0.95rem;
-        width: 1.1rem;
-        text-align: center;
-        flex-shrink: 0;
+        display: none;
     }
 
     .nav-group-header:hover {
-        background: rgba(255, 255, 255, 0.05);
-        color: rgba(255, 255, 255, 0.85);
+        color: var(--mc-text);
+    }
+
+    .nav-group-header:focus-visible {
+        outline: none;
+        box-shadow: var(--mc-ring);
+        border-radius: 6px;
     }
 
 .nav-group-title {
@@ -306,7 +334,7 @@
 }
 
 .chevron {
-    font-size: 0.7rem !important;
+    font-size: 0.65rem !important;
     width: auto !important;
     transition: transform 0.2s ease;
 }
@@ -321,24 +349,25 @@
     opacity: 0;
     overflow: hidden;
     transition: grid-template-rows 0.22s ease, opacity 0.18s ease;
-    padding-left: 0.35rem;
-    margin-top: 0.1rem;
 }
 
     .nav-group-items > div {
         overflow: hidden;
+        display: flex;
+        flex-direction: column;
+        gap: 2px;
     }
 
 .nav-group-items.expanded {
     grid-template-rows: 1fr;
     opacity: 1;
+    /* Lets the active link's edge bar show outside the item column. */
+    overflow: visible;
 }
 
-.nav-group-items ::deep .nav-link {
-    font-size: 0.84rem;
-    padding-top: 0.45rem;
-    padding-bottom: 0.45rem;
-}
+    .nav-group-items.expanded > div {
+        overflow: visible;
+    }
 
 @media (max-width: 991.98px) {
     .sidebar-topbar {
@@ -349,17 +378,16 @@
 
     .sidebar-nav {
         position: fixed;
-        top: 3.5rem;
+        top: 64px;
         left: 0;
         bottom: 0;
         width: 280px;
         max-width: 85vw;
         overflow-y: auto;
-        background: inherit;
         transform: translateX(-100%);
         transition: transform 0.25s ease;
         z-index: 1050;
-        box-shadow: 4px 0 24px rgba(0, 0, 0, 0.3);
+        box-shadow: 2px 0 12px rgba(12, 10, 9, 0.18);
     }
 
         .sidebar-nav.mobile-open {
@@ -373,7 +401,7 @@
     }
 
     .sidebar-nav {
-        height: calc(100vh - 3.5rem);
+        height: calc(100vh - 64px);
         overflow-y: auto;
     }
 }

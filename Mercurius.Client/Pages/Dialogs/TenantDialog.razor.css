@@ -17,8 +17,8 @@
     font-size: 1.1rem;
     font-weight: 700;
     color: #fff;
-    background: linear-gradient(135deg, #38bdf8 0%, #0284c7 100%);
-    box-shadow: 0 6px 16px rgba(2, 132, 199, .28);
+    background: linear-gradient(135deg, #10b981 0%, #047857 100%);
+    box-shadow: 0 6px 16px rgba(5, 150, 105, .28);
 }
 
 .tenant-head-text {

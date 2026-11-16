@@ -1,11 +1,11 @@
 {
-    "name": "Mercurius Pharmacy POS",
+    "name": "Mercurius",
     "short_name": "Mercurius",
     "start_url": "./",
     "scope": "./",
     "display": "standalone",
-    "background_color": "#0b1730",
-    "theme_color": "#0f2847",
+    "background_color": "#f9f9f8",
+    "theme_color": "#10b981",
     "icons": [
         {
             "src": "icon-192.png",
