@@ -10,7 +10,6 @@ namespace Mercurius.Client.Services
         public RolesApiClient(HttpClient http) => _http = http;
 
         public async Task<ListResultDto<RoleDto>> GetAsync() => await _http.GetFromJsonAsync<ListResultDto<RoleDto>>("api/roles") ?? new();
-        public async Task<List<string>> GetModulesAsync() => await _http.GetFromJsonAsync<List<string>>("api/roles/modules") ?? new();
         public async Task<RoleDetailDto?> GetDetailAsync(string id) => await _http.GetFromJsonAsync<RoleDetailDto>($"api/roles/{id}");
 
         public async Task<(bool Success, string? Error)> CreateAsync(CreateRoleRequest request)
@@ -21,8 +20,11 @@ namespace Mercurius.Client.Services
             return (false, body != null && body.TryGetValue("error", out var e) ? e : "Failed to create role.");
         }
 
-        public async Task<bool> UpdatePagesAsync(string id, List<string> pages) =>
-            (await _http.PutAsJsonAsync($"api/roles/{id}/pages", new UpdateRolePagesRequest { Pages = pages })).IsSuccessStatusCode;
+        public async Task<(bool Success, string? Error)> UpdateAsync(string id, string name, List<string> pages)
+        {
+            var response = await _http.PutAsJsonAsync($"api/roles/{id}/pages", new UpdateRolePagesRequest { Name = name, Pages = pages });
+            return response.IsSuccessStatusCode ? (true, null) : (false, await ApiErrors.ReadAsync(response, "The role couldn't be saved."));
+        }
 
         public async Task<bool> DeleteAsync(string id) => (await _http.DeleteAsync($"api/roles/{id}")).IsSuccessStatusCode;
     }

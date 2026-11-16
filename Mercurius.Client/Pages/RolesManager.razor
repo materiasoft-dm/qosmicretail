@@ -2,6 +2,7 @@
 @attribute [Authorize(Policy = ModuleRegistry.Pages.ADMIN_ROLES_MANAGEMENT)]
 @inject RolesApiClient Api
 @inject ISnackbar Snackbar
+@inject AuthenticationStateProvider Auth
 
 <PageTitle>Roles Manager</PageTitle>
 
@@ -12,25 +13,35 @@
     </MudButton>
 </div>
 
-@if (_showCreate)
+@if (_showForm)
 {
     <MudPaper Class="pa-4 mb-4" Elevation="2">
-        <MudTextField @bind-Value="_roleName" Label="Role name" Variant="Variant.Outlined" Style="max-width:300px;" Class="mb-3" />
-        <MudGrid Style="max-height: 300px; overflow-y: auto;">
-            @foreach (var module in _modules)
-            {
-                <MudItem xs="12" md="4">
-                    <MudCheckBox T="bool" Value="@_selectedPages.Contains(module)" ValueChanged="@((bool v) => TogglePage(module, v))" Label="@module" Color="Color.Primary" />
-                </MudItem>
-            }
-        </MudGrid>
+        <MudTextField @bind-Value="_roleName" Label="Role name" Variant="Variant.Outlined" Style="max-width:300px;" Class="mb-3"
+                      Disabled="@(_editing != null && IsBuiltIn(_editing))" Immediate="true"
+                      HelperText="@(_editing != null && IsBuiltIn(_editing) ? "Built-in roles keep their name" : null)" />
+        @if (_editing != null)
+        {
+            <MudText Typo="Typo.body2" Class="mb-3">Changes reach people with this role the next time they sign in.</MudText>
+        }
+
+        <div class="perm-scroll">
+            <div class="perm-columns">
+                @foreach (var root in _tree)
+                {
+                    <div class="perm-root">
+                        <PermissionNodeView Node="root" Selected="_selected" Changed="@(() => StateHasChanged())" />
+                    </div>
+                }
+            </div>
+        </div>
+
         @if (_error != null)
         {
             <MudAlert Severity="Severity.Error" Class="mt-2">@_error</MudAlert>
         }
         <div class="mt-3">
             <MudButton Color="Color.Primary" Variant="Variant.Filled" OnClick="Submit">Save</MudButton>
-            <MudButton OnClick="@(() => _showCreate = false)">Cancel</MudButton>
+            <MudButton OnClick="@(() => _showForm = false)">Cancel</MudButton>
         </div>
     </MudPaper>
 }
@@ -42,9 +53,19 @@
             <MudTh></MudTh>
         </HeaderContent>
         <RowTemplate>
-            <MudTd DataLabel="Name">@context.Name</MudTd>
-            <MudTd>
-                <MudIconButton Icon="@Icons.Material.Filled.Delete" Color="Color.Error" Size="Size.Small" OnClick="@(() => Delete(context.Id))" />
+            <MudTd DataLabel="Name">
+                <div>@context.Name</div>
+                @if (LockedReason(context) is { } reason)
+                {
+                    <MudText Typo="Typo.caption">@reason</MudText>
+                }
+            </MudTd>
+            <MudTd Style="text-align:right">
+                @if (LockedReason(context) == null)
+                {
+                    <MudIconButton Icon="@Icons.Material.Filled.Edit" Size="Size.Small" aria-label="Edit permissions" OnClick="@(() => ShowEdit(context))" />
+                }
+                <MudIconButton Icon="@Icons.Material.Filled.Delete" Color="Color.Error" Size="Size.Small" aria-label="Delete role" OnClick="@(() => Delete(context.Id))" />
             </MudTd>
         </RowTemplate>
         <NoRecordsContent>
@@ -55,39 +76,72 @@
 
 @code {
     private ListResultDto<RoleDto>? _result;
-    private List<string> _modules = new();
-    private HashSet<string> _selectedPages = new();
-    private bool _showCreate;
+    private IReadOnlyList<PermissionNode> _tree = Array.Empty<PermissionNode>();
+    private bool _isPlatformAdmin;
+    // Includes any database permissions the role holds that this caller isn't shown, so saving
+    // sends them back unchanged.
+    private HashSet<string> _selected = new();
+    private bool _showForm;
+    private RoleDto? _editing;
     private string _roleName = string.Empty;
     private string? _error;
 
     protected override async Task OnInitializedAsync()
     {
         if (!RendererInfo.IsInteractive) return; // prerendering: show the loading state; the browser loads the data
+        var auth = await Auth.GetAuthenticationStateAsync();
+        _isPlatformAdmin = auth.User.IsPlatformAdmin();
+        _tree = PermissionTree.ForCaller(_isPlatformAdmin);
         await LoadAsync();
     }
+
     private async Task LoadAsync() => _result = await Api.GetAsync();
 
-    private async void ShowCreate()
+    // Startup gives Administrator every permission again, so editing it wouldn't stick.
+    private string? LockedReason(RoleDto role)
     {
-        _showCreate = true; _error = null;
-        _roleName = string.Empty; _selectedPages = new();
-        _modules = await Api.GetModulesAsync();
-        StateHasChanged();
+        if (role.Name == ModuleRegistry.AdministratorRole) return "Always has every permission";
+        if (role.Name == ModuleRegistry.DatabaseAdministratorRole && !_isPlatformAdmin) return "Only a platform admin can change this role";
+        return null;
     }
 
-    private void TogglePage(string module, bool isChecked)
+    private static bool IsBuiltIn(RoleDto role) =>
+        role.Name == ModuleRegistry.DatabaseAdministratorRole || ModuleRegistry.FixedRoles.Contains(role.Name);
+
+    private void ShowCreate()
     {
-        if (isChecked) _selectedPages.Add(module); else _selectedPages.Remove(module);
+        _editing = null;
+        _error = null;
+        _roleName = string.Empty;
+        _selected = new();
+        _showForm = true;
+    }
+
+    private async Task ShowEdit(RoleDto role)
+    {
+        var detail = await Api.GetDetailAsync(role.Id);
+        if (detail == null)
+        {
+            Snackbar.Add("That role no longer exists.", Severity.Warning);
+            await LoadAsync();
+            return;
+        }
+        _editing = role;
+        _error = null;
+        _roleName = role.Name;
+        _selected = detail.SelectedPages.ToHashSet();
+        _showForm = true;
     }
 
     private async Task Submit()
     {
         if (string.IsNullOrWhiteSpace(_roleName)) { _error = "Role name is required."; return; }
-        var (success, error) = await Api.CreateAsync(new CreateRoleRequest { Name = _roleName, Pages = _selectedPages.ToList() });
+        var (success, error) = _editing != null
+            ? await Api.UpdateAsync(_editing.Id, _roleName, _selected.ToList())
+            : await Api.CreateAsync(new CreateRoleRequest { Name = _roleName, Pages = _selected.ToList() });
         if (!success) { _error = error; return; }
-        _showCreate = false;
-        Snackbar.Add("Role created.", Severity.Success);
+        Snackbar.Add(_editing != null ? "Role updated." : "Role created.", Severity.Success);
+        _showForm = false;
         await LoadAsync();
     }
 

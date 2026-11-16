@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
+using Mercurius.Shared.Products;
 
 namespace Mercurius.Services
 {
@@ -18,6 +19,12 @@ namespace Mercurius.Services
         // Products whose stock from the file was recorded as an adjustment.
         public int StockAdjusted { get; set; }
         public List<string> Log { get; } = new();
+        public string? FileName { get; set; }
+        // "Loyverse import" or "CSV import".
+        public string Source { get; set; } = "CSV import";
+        // One per row that did something, in file order. Only the import thread adds to this, and
+        // it's only read once the job is Completed.
+        public List<ProductImportReportLineDto> ReportLines { get; } = new();
         public DateTime StartedAt { get; set; } = DateTime.UtcNow;
         public DateTime? CompletedAt { get; set; }
         public string? ErrorMessage { get; set; }

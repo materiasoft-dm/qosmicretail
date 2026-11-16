@@ -3,6 +3,8 @@
 @implements IDisposable
 @inject ProductsApiClient Api
 @inject IJSRuntime JS
+@inject ISnackbar Snackbar
+@inject CurrentUserState CurrentUser
 
 <PageTitle>Import Products</PageTitle>
 
@@ -20,7 +22,7 @@
             <li><b>Category</b> (or Product Type): created if it doesn't exist yet</li>
             <li><b>Description</b></li>
             <li><b>Cost</b> (or CostPrice), <b>Price</b> (or SalePrice, SellingPrice)</li>
-            <li><b>In stock</b> (or Stock, Quantity)</li>
+            <li><b>In stock</b> (or Stock, Quantity): for products you already have, any difference from this count is recorded as an adjustment. A blank count leaves stock as it is.</li>
         </ul>
         <MudText Typo="Typo.body2">
             Loyverse exports work as-is: per-store columns such as "Price [Main Store]" are read as "Price".
@@ -41,7 +43,7 @@
     </div>
 
     <MudCheckBox T="bool" @bind-Value="_updateExisting" Color="Color.Primary" Class="mt-2" Disabled="IsRunning || _starting"
-                 Label="Update existing products (otherwise rows whose SKU already exists are skipped)" />
+                 Label="Also update the name, prices and category of existing products (stock differences are always adjusted)" />
 
     @if (_error != null)
     {
@@ -79,12 +81,67 @@
         @if (_status.Status == "Completed")
         {
             <MudAlert Severity="@(_status.Errors > 0 ? Severity.Warning : Severity.Success)" Class="mb-4">
-                Created @_status.Created, updated @_status.Updated, skipped @_status.Skipped, errors @_status.Errors.
+                Created @_status.Created, updated @_status.Updated, skipped @_status.Skipped, errors @_status.Errors. Stock adjustments: @_status.StockAdjusted.
             </MudAlert>
         }
         else if (_status.Status == "Failed")
         {
             <MudAlert Severity="Severity.Error" Class="mb-4">Import failed: @(_status.ErrorMessage ?? "unknown error.")</MudAlert>
+        }
+
+        @if (_report != null)
+        {
+            <div id="import-report" class="mb-4">
+                <div class="d-flex justify-space-between align-center flex-wrap gap-2 mb-3">
+                    <div>
+                        <MudText Typo="Typo.h6">Import report</MudText>
+                        <MudText Typo="Typo.body2">@ReportSubtitle</MudText>
+                    </div>
+                    <MudButton Variant="Variant.Outlined" StartIcon="@Icons.Material.Filled.Print" OnClick="PrintReportAsync">Print report</MudButton>
+                </div>
+
+                <div class="d-flex flex-wrap gap-2 mb-3">
+                    @foreach (var (label, value) in ReportSummary())
+                    {
+                        <MudPaper Outlined="true" Class="pa-2 px-3">
+                            <MudText Typo="Typo.caption">@label</MudText>
+                            <MudText Typo="Typo.subtitle1">@value</MudText>
+                        </MudPaper>
+                    }
+                </div>
+
+                @if (_report.Lines.Count == 0)
+                {
+                    <MudText Typo="Typo.body2">Nothing changed. Every item in the file already matched.</MudText>
+                }
+                else
+                {
+                    <MudTable T="ProductImportReportLineDto" Items="_report.Lines" Dense="true" Hover="true" Elevation="0" Breakpoint="Breakpoint.Sm" RowsPerPage="25">
+                        <HeaderContent>
+                            <MudTh>Item</MudTh>
+                            <MudTh>Result</MudTh>
+                            <MudTh Style="text-align:right">Before</MudTh>
+                            <MudTh Style="text-align:right">After</MudTh>
+                            <MudTh Style="text-align:right">Change</MudTh>
+                            <MudTh>Note</MudTh>
+                        </HeaderContent>
+                        <RowTemplate>
+                            <MudTd DataLabel="Item">
+                                <div>@context.Name</div>
+                                <MudText Typo="Typo.caption">@context.ProductCode</MudText>
+                            </MudTd>
+                            <MudTd DataLabel="Result"><MudChip T="string" Size="Size.Small" Variant="Variant.Text" Color="@ResultColor(context.Result)">@context.Result</MudChip></MudTd>
+                            <MudTd DataLabel="Before" Style="text-align:right">@StockText(context, context.StockBefore)</MudTd>
+                            <MudTd DataLabel="After" Style="text-align:right">@StockText(context, context.StockAfter)</MudTd>
+                            <MudTd DataLabel="Change" Style="text-align:right">@ChangeText(context.Change)</MudTd>
+                            <MudTd DataLabel="Note">@context.Note</MudTd>
+                        </RowTemplate>
+                        <PagerContent>
+                            <MudTablePager />
+                        </PagerContent>
+                    </MudTable>
+                }
+            </div>
         }
 
         <MudText Typo="Typo.subtitle2" Class="mb-1">Activity log (newest first)</MudText>
@@ -113,6 +170,7 @@
     private bool _starting;
     private string? _error;
     private ProductImportStatusDto? _status;
+    private ProductImportReportDto? _report;
     private bool _lostJob;
     private CancellationTokenSource? _pollCts;
 
@@ -146,6 +204,7 @@
         if (_file == null) return;
         _error = null;
         _lostJob = false;
+        _report = null;
         _starting = true;
         try
         {
@@ -186,6 +245,10 @@
                     return;
                 }
 
+                if (status.Status == "Completed")
+                {
+                    _report = await Api.GetImportReportAsync(jobId);
+                }
                 _status = status;
                 await InvokeAsync(StateHasChanged);
                 if (status.Status is "Completed" or "Failed")
@@ -204,6 +267,81 @@
         {
             // Transient network error: keep the stored job id so returning to the page resumes it.
         }
+    }
+
+    private string ReportSubtitle => string.Join(" · ", new[]
+    {
+        _report?.FileName,
+        _report?.Source,
+        _report?.CompletedAt is DateTime completed ? LocalTime.FromUtc(completed).ToString("d MMM yyyy, h:mm tt") : null
+    }.Where(part => !string.IsNullOrEmpty(part)));
+
+    private int LinesWith(string result) => _report!.Lines.Count(l => l.Result == result);
+
+    private string ItemsAndUnits(string result, string sign)
+    {
+        var lines = _report!.Lines.Where(l => l.Result == result).ToList();
+        if (lines.Count == 0) return "0";
+        return $"{lines.Count:N0} ({sign}{lines.Sum(l => Math.Abs(l.Change)):#,0.##} units)";
+    }
+
+    // Shared by the page and the printout, so the two can't disagree.
+    private List<(string Label, string Value)> ReportSummary()
+    {
+        var summary = new List<(string Label, string Value)>
+        {
+            ("Items in file", _report!.Total.ToString("N0")),
+            ("New items", LinesWith(ProductImportResults.NewItem).ToString("N0")),
+            ("Stock added", ItemsAndUnits(ProductImportResults.StockAdded, "+")),
+            ("Stock removed", ItemsAndUnits(ProductImportResults.StockRemoved, "−")),
+            ("No change", (_report.Total - _report.Lines.Count).ToString("N0"))
+        };
+        foreach (var (label, result) in new[]
+                 {
+                     ("Details updated", ProductImportResults.DetailsUpdated),
+                     ("Not counted", ProductImportResults.NotCounted),
+                     ("Errors", ProductImportResults.Error)
+                 })
+        {
+            var count = LinesWith(result);
+            if (count > 0) summary.Add((label, count.ToString("N0")));
+        }
+        return summary;
+    }
+
+    private static Color ResultColor(string result) => result switch
+    {
+        ProductImportResults.Error => Color.Error,
+        ProductImportResults.StockRemoved => Color.Warning,
+        ProductImportResults.StockAdded or ProductImportResults.NewItem => Color.Success,
+        ProductImportResults.DetailsUpdated => Color.Info,
+        _ => Color.Default
+    };
+
+    // An error row never got as far as stock, so it has no figures to show.
+    private static string StockText(ProductImportReportLineDto line, decimal stock) =>
+        line.Result == ProductImportResults.Error ? "" : stock.ToString("#,0.##");
+
+    private static string ChangeText(decimal change) =>
+        change > 0 ? $"+{change:#,0.##}" : change < 0 ? $"−{Math.Abs(change):#,0.##}" : "";
+
+    private async Task PrintReportAsync()
+    {
+        var header = new[] { CurrentUser.User.TenantName, CurrentUser.User.CurrentLocationName, ReportSubtitle }
+            .Where(part => !string.IsNullOrEmpty(part));
+        var opened = await JS.InvokeAsync<bool>("mercuriusPrint.printReport", new
+        {
+            title = "Product import report",
+            subtitle = string.Join(" · ", header),
+            summary = ReportSummary().Select(s => new { label = s.Label, value = s.Value }),
+            columns = new[] { "Item", "SKU", "Result", "Before", "After", "Change", "Note" },
+            rightAligned = new[] { 3, 4, 5 },
+            rows = _report!.Lines.Select(l => new[]
+            {
+                l.Name ?? "", l.ProductCode ?? "", l.Result, StockText(l, l.StockBefore), StockText(l, l.StockAfter), ChangeText(l.Change), l.Note ?? ""
+            })
+        });
+        if (!opened) Snackbar.Add("Allow pop-ups for this site to print the report.", Severity.Warning);
     }
 
     private async Task<string?> TryGetStoredJobAsync()

@@ -136,6 +136,61 @@ public class BlazorProductsTests : BlazorTestBase
         await AssertNoBlazorErrorAsync();
     }
 
+    /// <summary>
+    /// Uploading a newer export inserts new items and turns each stock difference on an existing
+    /// item into an adjustment, up or down, with a note saying what happened. A blank count isn't
+    /// a count of zero, so it must leave stock alone.
+    /// </summary>
+    [Fact]
+    public async Task ReimportCsv_AdjustsStockDifferences_AndInsertsNewItems()
+    {
+        await LoginAsAdminAsync();
+        var stamp = Stamp();
+        const string header = "Handle,SKU,Name,Category,Cost,Track stock,Price [Main Store],In stock [Main Store]\n";
+        string Row(string letter, string stock) => $"h-{letter}-{stamp},RE-{stamp}-{letter},Re {letter} {stamp},,1,Y,2,{stock}\n";
+
+        await ImportAsync(header + Row("A", "7") + Row("B", "5") + Row("C", "4"), "Created 3, updated 0, skipped 0, errors 0. Stock adjustments: 3.");
+        await ImportAsync(header + Row("A", "9") + Row("B", "3") + Row("C", "") + Row("D", "6"), "Created 1, updated 2, skipped 1, errors 0. Stock adjustments: 3.");
+
+        var report = Page.Locator("#import-report");
+        await Assertions.Expect(report).ToContainTextAsync($"Removed 2 of Re B {stamp} during Loyverse import (stock went from 5 to 3)");
+        await Assertions.Expect(report).ToContainTextAsync($"Opening stock of 6 Re D {stamp} from Loyverse import");
+        await Assertions.Expect(report).ToContainTextAsync("No count in the file");
+
+        // The printout opens in its own window. window.print is stubbed so it stays open to be read.
+        await Page.Context.AddInitScriptAsync("window.print = () => {};");
+        var printout = await Page.RunAndWaitForPopupAsync(() =>
+            Page.GetByRole(AriaRole.Button, new PageGetByRoleOptions { Name = "Print report" }).ClickAsync());
+        await Assertions.Expect(printout.Locator("h1")).ToHaveTextAsync("Product import report");
+        await Assertions.Expect(printout.Locator("tbody tr")).ToHaveCountAsync(4);
+        await Assertions.Expect(printout.Locator("tbody tr").First).ToContainTextAsync($"Re B {stamp}");
+        await printout.CloseAsync();
+
+        await GotoAppAsync("adjustments");
+        await SearchAsync("Search by product, SKU or note...", $"during Loyverse import");
+        var rows = Page.Locator(".mud-table-body tr.mud-table-row");
+        var added = rows.Filter(new LocatorFilterOptions { HasTextString = $"Added 2 of Re A {stamp} during Loyverse import (stock went from 7 to 9)" });
+        await Assertions.Expect(added).ToContainTextAsync("+2", new LocatorAssertionsToContainTextOptions { Timeout = UiTimeoutMs });
+        var removed = rows.Filter(new LocatorFilterOptions { HasTextString = $"Removed 2 of Re B {stamp} during Loyverse import (stock went from 5 to 3)" });
+        await Assertions.Expect(removed).ToContainTextAsync("−2", new LocatorAssertionsToContainTextOptions { Timeout = UiTimeoutMs });
+
+        await GotoAppAsync("products");
+        await Page.GetByLabel("Search by name, SKU or barcode...").FillAsync($"RE-{stamp}-C");
+        var blankCount = Page.Locator(".mud-table-body tr.mud-table-row").Filter(new LocatorFilterOptions { HasTextString = $"Re C {stamp}" });
+        await Assertions.Expect(blankCount).ToHaveCountAsync(1, new LocatorAssertionsToHaveCountOptions { Timeout = UiTimeoutMs });
+        await Assertions.Expect(blankCount).ToContainTextAsync("4");
+        await AssertNoBlazorErrorAsync();
+    }
+
+    private async Task ImportAsync(string csv, string expectedSummary)
+    {
+        await GotoAppAsync("products/import");
+        await Page.SetInputFilesAsync("input[type=file]", new FilePayload { Name = "products.csv", MimeType = "text/csv", Buffer = Encoding.UTF8.GetBytes(csv) });
+        await Page.GetByRole(AriaRole.Button, new PageGetByRoleOptions { Name = "Import products" }).ClickAsync();
+        var summary = Page.Locator(".mud-alert-message").Filter(new LocatorFilterOptions { HasTextString = expectedSummary });
+        await Assertions.Expect(summary).ToBeVisibleAsync(new LocatorAssertionsToBeVisibleOptions { Timeout = 30000 });
+    }
+
     private async Task<string> CreateStampedProductAsync(string prefix, string stamp)
     {
         var name = $"{prefix} {stamp}";

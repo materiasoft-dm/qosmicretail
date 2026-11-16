@@ -104,6 +104,18 @@ namespace Mercurius.Controllers.Api
                 }
             }
 
+            var newName = request.Name?.Trim();
+            if (!string.IsNullOrEmpty(newName) && newName != role.Name)
+            {
+                if (IsDatabaseAdministratorRole(role) || Mercurius.Common.ModuleRegistry.FixedRoles.Contains(role.Name ?? string.Empty))
+                {
+                    return BadRequest(new { error = "The built-in roles can't be renamed." });
+                }
+                role.Name = newName;
+                var renamed = await _roleManager.UpdateAsync(role);
+                if (!renamed.Succeeded) return BadRequest(new { error = string.Join("; ", renamed.Errors.Select(e => e.Description)) });
+            }
+
             foreach (var claim in existingClaims.Where(c => c.Type == MercuriusClaimTypes.AccessPages))
             {
                 await _roleManager.RemoveClaimAsync(role, claim);

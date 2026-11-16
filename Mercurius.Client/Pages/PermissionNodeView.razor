@@ -1,0 +1,48 @@
+@* One row of the Roles screen's permission list, and everything nested under it. A heading has no
+   value of its own: its checkbox is worked out from the permissions below it. *@
+
+<div class="perm-node" data-node="@Node.Label" data-state="@StateName">
+    <div class="perm-row @(IsHeading ? "perm-heading" : "")">
+        <MudCheckBox T="bool?" TriState="@IsHeading" Value="@State" ValueChanged="@((bool? _) => ToggleAsync())"
+                     Label="@Node.Label" Color="Color.Primary" Dense="true" />
+    </div>
+    @if (IsHeading)
+    {
+        <div class="perm-children">
+            @foreach (var child in Node.Children)
+            {
+                <PermissionNodeView Node="child" Selected="Selected" Changed="Changed" />
+            }
+        </div>
+    }
+</div>
+
+@code {
+    [Parameter, EditorRequired] public PermissionNode Node { get; set; } = null!;
+    [Parameter, EditorRequired] public HashSet<string> Selected { get; set; } = null!;
+    [Parameter] public EventCallback Changed { get; set; }
+
+    private bool IsHeading => Node.Children.Count > 0;
+
+    // True: everything under this row is ticked. False: nothing is. Null: some of each.
+    private bool? State
+    {
+        get
+        {
+            var permissions = Node.Permissions.ToList();
+            var ticked = permissions.Count(Selected.Contains);
+            return ticked == permissions.Count ? true : ticked == 0 ? false : null;
+        }
+    }
+
+    private string StateName => State switch { true => "checked", false => "unchecked", null => "mixed" };
+
+    // The new state follows from the current one rather than from the checkbox's own cycle, so a
+    // click on a partly ticked heading always ticks everything under it.
+    private async Task ToggleAsync()
+    {
+        if (State == true) Selected.ExceptWith(Node.Permissions);
+        else Selected.UnionWith(Node.Permissions);
+        await Changed.InvokeAsync();
+    }
+}

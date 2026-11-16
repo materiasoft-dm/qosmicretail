@@ -21,6 +21,8 @@ namespace Mercurius.Shared.Admin
 
     public class UpdateRolePagesRequest
     {
+        // Blank keeps the current name.
+        public string? Name { get; set; }
         public List<string> Pages { get; set; } = new();
     }
 

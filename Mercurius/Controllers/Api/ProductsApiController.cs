@@ -315,7 +315,7 @@ namespace Mercurius.Controllers.Api
             }
 
             var jobId = Guid.NewGuid().ToString();
-            _importJobTracker.CreateJob(jobId);
+            _importJobTracker.CreateJob(jobId).FileName = csvFile.FileName;
             await _importQueue.EnqueueAsync(new Mercurius.Services.ProductImportJob
             {
                 JobId = jobId,
@@ -343,9 +343,30 @@ namespace Mercurius.Controllers.Api
                 Created = state.Created,
                 Updated = state.Updated,
                 Skipped = state.Skipped,
+                StockAdjusted = state.StockAdjusted,
                 Errors = state.Errors,
                 Log = _importJobTracker.SnapshotLog(state),
                 ErrorMessage = state.ErrorMessage
+            });
+        }
+
+        // Separate from the status above because that one is polled every second, and a first
+        // import has a line for every product.
+        [HttpGet("import/{jobId}/report")]
+        [Authorize(Policy = Mercurius.Common.ModuleRegistry.Pages.PRODUCTS_CREATE)]
+        public ActionResult<ProductImportReportDto> GetImportReport(string jobId)
+        {
+            var state = _importJobTracker.Get(jobId);
+            if (state == null || state.Status != "Completed") return NotFound();
+            return Ok(new ProductImportReportDto
+            {
+                FileName = state.FileName,
+                Source = state.Source,
+                CompletedAt = state.CompletedAt,
+                Total = state.Total,
+                Lines = state.ReportLines
+                    .OrderBy(l => Array.IndexOf(ProductImportResults.DisplayOrder, l.Result))
+                    .ToList()
             });
         }
 

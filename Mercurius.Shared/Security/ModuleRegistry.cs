@@ -100,6 +100,12 @@ namespace Mercurius.Common
         // by Administrator, and only a platform admin can grant that role or these permissions.
         public const string DatabaseAdministratorRole = "Database Administrator";
 
+        // Each tenant's full-access role. Startup re-grants it every non-database permission.
+        public const string AdministratorRole = "Administrator";
+
+        // Created for every tenant and looked up by name at startup, so these can't be renamed.
+        public static IReadOnlyList<string> FixedRoles { get; } = new[] { AdministratorRole, "Manager", "User" };
+
         public static IReadOnlyList<string> DatabaseModules { get; } = new[]
         {
             ModuleRegistry.Pages.ADMIN_DATA_QUERY,

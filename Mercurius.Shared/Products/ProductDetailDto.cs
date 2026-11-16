@@ -93,8 +93,45 @@ namespace Mercurius.Shared.Products
         public int Created { get; set; }
         public int Updated { get; set; }
         public int Skipped { get; set; }
+        public int StockAdjusted { get; set; }
         public int Errors { get; set; }
         public List<string> Log { get; set; } = new();
         public string? ErrorMessage { get; set; }
+    }
+
+    // What a finished CSV import did, for the on-screen and printed report.
+    public class ProductImportReportDto
+    {
+        public string? FileName { get; set; }
+        public string Source { get; set; } = string.Empty;
+        public DateTime? CompletedAt { get; set; }
+        // Rows in the file. Rows with no line in Lines changed nothing.
+        public int Total { get; set; }
+        public List<ProductImportReportLineDto> Lines { get; set; } = new();
+    }
+
+    public class ProductImportReportLineDto
+    {
+        public string? ProductCode { get; set; }
+        public string? Name { get; set; }
+        // One of ProductImportResults.
+        public string Result { get; set; } = string.Empty;
+        public decimal StockBefore { get; set; }
+        public decimal StockAfter { get; set; }
+        public decimal Change { get; set; }
+        public string? Note { get; set; }
+    }
+
+    public static class ProductImportResults
+    {
+        public const string Error = "Error";
+        public const string StockRemoved = "Stock removed";
+        public const string StockAdded = "Stock added";
+        public const string DetailsUpdated = "Details updated";
+        public const string NotCounted = "Not counted";
+        public const string NewItem = "New item";
+
+        // The order the report lists them in: what needs attention comes first.
+        public static readonly string[] DisplayOrder = { Error, StockRemoved, StockAdded, DetailsUpdated, NotCounted, NewItem };
     }
 }

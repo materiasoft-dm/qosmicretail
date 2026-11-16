@@ -1,0 +1,17 @@
+/* The list scrolls inside the panel so Save stays in view. The scrolling is on an outer element
+   because a height limit on the columns themselves would push them off sideways. */
+.perm-scroll {
+    max-height: 60vh;
+    overflow-y: auto;
+    padding-right: 0.5rem;
+}
+
+.perm-columns {
+    columns: 3 280px;
+    column-gap: 2rem;
+}
+
+.perm-root {
+    break-inside: avoid;
+    margin-bottom: 0.75rem;
+}

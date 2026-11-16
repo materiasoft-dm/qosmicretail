@@ -104,6 +104,14 @@ namespace Mercurius.Client.Services
             return await response.Content.ReadFromJsonAsync<ProductImportStatusDto>();
         }
 
+        public async Task<ProductImportReportDto?> GetImportReportAsync(string jobId)
+        {
+            var response = await _http.GetAsync($"api/products/import/{Uri.EscapeDataString(jobId)}/report");
+            if (response.StatusCode == HttpStatusCode.NotFound) return null;
+            response.EnsureSuccessStatusCode();
+            return await response.Content.ReadFromJsonAsync<ProductImportReportDto>();
+        }
+
         private static async Task<string> ReadErrorAsync(HttpResponseMessage response, string fallback)
         {
             if (response.StatusCode == HttpStatusCode.Forbidden) return "You don't have permission to do that.";

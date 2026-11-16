@@ -16,8 +16,8 @@ namespace Mercurius.Services
     /// </summary>
     public class TenantRoles
     {
-        public const string Administrator = "Administrator";
-        public static readonly IReadOnlyList<string> FixedRoles = new[] { Administrator, "Manager", "User" };
+        public const string Administrator = ModuleRegistry.AdministratorRole;
+        public static readonly IReadOnlyList<string> FixedRoles = ModuleRegistry.FixedRoles;
 
         private readonly MercuriusDbContext _db;
         private readonly RoleManager<MercuriusRole> _roleManager;

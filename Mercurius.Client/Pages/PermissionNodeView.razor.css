@@ -1,0 +1,9 @@
+.perm-heading ::deep .mud-typography {
+    font-weight: 600;
+}
+
+.perm-children {
+    margin-left: 0.9rem;
+    padding-left: 0.6rem;
+    border-left: 1px solid var(--mud-palette-lines-default);
+}
