@@ -549,6 +549,15 @@ not assumed — the fixes are in `Infrastructure/`, but the reasoning is worth k
 
 `MedicineBatch` rows (created via `MedicineBatchesApiController`, one per stock receipt) each carry their own `UnitCost`/`UnitSalePrice`. A new shipment at a different price is just a new batch queued behind older stock — web checkout (`SalesApiController`) and mobile invoice push (`SyncController.PushInvoices`) call `BatchPricingService.FindFulfillingBatchAsync` to pick, oldest first, the first batch whose `RemainingQuantity` alone covers the full line quantity; if the oldest batch falls short, the *whole* line is priced and drawn from the next batch that can cover it rather than splitting across two batches' ledgers (a deliberate simplification, confirmed with the product owner). Only when *no* single batch covers the line is it priced from the newest batch, which is emptied with the shortfall taken from the other batches oldest first (`BatchPricingService.DeductAsync`), so batches never go negative and still add up to the shelf stock. A refund with restock puts the units back on the line's batch. `InvoiceItem.MedicineBatchId` records which batch a line was actually priced/deducted from, for refund credit and lot-recall tracing. Products with no batches at all (most non-drug items) fall back to `Product.CurrentSalePrice`/`CurrentCostPrice` unchanged — this feature is purely additive. `BatchPricingService.RefreshActivePriceAsync` keeps those flat fields in sync with whichever batch is now the oldest non-depleted one, so every screen that reads them (the Products list, the Sell page, the mobile sync API) keeps working without knowing batches exist.
 
+### Rule for every feature: think offline
+
+Mercurius is installed as an app and must keep working when the connection drops. When you add or change
+a feature, decide (and say) how it behaves offline: a counter write goes in `OfflineWriteHandler.Allowed`
+and must be safe to resend; a create that opens the new id stays online-only; reads work offline only
+after being opened online once; admin/security stays online-only; a shared record that two people can
+edit needs a version check (like `Product.DetailsVersion`); sensitive endpoints go in the service worker's
+`UNSAVED_API_PREFIXES`; add a `Context.SetOfflineAsync` E2E test for new offline writes.
+
 ### Installable offline app (PWA): `service-worker.js`, `SyncService`, the outbox
 
 The web app installs as a Windows (or Android) app from Edge/Chrome (`manifest.webmanifest`; the
