@@ -3,7 +3,7 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
              x:Class="Mercurius.Mobile.LoginPage"
              Shell.NavBarIsVisible="False"
-             BackgroundColor="{StaticResource White}">
+             BackgroundColor="{StaticResource Background}">
 
     <Grid ColumnDefinitions="Auto,*">
 
@@ -12,12 +12,16 @@
         <Grid Grid.Column="0"
               WidthRequest="{OnIdiom Phone=0, Default=460}"
               IsVisible="{OnIdiom Phone=False, Default=True}"
-              BackgroundColor="{StaticResource Secondary}">
+              BackgroundColor="#0c0a09">
+
+            <!-- Background image so the white text stays readable -->
+            <Image Source="login_bg.svg" Aspect="AspectFill" />
+            <BoxView Color="#66000000" />
 
             <!-- Soft decorative glows, purely cosmetic. -->
-            <Ellipse Fill="#221F2B45" WidthRequest="420" HeightRequest="420"
+            <Ellipse Fill="#220c0a09" WidthRequest="420" HeightRequest="420"
                      HorizontalOptions="End" VerticalOptions="Start" Margin="0,-180,-180,0" />
-            <Ellipse Fill="#18F2994A" WidthRequest="320" HeightRequest="320"
+            <Ellipse Fill="#1810b981" WidthRequest="320" HeightRequest="320"
                      HorizontalOptions="Start" VerticalOptions="End" Margin="-140,0,0,-140" />
 
             <VerticalStackLayout Padding="48,0" Spacing="0" VerticalOptions="Center">
@@ -37,14 +41,14 @@
 
                 <Label Text="Mercurius" TextColor="{StaticResource White}" FontSize="34" FontAttributes="Bold" Margin="0,28,0,0" />
                 <Label Text="Inventory &amp; point of sale, everywhere your business is."
-                       TextColor="{StaticResource SecondaryDarkText}" FontSize="15" Margin="0,8,0,0"
+                       TextColor="#D6D3D1" FontSize="15" Margin="0,8,0,0"
                        LineBreakMode="WordWrap" />
 
                 <VerticalStackLayout Spacing="18" Margin="0,40,0,0">
                     <Grid ColumnDefinitions="Auto,*" ColumnSpacing="14">
                         <Border Grid.Column="0" StrokeShape="RoundRectangle 9" Stroke="Transparent"
-                                BackgroundColor="#242840" WidthRequest="30" HeightRequest="30" Padding="0">
-                            <Label Text="&#10003;" TextColor="{StaticResource Primary}" FontAttributes="Bold" FontSize="13"
+                                BackgroundColor="#33FFFFFF" WidthRequest="30" HeightRequest="30" Padding="0">
+                            <Label Text="&#10003;" TextColor="{StaticResource PrimaryLighten}" FontAttributes="Bold" FontSize="13"
                                    HorizontalOptions="Center" VerticalOptions="Center" />
                         </Border>
                         <Label Grid.Column="1" Text="Works fully offline, syncs the moment you're back online"
@@ -52,8 +56,8 @@
                     </Grid>
                     <Grid ColumnDefinitions="Auto,*" ColumnSpacing="14">
                         <Border Grid.Column="0" StrokeShape="RoundRectangle 9" Stroke="Transparent"
-                                BackgroundColor="#242840" WidthRequest="30" HeightRequest="30" Padding="0">
-                            <Label Text="&#10003;" TextColor="{StaticResource Primary}" FontAttributes="Bold" FontSize="13"
+                                BackgroundColor="#33FFFFFF" WidthRequest="30" HeightRequest="30" Padding="0">
+                            <Label Text="&#10003;" TextColor="{StaticResource PrimaryLighten}" FontAttributes="Bold" FontSize="13"
                                    HorizontalOptions="Center" VerticalOptions="Center" />
                         </Border>
                         <Label Grid.Column="1" Text="Live stock levels and pricing straight from the server"
@@ -61,8 +65,8 @@
                     </Grid>
                     <Grid ColumnDefinitions="Auto,*" ColumnSpacing="14">
                         <Border Grid.Column="0" StrokeShape="RoundRectangle 9" Stroke="Transparent"
-                                BackgroundColor="#242840" WidthRequest="30" HeightRequest="30" Padding="0">
-                            <Label Text="&#10003;" TextColor="{StaticResource Primary}" FontAttributes="Bold" FontSize="13"
+                                BackgroundColor="#33FFFFFF" WidthRequest="30" HeightRequest="30" Padding="0">
+                            <Label Text="&#10003;" TextColor="{StaticResource PrimaryLighten}" FontAttributes="Bold" FontSize="13"
                                    HorizontalOptions="Center" VerticalOptions="Center" />
                         </Border>
                         <Label Grid.Column="1" Text="Built for the counter and the back office alike"
@@ -89,13 +93,13 @@
                            HorizontalOptions="Center" VerticalOptions="Center" />
                 </Border>
 
-                <Label Text="Welcome back" FontSize="26" FontAttributes="Bold" TextColor="{StaticResource MidnightBlue}" />
+                <Label Text="Welcome back" FontSize="26" FontAttributes="Bold" TextColor="{StaticResource TextPrimary}" />
                 <Label Text="Sign in to sync this device with your Mercurius account."
-                       FontSize="13" TextColor="{StaticResource Gray400}" Margin="0,4,0,32" LineBreakMode="WordWrap" />
+                       FontSize="13" TextColor="{StaticResource TextSecondary}" Margin="0,4,0,32" LineBreakMode="WordWrap" />
 
-                <Label Text="Email" FontSize="12" FontAttributes="Bold" TextColor="{StaticResource Gray500}" />
+                <Label Text="Email" FontSize="12" FontAttributes="Bold" TextColor="{StaticResource TextSecondary}" />
                 <Border StrokeShape="RoundRectangle 10"
-                        Stroke="{StaticResource Gray100}"
+                        Stroke="{StaticResource LinesInputs}"
                         BackgroundColor="Transparent"
                         Padding="14,0"
                         HeightRequest="50"
@@ -104,13 +108,13 @@
                            AutomationId="EmailEntry"
                            Placeholder="you@mercurius.com"
                            Keyboard="Email"
-                           TextColor="{StaticResource MidnightBlue}"
+                           TextColor="{StaticResource TextPrimary}"
                            VerticalOptions="Center" />
                 </Border>
 
-                <Label Text="Password" FontSize="12" FontAttributes="Bold" TextColor="{StaticResource Gray500}" Margin="0,18,0,0" />
+                <Label Text="Password" FontSize="12" FontAttributes="Bold" TextColor="{StaticResource TextSecondary}" Margin="0,18,0,0" />
                 <Border StrokeShape="RoundRectangle 10"
-                        Stroke="{StaticResource Gray100}"
+                        Stroke="{StaticResource LinesInputs}"
                         BackgroundColor="Transparent"
                         Padding="14,0"
                         HeightRequest="50"
@@ -119,7 +123,7 @@
                            AutomationId="PasswordEntry"
                            Placeholder="••••••••"
                            IsPassword="True"
-                           TextColor="{StaticResource MidnightBlue}"
+                           TextColor="{StaticResource TextPrimary}"
                            VerticalOptions="Center" />
                 </Border>
 
@@ -145,7 +149,7 @@
                                    Color="{StaticResource Primary}" />
 
                 <Label Text="Your credentials are sent directly to your Mercurius server — nothing is stored anywhere else."
-                       FontSize="11" TextColor="{StaticResource Gray300}" Margin="0,32,0,0"
+                       FontSize="11" TextColor="{StaticResource TextSecondary}" Margin="0,32,0,0"
                        HorizontalTextAlignment="Center" LineBreakMode="WordWrap" />
 
             </VerticalStackLayout>

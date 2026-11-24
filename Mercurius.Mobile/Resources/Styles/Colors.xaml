@@ -5,19 +5,46 @@
 
     <!-- Note: For Android please see also Platforms\Android\Resources\values\colors.xml -->
 
-    <!-- Matches the Mercurius/Qosmic Inventory web admin: dark navy chrome, orange/gold accent. -->
-    <Color x:Key="Primary">#F2994A</Color>
-    <Color x:Key="PrimaryDark">#F7B26A</Color>
-    <Color x:Key="PrimaryDarkText">#242424</Color>
-    <Color x:Key="Secondary">#1A1D2E</Color>
-    <Color x:Key="SecondaryDarkText">#C8C8C8</Color>
-    <Color x:Key="Tertiary">#D97D2C</Color>
+    <!-- Matches the Mercurius web app: emerald on warm stone neutrals (MudBlazor theme) -->
+    <Color x:Key="Primary">#10b981</Color>
+    <Color x:Key="PrimaryDark">#059669</Color>
+    <Color x:Key="PrimaryLighten">#34d399</Color>
+    <Color x:Key="PrimaryDarkText">#0c0a09</Color>
+    <Color x:Key="Secondary">#064e3b</Color>
+    <Color x:Key="SecondaryDarkText">#78716c</Color>
+    <Color x:Key="Tertiary">#0d9488</Color>
 
     <Color x:Key="White">White</Color>
     <Color x:Key="Black">Black</Color>
-    <Color x:Key="Magenta">#D600AA</Color>
-    <Color x:Key="MidnightBlue">#1A1D2E</Color>
-    <Color x:Key="OffBlack">#1f1f1f</Color>
+    <Color x:Key="AppbarBackground">#ffffff</Color>
+    <Color x:Key="AppbarText">#0c0a09</Color>
+    <Color x:Key="Background">#f9f9f8</Color>
+    <Color x:Key="BackgroundGray">#f5f5f4</Color>
+    <Color x:Key="Surface">#ffffff</Color>
+    <Color x:Key="TextPrimary">#0c0a09</Color>
+    <Color x:Key="TextSecondary">#78716c</Color>
+    <Color x:Key="ActionDefault">#78716c</Color>
+    <Color x:Key="LinesDefault">#e7e5e4</Color>
+    <Color x:Key="LinesInputs">#d6d3d1</Color>
+    <Color x:Key="TableLines">#e7e5e4</Color>
+    <Color x:Key="TableHover">#f5f5f4</Color>
+    <Color x:Key="TableStriped">#fafaf9</Color>
+    <Color x:Key="Divider">#e7e5e4</Color>
+    <Color x:Key="Success">#16a34a</Color>
+    <Color x:Key="Error">#dc2626</Color>
+    <Color x:Key="Warning">#d97706</Color>
+    <Color x:Key="Info">#2563eb</Color>
+
+    <!-- Dark mode palette (matches MudBlazor PaletteDark) -->
+    <Color x:Key="DarkPrimary">#34d399</Color>
+    <Color x:Key="DarkPrimaryDarken">#10b981</Color>
+    <Color x:Key="DarkSecondary">#6ee7b7</Color>
+    <Color x:Key="DarkAppbarBackground">#1c1917</Color>
+    <Color x:Key="DarkBackground">#0c0a09</Color>
+    <Color x:Key="DarkSurface">#1c1917</Color>
+    <Color x:Key="DarkLinesDefault">#292524</Color>
+    <Color x:Key="DarkTableLines">#292524</Color>
+    <Color x:Key="DarkInfo">#60a5fa</Color>
 
     <Color x:Key="Gray100">#E1E1E1</Color>
     <Color x:Key="Gray200">#C8C8C8</Color>
@@ -29,10 +56,25 @@
     <Color x:Key="Gray950">#141414</Color>
 
     <SolidColorBrush x:Key="PrimaryBrush" Color="{StaticResource Primary}"/>
+    <SolidColorBrush x:Key="PrimaryDarkBrush" Color="{StaticResource PrimaryDark}"/>
+    <SolidColorBrush x:Key="PrimaryLightenBrush" Color="{StaticResource PrimaryLighten}"/>
     <SolidColorBrush x:Key="SecondaryBrush" Color="{StaticResource Secondary}"/>
     <SolidColorBrush x:Key="TertiaryBrush" Color="{StaticResource Tertiary}"/>
     <SolidColorBrush x:Key="WhiteBrush" Color="{StaticResource White}"/>
     <SolidColorBrush x:Key="BlackBrush" Color="{StaticResource Black}"/>
+    <SolidColorBrush x:Key="AppbarBackgroundBrush" Color="{StaticResource AppbarBackground}"/>
+    <SolidColorBrush x:Key="BackgroundBrush" Color="{StaticResource Background}"/>
+    <SolidColorBrush x:Key="BackgroundGrayBrush" Color="{StaticResource BackgroundGray}"/>
+    <SolidColorBrush x:Key="SurfaceBrush" Color="{StaticResource Surface}"/>
+    <SolidColorBrush x:Key="TextPrimaryBrush" Color="{StaticResource TextPrimary}"/>
+    <SolidColorBrush x:Key="TextSecondaryBrush" Color="{StaticResource TextSecondary}"/>
+    <SolidColorBrush x:Key="LinesDefaultBrush" Color="{StaticResource LinesDefault}"/>
+    <SolidColorBrush x:Key="LinesInputsBrush" Color="{StaticResource LinesInputs}"/>
+    <SolidColorBrush x:Key="DividerBrush" Color="{StaticResource Divider}"/>
+    <SolidColorBrush x:Key="SuccessBrush" Color="{StaticResource Success}"/>
+    <SolidColorBrush x:Key="ErrorBrush" Color="{StaticResource Error}"/>
+    <SolidColorBrush x:Key="WarningBrush" Color="{StaticResource Warning}"/>
+    <SolidColorBrush x:Key="InfoBrush" Color="{StaticResource Info}"/>
 
     <SolidColorBrush x:Key="Gray100Brush" Color="{StaticResource Gray100}"/>
     <SolidColorBrush x:Key="Gray200Brush" Color="{StaticResource Gray200}"/>

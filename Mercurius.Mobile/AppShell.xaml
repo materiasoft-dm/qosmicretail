@@ -7,7 +7,7 @@
     Title="Mercurius"
     FlyoutBehavior="{OnIdiom Phone=Flyout, Tablet=Locked, Desktop=Locked, Default=Flyout}"
     FlyoutWidth="272"
-    FlyoutBackgroundColor="{StaticResource Secondary}"
+    FlyoutBackgroundColor="{StaticResource AppbarBackground}"
     Shell.NavBarIsVisible="{OnIdiom Phone=True, Tablet=False, Desktop=False, Default=True}">
 
     <!-- Android-only sidebar row templates (applied in AppShell.xaml.cs). Without them Android
