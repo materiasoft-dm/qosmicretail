@@ -154,7 +154,10 @@ namespace Mercurius.Controllers.Api
 
         [HttpPost]
         [Authorize(Policy = Mercurius.Common.ModuleRegistry.Pages.WHOLESALE_CREATE)]
-        public async Task<IActionResult> Create(CreateWholesaleOrderRequest request, CancellationToken ct = default)
+        public Task<IActionResult> Create(CreateWholesaleOrderRequest request, CancellationToken ct = default) =>
+            Mercurius.Services.ConcurrencyRetry.RunAsync(_unitOfWork, () => CreateOrderAsync(request, ct), ct);
+
+        private async Task<IActionResult> CreateOrderAsync(CreateWholesaleOrderRequest request, CancellationToken ct)
         {
             var syncId = request.SyncId is Guid g && g != Guid.Empty ? g : Guid.NewGuid();
             var existing = (await _unitOfWork.Repository<Invoice>().FindAsync(i => i.SyncId == syncId, ct)).FirstOrDefault();
@@ -242,7 +245,10 @@ namespace Mercurius.Controllers.Api
         // records each change to the paid amount.
         [HttpPost("{id:int}/payments")]
         [Authorize(Policy = Mercurius.Common.ModuleRegistry.Pages.WHOLESALE_RECORD_PAYMENT)]
-        public async Task<ActionResult<WholesaleOrderDetailDto>> RecordPayment(int id, RecordWholesalePaymentRequest request, CancellationToken ct = default)
+        public Task<ActionResult<WholesaleOrderDetailDto>> RecordPayment(int id, RecordWholesalePaymentRequest request, CancellationToken ct = default) =>
+            Mercurius.Services.ConcurrencyRetry.RunAsync(_unitOfWork, () => RecordPaymentAsync(id, request, ct), ct);
+
+        private async Task<ActionResult<WholesaleOrderDetailDto>> RecordPaymentAsync(int id, RecordWholesalePaymentRequest request, CancellationToken ct)
         {
             var order = await FindOrderAsync(id, ct);
             if (order == null) return NotFound();

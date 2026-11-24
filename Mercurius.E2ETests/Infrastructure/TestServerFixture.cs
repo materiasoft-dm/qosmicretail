@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using System.Net.Http.Json;
 using System.Net.Sockets;
 using Xunit;
 
@@ -90,6 +91,45 @@ public class TestServerFixture : IAsyncLifetime
         // A little extra headroom for startup seeding (roles, admin user, categories) to finish
         // before the first test tries to log in.
         await Task.Delay(500);
+
+        await WarmUpAsync();
+    }
+
+    /// <summary>
+    /// The first sign-in and the first product save on a freshly started server are slow (everything is
+    /// compiled on first use: Identity's password hashing, JWT, EF queries and inserts, the audit
+    /// interceptor). Whichever test ran first used to spend that on a 15-second UI timeout and fail on
+    /// a cold run, then pass when run alone. This pays that cost here instead, over plain HTTP. It is
+    /// best-effort: if any step fails the tests still run, just without the head start.
+    /// </summary>
+    private async Task WarmUpAsync()
+    {
+        try
+        {
+            using var http = new HttpClient { BaseAddress = new Uri(BaseUrl), Timeout = TimeSpan.FromSeconds(120) };
+            await http.GetAsync("account/login");
+
+            var login = await http.PostAsJsonAsync("api/auth/login", new { email = AdminEmail, password = AdminPassword });
+            if (!login.IsSuccessStatusCode) return;
+            var token = (await login.Content.ReadFromJsonAsync<System.Text.Json.JsonElement>()).GetProperty("token").GetString();
+            http.DefaultRequestHeaders.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", token);
+
+            await http.GetAsync("api/sync/products/pull");
+            // One inactive product, so the insert path is warm; inactive so it never shows up in the Sell
+            // page or the offline catalog.
+            await http.PostAsJsonAsync("api/sync/products/push", new[]
+            {
+                new
+                {
+                    syncId = Guid.NewGuid(), productCode = "E2E-WARMUP", name = "E2E warm-up (ignore)", description = "",
+                    currentCostPrice = 1m, currentSalePrice = 2m, currentStock = 0m, lowStockCount = 0m, markUpPercentage = 0m, isActive = false
+                }
+            });
+        }
+        catch
+        {
+            // Warm-up only: never fail a test run over it.
+        }
     }
 
     public async Task DisposeAsync()

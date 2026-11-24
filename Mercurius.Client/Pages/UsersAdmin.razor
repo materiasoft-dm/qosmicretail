@@ -139,11 +139,11 @@
         var activate = !user.IsActive;
         if (!activate)
         {
-            // IsActive is a record-keeping flag in this app — sign-in doesn't check it — so say so
-            // rather than imply access is revoked.
+            // Deactivating blocks sign-in on the web and the mobile app, and signs them out of
+            // sessions already open (within a few minutes for a browser, at once for the app).
             var confirmed = await DialogService.ShowMessageBoxAsync("Deactivate user",
-                $"{user.FirstName} {user.LastName} will be marked inactive and moved to the deactivated list. "
-                + "This doesn't block sign-in; reset their password to revoke access.",
+                $"{user.FirstName} {user.LastName} will be signed out and won't be able to sign in until "
+                + "you activate them again. Their record and past sales are kept.",
                 yesText: "Deactivate", cancelText: "Cancel");
             if (confirmed != true) return;
         }

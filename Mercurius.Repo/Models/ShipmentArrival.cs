@@ -11,6 +11,11 @@ public partial class ShipmentArrival : ITenantScoped
 
     public int TenantId { get; set; }
 
+    // Picked by the form when it opens, so a retried or double-clicked "receive" is recognised as the
+    // same shipment instead of adding its stock twice (same idea as Invoice.SyncId). Null on shipments
+    // recorded before this existed.
+    public Guid? SyncId { get; set; }
+
     public int? SupplierId { get; set; }
 
     public int ShipmentArrivalStatusId { get; set; }

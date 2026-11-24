@@ -140,9 +140,15 @@ builder.Services.AddIdentityCore<MercuriusUser>(options =>
 })
     .AddRoles<MercuriusRole>()
     .AddEntityFrameworkStores<MercuriusDbContext>()
-    .AddSignInManager()
+    // Refuses deactivated users (MercuriusUser.IsActive) on every sign-in path.
+    .AddSignInManager<MercuriusSignInManager>()
     .AddDefaultTokenProviders()
     .AddClaimsPrincipalFactory<MercuriusClaimsPrincipalFactory>();
+
+// How often a signed-in browser's cookie is re-checked against the user's security stamp. A
+// password reset or deactivation changes the stamp, so this is how long an existing web session
+// can outlive it (Identity's default is 30 minutes).
+builder.Services.Configure<SecurityStampValidatorOptions>(options => options.ValidationInterval = TimeSpan.FromMinutes(5));
 
 builder.Services.ConfigureApplicationCookie(options =>
 {
@@ -199,6 +205,31 @@ builder.Services.AddAuthentication()
             IssuerSigningKey = new Microsoft.IdentityModel.Tokens.SymmetricSecurityKey(
                 System.Text.Encoding.UTF8.GetBytes(jwtKey))
         };
+
+        // A valid signature isn't enough: mobile tokens last weeks, so each request also checks the
+        // user still exists and is active, and — for tokens that carry it (issued by AuthController
+        // since this check was added) — that the security stamp hasn't changed since sign-in, which
+        // a password reset or deactivation does. Without this, the app kept working for a
+        // deactivated user, or after their password was reset, until the token expired.
+        options.Events = new Microsoft.AspNetCore.Authentication.JwtBearer.JwtBearerEvents
+        {
+            OnTokenValidated = async context =>
+            {
+                var userManager = context.HttpContext.RequestServices.GetRequiredService<UserManager<MercuriusUser>>();
+                var userId = context.Principal?.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
+                var user = string.IsNullOrEmpty(userId) ? null : await userManager.FindByIdAsync(userId);
+                if (user == null || !user.IsActive)
+                {
+                    context.Fail("This account is no longer active.");
+                    return;
+                }
+                var tokenStamp = context.Principal?.FindFirst(MercuriusClaimTypes.SecurityStamp)?.Value;
+                if (tokenStamp != null && tokenStamp != await userManager.GetSecurityStampAsync(user))
+                {
+                    context.Fail("This sign-in has expired. Sign in again.");
+                }
+            }
+        };
     });
 
 // ============================================
@@ -242,6 +273,7 @@ builder.Services.AddScoped<Mercurius.Services.BatchPricingService>();
 builder.Services.AddScoped<Mercurius.Services.SaleRecorder>();
 builder.Services.AddScoped<Mercurius.Services.UserPermissions>();
 builder.Services.AddScoped<Mercurius.Services.AdjustmentService>();
+builder.Services.AddScoped<Mercurius.Services.StockReceiving>();
 builder.Services.AddScoped<Mercurius.Services.Admin.DataQueryService>();
 builder.Services.AddScoped<Mercurius.Services.Admin.TenantProvisioningService>();
 builder.Services.AddScoped<TenantRoles>();
@@ -298,6 +330,10 @@ builder.Services.AddHsts(options =>
     options.MaxAge = TimeSpan.FromDays(365);
 });
 
+// IIS terminates HTTPS on the standard port; naming it means the redirect never depends on
+// discovering the binding at runtime.
+builder.Services.AddHttpsRedirection(options => options.HttpsPort = 443);
+
 // ============================================
 // RATE LIMITING
 // ============================================
@@ -305,7 +341,30 @@ builder.Services.AddHsts(options =>
 builder.Services.AddRateLimiter(options =>
 {
     options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
-    
+
+    // Sign-in attempts, per client IP, on both the web form and the mobile login API. Per-account
+    // lockout (5 failures, 15 minutes) stops guessing one password; this stops one address trying
+    // many accounts. Loopback is exempt so local runs and the E2E suite (dozens of sign-ins from
+    // 127.0.0.1) aren't throttled; live clients never arrive as loopback.
+    options.GlobalLimiter = PartitionedRateLimiter.Create<HttpContext, string>(context =>
+    {
+        var path = context.Request.Path;
+        var isSignIn = HttpMethods.IsPost(context.Request.Method)
+            && (path.Equals(new PathString("/account/login"), StringComparison.OrdinalIgnoreCase)
+                || path.Equals(new PathString("/api/auth/login"), StringComparison.OrdinalIgnoreCase));
+        var ip = context.Connection.RemoteIpAddress;
+        if (!isSignIn || ip == null || System.Net.IPAddress.IsLoopback(ip))
+        {
+            return RateLimitPartition.GetNoLimiter("unlimited");
+        }
+        return RateLimitPartition.GetFixedWindowLimiter("signin:" + ip, _ => new FixedWindowRateLimiterOptions
+        {
+            PermitLimit = 10,
+            Window = TimeSpan.FromMinutes(1),
+            QueueLimit = 0
+        });
+    });
+
     options.AddPolicy("fixed", context => 
         RateLimitPartition.GetFixedWindowLimiter(
             partitionKey: context.User.Identity?.Name ?? context.Connection.RemoteIpAddress?.ToString() ?? "anonymous",
@@ -398,7 +457,17 @@ else
 app.UseExceptionHandling();
 app.UseLegacyRedirects();  // old MVC / previous /app URLs → current pages
 app.UseRateLimiter();
-// app.UseHttpsRedirection(); // Disabled: the live host is plain HTTP
+
+// The live host serves HTTPS with a valid certificate, so browsers are sent there: otherwise
+// passwords and the sign-in cookie cross the network in the clear. API calls are left alone —
+// .NET's HttpClient drops the Authorization header when it follows a redirect, so redirecting
+// /api would sign out every mobile app built for http:// until it's replaced. The mobile app
+// itself now targets https:// (Mercurius.Mobile/Configuration/ApiConfig.cs).
+if (!app.Environment.IsDevelopment())
+{
+    app.UseWhen(context => !context.Request.Path.StartsWithSegments("/api"),
+        branch => branch.UseHttpsRedirection());
+}
 
 // A page (not API) request for something that doesn't exist gets the app's "not found" page.
 app.UseWhen(context => !context.Request.Path.StartsWithSegments("/api"),
@@ -691,6 +760,15 @@ async Task SeedDataAsync(WebApplication app)
             // Administrator from the Users page.
             if (adminUser != null)
             {
+                // Sign-in refuses an inactive user (MercuriusSignInManager). The operator account must
+                // never be locked out by that flag, whatever an old database or a stray click left in it.
+                if (!adminUser.IsActive)
+                {
+                    adminUser.IsActive = true;
+                    await userManager.UpdateAsync(adminUser);
+                    logger.LogInformation("Re-activated the seed admin user");
+                }
+
                 // "Administrator" here means the seed admin's own tenant's Administrator.
                 using var adminTenant = tenantScope.UseTenant(adminUser.TenantId);
                 foreach (var roleName in new[] { TenantRoles.Administrator, Mercurius.Common.ModuleRegistry.DatabaseAdministratorRole })

@@ -19,6 +19,14 @@ namespace Mercurius.Repo.Repositories
         /// </summary>
         IQueryable<T> Query<T>() where T : class;
 
+        /// <summary>
+        /// Forgets every change not yet saved. After a SaveChanges fails (a concurrency conflict, a
+        /// constraint violation) the failed entities stay tracked, and the next SaveChanges on this
+        /// unit of work would re-attempt them — so a caller that carries on after catching the
+        /// exception must call this first. A rolled-back transaction does it for you.
+        /// </summary>
+        void DiscardChanges();
+
         Task SaveChangesAsync(CancellationToken cancellationToken = default);
         Task BeginTransactionAsync(CancellationToken cancellationToken = default);
         Task CommitTransactionAsync(CancellationToken cancellationToken = default);

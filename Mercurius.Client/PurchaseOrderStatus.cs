@@ -10,8 +10,11 @@ namespace Mercurius.Client
         public const string Approved = "Approved";
         public const string OrderSent = "OrderSent";
 
-        // The shipment form only offers approved or sent orders (ShipmentsApiController.GetPurchaseOrders).
-        public static bool CanReceive(string status) => status is Approved or OrderSent;
+        public const string ReceivedIncomplete = "ReceivedIncomplete";
+
+        // The shipment form offers orders that can still receive stock: approved, sent, or only partly
+        // delivered so far (ShipmentsApiController.GetPurchaseOrders / StockReceiving).
+        public static bool CanReceive(string status) => status is Approved or OrderSent or ReceivedIncomplete;
 
         public static string Label(string status) => status switch
         {

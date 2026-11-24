@@ -541,6 +541,65 @@ not assumed — the fixes are in `Infrastructure/`, but the reasoning is worth k
 
 `MedicineBatch` rows (created via `MedicineBatchesApiController`, one per stock receipt) each carry their own `UnitCost`/`UnitSalePrice`. A new shipment at a different price is just a new batch queued behind older stock — web checkout (`SalesApiController`) and mobile invoice push (`SyncController.PushInvoices`) call `BatchPricingService.FindFulfillingBatchAsync` to pick, oldest first, the first batch whose `RemainingQuantity` alone covers the full line quantity; if the oldest batch falls short, the *whole* line is priced and drawn from the next batch that can cover it rather than splitting across two batches' ledgers (a deliberate simplification, confirmed with the product owner). Only when *no* single batch covers the line is it priced from the newest batch, which is emptied with the shortfall taken from the other batches oldest first (`BatchPricingService.DeductAsync`), so batches never go negative and still add up to the shelf stock. A refund with restock puts the units back on the line's batch. `InvoiceItem.MedicineBatchId` records which batch a line was actually priced/deducted from, for refund credit and lot-recall tracing. Products with no batches at all (most non-drug items) fall back to `Product.CurrentSalePrice`/`CurrentCostPrice` unchanged — this feature is purely additive. `BatchPricingService.RefreshActivePriceAsync` keeps those flat fields in sync with whichever batch is now the oldest non-depleted one, so every screen that reads them (the Products list, the Sell page, the mobile sync API) keeps working without knowing batches exist.
 
+### Receiving stock (`StockReceiving`, Shipments → Receive Shipment)
+
+Stock goes **up** through: a shipment recorded as **Received** (this), a manual batch
+(`MedicineBatchesApiController`), an inbound adjustment, a CSV import count, or a refund restock.
+It goes down through sales (`SaleRecorder`) and outbound adjustments. Before 2026-11 recording a
+shipment as Received changed nothing on the shelf, and the purchase-order "Received" buttons only
+changed a label — don't reintroduce either.
+
+- `POST api/shipments` with status Received (id 2) **requires** `Items` (product, quantity, unit cost,
+  sale price, optional batch number and expiry) and `StockReceiving` then adds each line's quantity to
+  the product, starts a `MedicineBatch` at that cost/price (so FIFO pricing queues it behind older
+  stock), keeps the line as a `ShipmentArrivalItem`, and — when the shipment is against a purchase
+  order — raises each `PurchaseOrderItem.ReceivedQuantity` and moves the order to `ReceivedComplete`
+  (every line in full) or `ReceivedIncomplete`. All in one transaction. Any other status (Pending,
+  Delayed, Damaged) can't carry items, so it never touches stock.
+- A `ReceivedIncomplete` order can be received against again until it is complete
+  (`StockReceiving.ReceivablePurchaseOrderStatuses`). The "mark received" buttons are gone from the
+  screens; `POST api/purchase-orders/{id}/mark-received` remains only as a label override.
+- `ShipmentArrival.SyncId` is picked when the form opens, so a double-click or retry is one shipment.
+- A batch with no expiry is stored with `MedicineBatch.NoExpiry` (9999-12-31) and shown as "No expiry".
+- Write-offs (outbound adjustments, including a CSV count lower than the system's) also come out of the
+  batches, oldest first (`AdjustmentService`), so the batches keep adding up to the stock.
+
+### Concurrent updates (`IVersioned`, `ConcurrencyRetry`)
+
+`Product`, `MedicineBatch` and `Invoice` carry an int `Version` concurrency token that
+`MercuriusDbContext.SaveChanges` raises on every update. If two requests change the same row at once,
+the second `SaveChanges` throws `DbUpdateConcurrencyException` instead of overwriting the first (two
+tills selling the last unit, a double-clicked refund or wholesale payment).
+
+- Controllers that change stock, batches or payments run through `ConcurrencyRetry.RunAsync`, which
+  discards the failed attempt (`IUnitOfWork.DiscardChanges()`) and runs the work again from the top (up
+  to 4 attempts) — so the work must be safe to re-run from scratch (check state again, no side effects
+  outside the transaction). What still fails reaches `ExceptionHandlingMiddleware` as a 409 with a
+  plain message (the Sell page shows it; an offline sale stays queued and retries).
+- After **any** failed `SaveChanges` that a caller catches and carries on from, call
+  `IUnitOfWork.DiscardChanges()` (a rolled-back transaction already does): the failed entities stay
+  tracked and the next save re-attempts them, so one bad row would fail every row after it. The CSV
+  import and mobile product push do this.
+- Rows loaded and saved within one request never conflict with themselves; only another request's
+  write in between does.
+
+### Sign-in, deactivation and rate limits
+
+- Both password sign-ins (web form and `POST api/auth/login`) go through
+  `MercuriusSignInManager.CheckPasswordSignInAsync`: wrong passwords count towards the 5-attempt /
+  15-minute lockout, and a deactivated user (`MercuriusUser.IsActive = false`) is refused — only after
+  the password is right, so "deactivated" can't be used to probe accounts.
+- Deactivating (or resetting a password) changes the user's security stamp. Browser sessions are
+  re-checked against it every 5 minutes; mobile JWTs carry it as the `sstamp` claim and
+  `JwtBearer.OnTokenValidated` (Program.cs) rejects a token for an inactive user or a changed stamp.
+  Tokens issued before this existed have no stamp claim and are only checked for the user being active.
+- `GlobalLimiter` (Program.cs) allows 10 sign-in POSTs per minute per client IP on `/account/login` and
+  `/api/auth/login` (loopback exempt, for local runs and the E2E suite). Other endpoints are unlimited;
+  the named "fixed"/"sliding" policies defined there are not attached to anything.
+- Non-development requests outside `/api` are redirected to HTTPS (`/api` is left alone so apps built for
+  http:// keep working). The mobile app targets `https://` (`ApiConfig.LiveBaseUrl`) — apps need a new
+  release to use it.
+
 ### Wholesale module (`WholesaleApiController`, `/wholesale`)
 
 A separate screen from the POS Sell page, with its own permissions: `WHOLESALE_INDEX` (list),

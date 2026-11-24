@@ -29,6 +29,7 @@ namespace Mercurius.Controllers.Api
         }
 
         [HttpGet]
+        [Authorize(Policy = Mercurius.Common.ModuleRegistry.Pages.PRODUCTS_INDEX)]
         public async Task<ActionResult<MedicineBatchListResultDto>> Get(int productId, CancellationToken ct = default)
         {
             ct.ThrowIfCancellationRequested();
@@ -52,12 +53,22 @@ namespace Mercurius.Controllers.Api
             return Ok(new MedicineBatchListResultDto { ProductName = product.Name ?? string.Empty, Items = items });
         }
 
+        // Adding a batch adds stock and sets the price customers are charged, so it takes the same
+        // permission as editing a product. It had no check beyond being signed in.
         [HttpPost]
-        public async Task<IActionResult> Create(CreateMedicineBatchRequest request, CancellationToken ct = default)
+        [Authorize(Policy = Mercurius.Common.ModuleRegistry.Pages.PRODUCTS_EDIT)]
+        public Task<IActionResult> Create(CreateMedicineBatchRequest request, CancellationToken ct = default) =>
+            Mercurius.Services.ConcurrencyRetry.RunAsync(_unitOfWork, () => CreateBatchAsync(request, ct), ct);
+
+        private async Task<IActionResult> CreateBatchAsync(CreateMedicineBatchRequest request, CancellationToken ct)
         {
             if (string.IsNullOrWhiteSpace(request.BatchNumber) || request.InitialQuantity <= 0)
             {
                 return BadRequest(new { error = "Batch number and a positive initial quantity are required." });
+            }
+            if (request.UnitCost < 0 || request.UnitSalePrice < 0)
+            {
+                return BadRequest(new { error = "Prices can't be negative." });
             }
 
             var product = await _unitOfWork.Repository<Product>().GetByIdAsync(request.ProductId, ct);
@@ -87,6 +98,7 @@ namespace Mercurius.Controllers.Api
         }
 
         [HttpDelete("{id}")]
+        [Authorize(Policy = Mercurius.Common.ModuleRegistry.Pages.PRODUCTS_EDIT)]
         public async Task<IActionResult> Delete(int id, CancellationToken ct = default)
         {
             var batch = await _unitOfWork.Repository<MedicineBatch>().GetByIdAsync(id, ct);

@@ -71,6 +71,8 @@ namespace Mercurius.Repo.Repositories
             _currentTransaction = null;
         }
 
+        public void DiscardChanges() => _context.ChangeTracker.Clear();
+
         public async Task RollbackTransactionAsync(CancellationToken cancellationToken = default)
         {
             if (_currentTransaction == null)

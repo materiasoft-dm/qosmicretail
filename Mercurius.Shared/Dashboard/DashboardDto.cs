@@ -21,7 +21,9 @@ namespace Mercurius.Shared.Dashboard
         public List<string> VisibleWidgets { get; set; } = new();
 
         public decimal TodaySales { get; set; }
-        public decimal TodayProfit { get; set; }
+        // Null unless the user may see cost prices (profit is sales minus cost), so it can't be
+        // worked out from a role that isn't allowed to see cost.
+        public decimal? TodayProfit { get; set; }
         public decimal ThisMonthSales { get; set; }
         public decimal PreviousMonthSales { get; set; }
 

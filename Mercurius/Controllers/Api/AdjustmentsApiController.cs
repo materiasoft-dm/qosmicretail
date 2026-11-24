@@ -118,7 +118,10 @@ namespace Mercurius.Controllers.Api
 
         [HttpPost]
         [Authorize(Policy = Mercurius.Common.ModuleRegistry.Pages.ADJUSTMENTS_CREATE)]
-        public async Task<IActionResult> Create(CreateAdjustmentRequest request, CancellationToken ct = default)
+        public Task<IActionResult> Create(CreateAdjustmentRequest request, CancellationToken ct = default) =>
+            Mercurius.Services.ConcurrencyRetry.RunAsync(_unitOfWork, () => CreateAdjustmentAsync(request, ct), ct);
+
+        private async Task<IActionResult> CreateAdjustmentAsync(CreateAdjustmentRequest request, CancellationToken ct)
         {
             if (request.ProductId <= 0 || request.ReasonId <= 0 || request.Quantity <= 0)
             {
@@ -147,9 +150,21 @@ namespace Mercurius.Controllers.Api
                 CreatedBy = Guid.TryParse(userId, out var uid) ? uid : Guid.Empty,
                 IsActive = true
             };
-            await _unitOfWork.Repository<Adjustment>().AddAsync(adjustment, ct);
-            await _unitOfWork.SaveChangesAsync(ct);
-            await _adjustmentService.ApplyAsync(adjustment, ct);
+            // One transaction: a failure part-way used to leave the adjustment on record with the
+            // stock unchanged, so the history and the stock disagreed.
+            await _unitOfWork.BeginTransactionAsync(ct);
+            try
+            {
+                await _unitOfWork.Repository<Adjustment>().AddAsync(adjustment, ct);
+                await _unitOfWork.SaveChangesAsync(ct);
+                await _adjustmentService.ApplyAsync(adjustment, ct);
+                await _unitOfWork.CommitTransactionAsync(ct);
+            }
+            catch
+            {
+                await _unitOfWork.RollbackTransactionAsync(CancellationToken.None);
+                throw;
+            }
 
             return Ok(new { id = adjustment.Id });
         }

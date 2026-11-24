@@ -112,7 +112,10 @@ namespace Mercurius.Controllers.Api
 
                 var todayItems = ItemsBetween(today, dayEnd).ToList();
                 dto.TodaySales = SumLineTotal(todayItems);
-                dto.TodayProfit = dto.TodaySales - SumCost(todayItems);
+                if (User.HasClaim(MercuriusClaimTypes.AccessPages, ModuleRegistry.Pages.PRODUCTS_INDEX_SHOW_COST))
+                {
+                    dto.TodayProfit = dto.TodaySales - SumCost(todayItems);
+                }
                 dto.ThisMonthSales = SumLineTotal(ItemsBetween(firstOfThisMonth, lastTickThisMonth));
                 dto.PreviousMonthSales = SumLineTotal(ItemsBetween(firstOfLastMonth, lastTickLastMonth));
             }

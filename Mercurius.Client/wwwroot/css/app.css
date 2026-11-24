@@ -369,9 +369,12 @@ main {
         content: var(--blazor-load-percentage-text, "Loading");
     }
 
+/* Used for identifiers (order numbers, file names), so neutral rather than an alarming pink. */
 code {
-    color: #c02d76;
+    color: var(--mc-text);
     background: var(--mc-neutral-100);
+    border: 1px solid var(--mc-border);
+    font-size: .82em;
     padding: .1em .35em;
     border-radius: 6px;
 }

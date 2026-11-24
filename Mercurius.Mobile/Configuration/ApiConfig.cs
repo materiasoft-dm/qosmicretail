@@ -2,7 +2,10 @@ namespace Mercurius.Mobile.Configuration;
 
 public static class ApiConfig
 {
-    public const string LiveBaseUrl = "http://darkmaster-002-site1.dtempurl.com";
+    // HTTPS: sign-in sends the cashier's password and returns a weeks-long token, so neither may cross
+    // the shop's network in the clear. The live host serves HTTPS with a valid certificate. (Apps built
+    // before this change use http:// and keep working: the server leaves /api alone when redirecting.)
+    public const string LiveBaseUrl = "https://darkmaster-002-site1.dtempurl.com";
 
 #if DEBUG
     // Debug builds: points at the live deployment so the app is testable on a real device/emulator

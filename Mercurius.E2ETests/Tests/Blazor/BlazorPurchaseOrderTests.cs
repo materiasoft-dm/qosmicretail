@@ -75,6 +75,12 @@ public class BlazorPurchaseOrderTests : BlazorTestBase
         await Page.GetByRole(AriaRole.Button, new PageGetByRoleOptions { Name = "Save", Exact = true }).ClickAsync();
         var shipmentRow = Page.Locator(".mud-table-body tr.mud-table-row").Filter(new LocatorFilterOptions { HasTextString = $"TRK-{stamp}" });
         await Assertions.Expect(shipmentRow).ToContainTextAsync(supplier, new LocatorAssertionsToContainTextOptions { Timeout = UiTimeoutMs });
+        await Assertions.Expect(shipmentRow).ToContainTextAsync("14");   // both lines (10 + 4), as ordered
+
+        // Everything ordered arrived, so the order is now Received and each line shows what came in.
+        await Page.GotoAsync(detailsUrl);
+        await Assertions.Expect(content.Locator(".mud-chip").First).ToHaveTextAsync("Received", new LocatorAssertionsToHaveTextOptions { Timeout = BootTimeoutMs });
+        await Assertions.Expect(content).ToContainTextAsync("10");
         await AssertNoBlazorErrorAsync();
     }
 }

@@ -294,7 +294,10 @@ namespace Mercurius.Controllers.Api
         // no refunded line, or a refund recorded without its restock.
         [HttpPost("refund")]
         [Authorize(Policy = Mercurius.Common.ModuleRegistry.Pages.REFUND_CREATE)]
-        public async Task<IActionResult> CreateRefund(CreateRefundRequest request, CancellationToken ct = default)
+        public Task<IActionResult> CreateRefund(CreateRefundRequest request, CancellationToken ct = default) =>
+            Mercurius.Services.ConcurrencyRetry.RunAsync(_unitOfWork, () => CreateRefundAsync(request, ct), ct);
+
+        private async Task<IActionResult> CreateRefundAsync(CreateRefundRequest request, CancellationToken ct)
         {
             var item = await _unitOfWork.Repository<InvoiceItem>().GetByIdAsync(request.InvoiceItemId, ct);
             if (item == null) return NotFound(new { error = "Invoice item not found." });
@@ -390,6 +393,20 @@ namespace Mercurius.Controllers.Api
                 if (fullyRefunded)
                 {
                     invoice.StatusId = (int)StatusCollection.InvoiceStatus.Refunded;
+                }
+                else if (string.Equals(invoice.SourceChannel, "Wholesale", StringComparison.Ordinal))
+                {
+                    // A wholesale order's status says how it stands on payment (Paid / Partially paid /
+                    // Unpaid). A refund lowers what's owed, so re-derive it from what's still due:
+                    // otherwise an order left with nothing to pay still read "Partially paid".
+                    var due = allItems.Sum(ii =>
+                    {
+                        var unit = ii.CustomTotalPrice.HasValue && ii.Quantity != 0 ? ii.CustomTotalPrice.Value / ii.Quantity : ii.SalePrice;
+                        return unit * (ii.Quantity - (refundedByItemId.TryGetValue(ii.Id, out var refundedQty) ? refundedQty : 0m));
+                    });
+                    invoice.StatusId = (int)(invoice.PaidAmount >= due ? StatusCollection.InvoiceStatus.Completed
+                        : invoice.PaidAmount > 0 ? StatusCollection.InvoiceStatus.PartiallyPaid
+                        : StatusCollection.InvoiceStatus.DeferredPayment);
                 }
 
                 await _unitOfWork.Repository<Invoice>().UpdateAsync(invoice, ct);

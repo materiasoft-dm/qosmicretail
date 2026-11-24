@@ -78,6 +78,15 @@
             return;
         }
 
+        if (result.IsNotAllowed)
+        {
+            // Only returned once the password was right (MercuriusSignInManager checks IsActive after
+            // verifying it), so this doesn't tell a stranger which accounts exist or are inactive.
+            await AuditAsync(AuditActions.LoginFailed, $"Web sign-in refused — account deactivated: {Input.Email}");
+            _error = "This account has been deactivated. Ask an administrator.";
+            return;
+        }
+
         await AuditAsync(AuditActions.LoginFailed, $"Failed web sign-in attempt for {Input.Email}");
         _error = "That email and password don't match an account.";
     }

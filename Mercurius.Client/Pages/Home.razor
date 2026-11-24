@@ -112,14 +112,17 @@ else
                                         <div class="kpi-label">Today's sales</div>
                                         <div class="kpi-value">@Money.Format(_d.TodaySales)</div>
                                     </div>
-                                    <div class="kpi">
-                                        <div class="kpi-label">Today's profit</div>
-                                        <div class="kpi-value">@Money.Format(_d.TodayProfit)</div>
-                                        @if (_d.TodaySales > 0)
-                                        {
-                                            <div class="kpi-foot">@((_d.TodayProfit / _d.TodaySales * 100).ToString("0.#"))% margin</div>
-                                        }
-                                    </div>
+                                    @if (_d.TodayProfit is decimal profit)
+                                    {
+                                        <div class="kpi">
+                                            <div class="kpi-label">Today's profit</div>
+                                            <div class="kpi-value">@Money.Format(profit)</div>
+                                            @if (_d.TodaySales > 0)
+                                            {
+                                                <div class="kpi-foot">@((profit / _d.TodaySales * 100).ToString("0.#"))% margin</div>
+                                            }
+                                        </div>
+                                    }
                                     <div class="kpi">
                                         <div class="kpi-label">This month</div>
                                         <div class="kpi-value">@Money.Format(_d.ThisMonthSales)</div>

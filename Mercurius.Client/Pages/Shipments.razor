@@ -52,6 +52,53 @@
             <MudItem xs="12" md="4"><MudTextField @bind-Value="_trackingNumber" Label="Tracking number" Variant="Variant.Outlined" /></MudItem>
             <MudItem xs="12" md="8"><MudTextField @bind-Value="_notes" Label="Notes" Variant="Variant.Outlined" /></MudItem>
         </MudGrid>
+
+        @if (Receiving)
+        {
+            @* Stock is added when a shipment is recorded as Received, one batch per line. *@
+            <MudText Typo="Typo.subtitle1" Class="mt-4 mb-1">What arrived</MudText>
+            <MudText Typo="Typo.body2" Class="mud-text-secondary mb-2">
+                Each line is added to stock and starts a batch at the cost and sale price below. Leave a quantity at 0 for anything that didn't come.
+            </MudText>
+
+            @foreach (var line in _lines)
+            {
+                <MudGrid Spacing="2" Class="mb-1 align-center">
+                    <MudItem xs="12" md="3">
+                        <MudText Class="fw-semibold">@line.Name</MudText>
+                        <MudText Typo="Typo.caption" Class="mud-text-secondary">
+                            @line.ProductCode@(line.Ordered > 0 ? $" · ordered {line.Ordered:0.##}, already received {line.AlreadyReceived:0.##}" : "")
+                        </MudText>
+                    </MudItem>
+                    <MudItem xs="4" md="1">
+                        <MudNumericField T="decimal" @bind-Value="line.Quantity" Label="Quantity received" Min="0" Format="0.##" Variant="Variant.Outlined" HideSpinButtons="true" />
+                    </MudItem>
+                    @if (_canSeeCost)
+                    {
+                        <MudItem xs="4" md="1">
+                            <MudNumericField T="decimal" @bind-Value="line.UnitCost" Label="Unit cost" Min="0" Format="N2" Variant="Variant.Outlined" HideSpinButtons="true" />
+                        </MudItem>
+                    }
+                    <MudItem xs="4" md="1">
+                        <MudNumericField T="decimal" @bind-Value="line.UnitSalePrice" Label="Sale price" Min="0" Format="N2" Variant="Variant.Outlined" HideSpinButtons="true" />
+                    </MudItem>
+                    <MudItem xs="6" md="2">
+                        <MudTextField @bind-Value="line.BatchNumber" Label="Batch number" Placeholder="Optional" Variant="Variant.Outlined" MaxLength="100" />
+                    </MudItem>
+                    <MudItem xs="6" md="2">
+                        <MudDatePicker @bind-Date="line.Expiry" Label="Expiry date" Placeholder="No expiry" DateFormat="yyyy-MM-dd" Variant="Variant.Outlined" />
+                    </MudItem>
+                    <MudItem xs="12" md="1" Class="d-flex justify-end">
+                        <MudIconButton Icon="@Icons.Material.Filled.Close" Size="Size.Small" aria-label="@($"Remove {line.Name}")" OnClick="@(() => _lines.Remove(line))" />
+                    </MudItem>
+                </MudGrid>
+            }
+
+            <MudAutocomplete T="ReceivableProductDto" Value="null" ValueChanged="AddProduct" SearchFunc="SearchProductsAsync" ToStringFunc="@(p => p == null ? string.Empty : $"{p.Name} ({p.ProductCode})")"
+                             Label="Add a product" Placeholder="Type a name, SKU or barcode" Variant="Variant.Outlined"
+                             DebounceInterval="300" MaxItems="30" ResetValueOnEmptyText="true" CoerceText="false" Class="mt-2" />
+        }
+
         @if (_error != null)
         {
             <MudAlert Severity="Severity.Error" Class="mt-3">@_error</MudAlert>
@@ -70,12 +117,14 @@
             <MudTh>Arrival date</MudTh>
             <MudTh>Supplier</MudTh>
             <MudTh>Tracking #</MudTh>
+            <MudTh Style="text-align:right;">Units received</MudTh>
         </HeaderContent>
         <RowTemplate>
             <MudTd DataLabel="Status"><MudChip T="string" Size="Size.Small" Color="@StatusColor(context.StatusName)">@context.StatusName</MudChip></MudTd>
             <MudTd DataLabel="Arrival date">@LocalTime.FormatDate(context.Date)</MudTd>
             <MudTd DataLabel="Supplier">@context.SupplierName</MudTd>
             <MudTd DataLabel="Tracking #">@context.TrackingNumber</MudTd>
+            <MudTd DataLabel="Units received" Style="text-align:right;">@(context.UnitsReceived > 0 ? context.UnitsReceived.ToString("0.##") : "—")</MudTd>
         </RowTemplate>
         <NoRecordsContent>
             <MudText>No shipments yet.</MudText>
@@ -93,24 +142,45 @@
     [CascadingParameter] private Task<AuthenticationState> AuthState { get; set; } = default!;
 
     private const int PendingStatusId = 1;
+    private const int ReceivedStatusId = 2;
 
-    private bool _canCreate;
+    private sealed class ReceiveLine
+    {
+        public int ProductId { get; init; }
+        public string Name { get; init; } = string.Empty;
+        public string ProductCode { get; init; } = string.Empty;
+        public decimal Ordered { get; init; }
+        public decimal AlreadyReceived { get; init; }
+        public decimal Quantity { get; set; }
+        public decimal UnitCost { get; set; }
+        public decimal UnitSalePrice { get; set; }
+        public string? BatchNumber { get; set; }
+        public DateTime? Expiry { get; set; }
+    }
+
+    private bool _canCreate, _canSeeCost;
     private ListResultDto<ShipmentListItemDto>? _result;
     private List<SupplierOptionDto> _suppliers = new();
     private List<PurchaseOrderOptionDto> _purchaseOrders = new();
     private List<ShipmentStatusDto> _statuses = new();
+    private readonly List<ReceiveLine> _lines = new();
     private bool _showCreate;
     private bool _busy;
     private int _purchaseOrderId;
     private int _supplierId;
-    private int _statusId = PendingStatusId;
+    private int _statusId = ReceivedStatusId;
+    private Guid _syncId = Guid.NewGuid();
     private DateTime? _arrivalDate = DateTime.Today;
     private string _trackingNumber = string.Empty, _notes = string.Empty;
     private string? _error;
 
+    private bool Receiving => _statusId == ReceivedStatusId;
+
     protected override async Task OnInitializedAsync()
     {
-        _canCreate = (await AuthState).User.Can(ModuleRegistry.Pages.SHIPMENT_CREATE);
+        var user = (await AuthState).User;
+        _canCreate = user.Can(ModuleRegistry.Pages.SHIPMENT_CREATE);
+        _canSeeCost = user.Can(ModuleRegistry.Pages.SHIPMENT_VIEW_COSTPRICE);
         if (!RendererInfo.IsInteractive) return; // prerendering: show the loading state; the browser loads the data
         await LoadAsync();
         if (PoId is > 0 && _canCreate) await ShowCreateAsync(PoId);
@@ -132,33 +202,79 @@
         _error = null;
         _purchaseOrderId = 0;
         _supplierId = 0;
-        _statusId = PendingStatusId;
+        // This form is for goods that have arrived, so it opens as Received; pick Pending/Delayed/Damaged to just log one.
+        _statusId = ReceivedStatusId;
+        _syncId = Guid.NewGuid();
         _arrivalDate = DateTime.Today;
         _trackingNumber = _notes = string.Empty;
+        _lines.Clear();
         _suppliers = await Api.GetSuppliersAsync();
         _purchaseOrders = await Api.GetPurchaseOrdersAsync();
         _statuses = await Api.GetStatusesAsync();
         if (purchaseOrderId.HasValue && _purchaseOrders.Any(p => p.Id == purchaseOrderId.Value))
         {
             _purchaseOrderId = purchaseOrderId.Value;
-            OnPurchaseOrderChanged();
+            await OnPurchaseOrderChanged();
         }
     }
 
-    private void OnPurchaseOrderChanged()
+    private async Task OnPurchaseOrderChanged()
     {
         var po = _purchaseOrders.FirstOrDefault(p => p.Id == _purchaseOrderId);
         if (po != null) _supplierId = po.SupplierId;
+
+        // The order's lines become the delivery's, each filled in with what's still expected.
+        _lines.Clear();
+        if (po == null) return;
+        foreach (var line in await Api.GetPurchaseOrderLinesAsync(po.Id))
+        {
+            _lines.Add(new ReceiveLine
+            {
+                ProductId = line.ProductId,
+                Name = line.ProductName,
+                ProductCode = line.ProductCode,
+                Ordered = line.Ordered,
+                AlreadyReceived = line.AlreadyReceived,
+                Quantity = Math.Max(0m, line.Ordered - line.AlreadyReceived),
+                UnitCost = line.UnitCost,
+                UnitSalePrice = line.UnitSalePrice
+            });
+        }
+    }
+
+    private async Task<IEnumerable<ReceivableProductDto>> SearchProductsAsync(string? value, CancellationToken token) =>
+        await Api.SearchProductsAsync(value, token);
+
+    private void AddProduct(ReceivableProductDto? product)
+    {
+        if (product == null) return;
+        _lines.Add(new ReceiveLine
+        {
+            ProductId = product.Id,
+            Name = product.Name,
+            ProductCode = product.ProductCode,
+            Quantity = 1,
+            UnitCost = product.UnitCost,
+            UnitSalePrice = product.UnitSalePrice
+        });
     }
 
     private async Task Submit()
     {
         _error = null;
+        var arrived = Receiving ? _lines.Where(l => l.Quantity > 0).ToList() : new List<ReceiveLine>();
+        if (Receiving && arrived.Count == 0)
+        {
+            _error = "Add what arrived (a quantity above 0 on at least one line), or change the status if nothing has come yet.";
+            return;
+        }
+
         _busy = true;
         try
         {
-            var created = await Api.CreateAsync(new CreateShipmentRequest
+            var (created, error) = await Api.CreateAsync(new CreateShipmentRequest
             {
+                SyncId = _syncId,
                 SupplierId = _supplierId > 0 ? _supplierId : null,
                 PurchaseOrderId = _purchaseOrderId > 0 ? _purchaseOrderId : null,
                 // Today means now; another day is sent as the start of that day here, in UTC.
@@ -167,15 +283,25 @@
                     : null,
                 StatusId = _statusId,
                 TrackingNumber = _trackingNumber,
-                Notes = _notes
+                Notes = _notes,
+                Items = arrived.Select(l => new ShipmentItemRequest
+                {
+                    ProductId = l.ProductId,
+                    Quantity = l.Quantity,
+                    UnitCost = l.UnitCost,
+                    UnitSalePrice = l.UnitSalePrice,
+                    BatchNumber = l.BatchNumber,
+                    // The picked day is a calendar date, sent as that day in UTC (the same as the batch form).
+                    ExpiryDate = l.Expiry.HasValue ? DateTime.SpecifyKind(l.Expiry.Value.Date, DateTimeKind.Utc) : null
+                }).ToList()
             });
             if (!created)
             {
-                _error = "The shipment couldn't be saved.";
+                _error = error;
                 return;
             }
             _showCreate = false;
-            Snackbar.Add("Shipment recorded.", Severity.Success);
+            Snackbar.Add(arrived.Count > 0 ? $"Shipment received: {arrived.Sum(l => l.Quantity):0.##} units added to stock." : "Shipment recorded.", Severity.Success);
             await LoadAsync();
         }
         finally

@@ -21,7 +21,18 @@ namespace Mercurius.Client.Services
         public async Task<List<ShipmentStatusDto>> GetStatusesAsync() =>
             await _http.GetFromJsonAsync<List<ShipmentStatusDto>>("api/shipments/statuses") ?? new();
 
-        public async Task<bool> CreateAsync(CreateShipmentRequest request) =>
-            (await _http.PostAsJsonAsync("api/shipments", request)).IsSuccessStatusCode;
+        public async Task<List<ReceivableLineDto>> GetPurchaseOrderLinesAsync(int purchaseOrderId) =>
+            await _http.GetFromJsonAsync<List<ReceivableLineDto>>($"api/shipments/purchase-orders/{purchaseOrderId}/lines") ?? new();
+
+        public async Task<List<ReceivableProductDto>> SearchProductsAsync(string? search, CancellationToken ct = default) =>
+            await _http.GetFromJsonAsync<List<ReceivableProductDto>>($"api/shipments/products?search={Uri.EscapeDataString(search ?? string.Empty)}", ct) ?? new();
+
+        public async Task<(bool Success, string? Error)> CreateAsync(CreateShipmentRequest request)
+        {
+            var response = await _http.PostAsJsonAsync("api/shipments", request);
+            return response.IsSuccessStatusCode
+                ? (true, null)
+                : (false, await ApiErrors.ReadAsync(response, "The shipment couldn't be saved."));
+        }
     }
 }

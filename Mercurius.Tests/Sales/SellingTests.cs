@@ -56,7 +56,7 @@ namespace Mercurius.Tests.Sales
         private SalesApiController SalesController() => WithUser(new SalesApiController(_unitOfWork, new SaleRecorder(_batchPricing)));
 
         private InvoicesApiController InvoicesController() =>
-            WithUser(new InvoicesApiController(_unitOfWork, new AdjustmentService(_unitOfWork), _batchPricing));
+            WithUser(new InvoicesApiController(_unitOfWork, new AdjustmentService(_unitOfWork, _batchPricing), _batchPricing));
 
         private static T WithUser<T>(T controller) where T : ControllerBase
         {

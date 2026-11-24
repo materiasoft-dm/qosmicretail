@@ -230,6 +230,9 @@ namespace Mercurius.Controllers.Api
             return Ok(new { status = order.Status });
         }
 
+        // Only changes the order's label — no stock moves. The screens no longer offer it: an order is
+        // received by recording its shipment as Received (ShipmentsApiController), which adds the stock
+        // and sets the order's status itself. Kept for scripts that call it.
         [HttpPost("{id}/mark-received")]
         [Authorize(Policy = Mercurius.Common.ModuleRegistry.Pages.PURCHASE_ORDERS_EDIT)]
         public async Task<IActionResult> MarkReceived(int id, [FromQuery] bool isComplete, CancellationToken ct = default)

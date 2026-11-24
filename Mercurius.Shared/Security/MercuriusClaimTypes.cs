@@ -7,5 +7,8 @@ namespace Mercurius.Common.Constants
         public const string AccessPages = "access.pages";
         public const string TenantId = "tenant_id";
         public const string IsPlatformAdmin = "is_platform_admin";
+        // In mobile tokens (Api/AuthController): the user's security stamp at sign-in. A password
+        // reset or deactivation changes the stamp, which invalidates the token (Program.cs).
+        public const string SecurityStamp = "sstamp";
     }
 }

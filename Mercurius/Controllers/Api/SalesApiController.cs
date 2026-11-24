@@ -85,7 +85,8 @@ namespace Mercurius.Controllers.Api
             if (existing != null) return Ok(existing);
 
             // The customer already paid the ticket's prices, so they're kept, same as a mobile sale.
-            return await ProcessCheckoutAsync(request, syncId, request.CreatedAtUtc, keepTicketPrices: true, ct);
+            return await Mercurius.Services.ConcurrencyRetry.RunAsync(_unitOfWork,
+                () => ProcessCheckoutAsync(request, syncId, request.CreatedAtUtc, keepTicketPrices: true, ct), ct);
         }
 
         // Idempotent by SyncId too: the Sell page picks one per sale, so a retry after a lost
@@ -98,9 +99,12 @@ namespace Mercurius.Controllers.Api
             {
                 var existing = await FindExistingSaleAsync(syncId, ct);
                 if (existing != null) return Ok(existing);
-                return await ProcessCheckoutAsync(request, syncId, DateTime.UtcNow, keepTicketPrices: false, ct);
+                return await Mercurius.Services.ConcurrencyRetry.RunAsync(_unitOfWork,
+                    () => ProcessCheckoutAsync(request, syncId, DateTime.UtcNow, keepTicketPrices: false, ct), ct);
             }
-            return await ProcessCheckoutAsync(request, Guid.NewGuid(), DateTime.UtcNow, keepTicketPrices: false, ct);
+            var newSyncId = Guid.NewGuid();
+            return await Mercurius.Services.ConcurrencyRetry.RunAsync(_unitOfWork,
+                () => ProcessCheckoutAsync(request, newSyncId, DateTime.UtcNow, keepTicketPrices: false, ct), ct);
         }
 
         private async Task<CheckoutResultDto?> FindExistingSaleAsync(Guid syncId, CancellationToken ct)

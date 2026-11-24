@@ -133,6 +133,14 @@ namespace Mercurius.Services
                 rowNum++;
                 try
                 {
+                    // Rows are matched to products by SKU. A blank one matches "the product with a blank
+                    // SKU", so every such row used to overwrite the same product's stock — and a blank
+                    // SKU is exactly what an export's stray or footer row looks like.
+                    if (string.IsNullOrWhiteSpace(record.ProductCode))
+                    {
+                        throw new InvalidOperationException("the row has no SKU/Handle, so it can't be matched to a product and was skipped.");
+                    }
+
                     var existingProducts = await unitOfWork.Repository<Product>()
                         .FindAsync(p => p.ProductCode == record.ProductCode, ct);
                     var existingProduct = existingProducts.FirstOrDefault();
@@ -244,6 +252,9 @@ namespace Mercurius.Services
                 }
                 catch (Exception ex)
                 {
+                    // The failed row's half-saved entities are still tracked; without this the next row's
+                    // SaveChanges would try them again and fail the same way, row after row.
+                    unitOfWork.DiscardChanges();
                     state.ReportLines.Add(new ProductImportReportLineDto
                     {
                         ProductCode = record.ProductCode,

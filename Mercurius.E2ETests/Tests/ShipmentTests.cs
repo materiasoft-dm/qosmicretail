@@ -39,6 +39,33 @@ public class ShipmentTests : BlazorTestBase
     }
 
     [Fact]
+    public async Task PendingShipment_IsRecordedWithoutAddingStock_AndReceivedNeedsItems()
+    {
+        await LoginAsAdminAsync();
+        var supplierName = await CreateTestSupplierAsync("E2E Pending Supplier");
+
+        await GotoAppAsync("shipments");
+        await Page.GetByRole(AriaRole.Button, new PageGetByRoleOptions { Name = "Receive Shipment" }).ClickAsync();
+        await SelectOptionAsync("Supplier", supplierName);
+
+        // The form opens as Received, which must say what arrived: saving it empty is refused, not silently empty.
+        await Page.GetByRole(AriaRole.Button, new PageGetByRoleOptions { Name = "Save", Exact = true }).ClickAsync();
+        await Assertions.Expect(Page.GetByText("Add what arrived")).ToBeVisibleAsync(new LocatorAssertionsToBeVisibleOptions { Timeout = UiTimeoutMs });
+
+        // In transit: record it as Pending with no lines.
+        var trackingNumber = $"TRACK-{Guid.NewGuid():N}"[..16];
+        await FillFieldAsync("Tracking number", trackingNumber);
+        await SelectOptionAsync("Status", "Pending");
+        await Page.GetByRole(AriaRole.Button, new PageGetByRoleOptions { Name = "Save", Exact = true }).ClickAsync();
+
+        var shipmentRow = Page.Locator(".mud-table-body tr.mud-table-row").Filter(new LocatorFilterOptions { HasTextString = trackingNumber });
+        await Assertions.Expect(shipmentRow).ToHaveCountAsync(1, new LocatorAssertionsToHaveCountOptions { Timeout = UiTimeoutMs });
+        await Assertions.Expect(shipmentRow).ToContainTextAsync("Pending");
+        await Assertions.Expect(shipmentRow).ToContainTextAsync("—");   // no units received
+        await AssertNoBlazorErrorAsync();
+    }
+
+    [Fact]
     public async Task ShipmentsList_Loads()
     {
         await LoginAsAdminAsync();
@@ -70,15 +97,29 @@ public class ShipmentTests : BlazorTestBase
 
         var trackingNumber = $"TRACK-{Guid.NewGuid():N}"[..16];
         await FillFieldAsync("Tracking number", trackingNumber);
-        // Explicitly mark it Received (status id 2) rather than taking the form's Pending default —
-        // this test is specifically about a shipment that has arrived.
         await SelectOptionAsync("Status", "Received");
+
+        // The order's line is already on the form with what's still expected (25), ready to adjust.
+        await Assertions.Expect(Page.GetByText(productName).First).ToBeVisibleAsync(new LocatorAssertionsToBeVisibleOptions { Timeout = UiTimeoutMs });
+        await Assertions.Expect(Page.GetByLabel("Quantity received")).ToHaveValueAsync("25", new LocatorAssertionsToHaveValueOptions { Timeout = UiTimeoutMs });
+        await FillFieldAsync("Batch number", "LOT-E2E-1");
         await Page.GetByRole(AriaRole.Button, new PageGetByRoleOptions { Name = "Save", Exact = true }).ClickAsync();
 
         var shipmentRow = Page.Locator(".mud-table-body tr.mud-table-row").Filter(new LocatorFilterOptions { HasTextString = trackingNumber });
         await Assertions.Expect(shipmentRow).ToHaveCountAsync(1, new LocatorAssertionsToHaveCountOptions { Timeout = UiTimeoutMs });
         await Assertions.Expect(shipmentRow).ToContainTextAsync("Received");
         await Assertions.Expect(shipmentRow).ToContainTextAsync(supplierName);
+        await Assertions.Expect(shipmentRow).ToContainTextAsync("25");   // units received
+
+        // ...and the stock is really on the shelf: the product now has 25 in stock, in batch LOT-E2E-1.
+        await GotoAppAsync("products");
+        await Page.GetByLabel("Search by name, SKU or barcode...").FillAsync(productName);
+        var productRow = Page.Locator(".mud-table-body tr.mud-table-row").Filter(new LocatorFilterOptions { HasTextString = productName });
+        await Assertions.Expect(productRow).ToHaveCountAsync(1, new LocatorAssertionsToHaveCountOptions { Timeout = UiTimeoutMs });
+        await Assertions.Expect(productRow).ToContainTextAsync("25");
+        await productRow.GetByRole(AriaRole.Link, new LocatorGetByRoleOptions { Name = "Batches" }).ClickAsync();
+        await Assertions.Expect(Page.Locator(".mud-table-body")).ToContainTextAsync("LOT-E2E-1", new LocatorAssertionsToContainTextOptions { Timeout = UiTimeoutMs });
+        await Assertions.Expect(Page.Locator(".mud-table-body")).ToContainTextAsync("No expiry");
         await AssertNoBlazorErrorAsync();
     }
 }

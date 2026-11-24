@@ -83,7 +83,7 @@ redeploy the web app.
    and the deploy fails with a misleading 401). The upload includes ~150+ MB of app files, so
    expect several minutes.
 
-5. **Verify live**: `http://darkmaster-002-site1.dtempurl.com/health` reports Healthy, and
+5. **Verify live**: `https://darkmaster-002-site1.dtempurl.com/health` reports Healthy, and
    `/Downloads/Windows` and `/Downloads/Android` answer **302** (redirect to login) rather than 404
    when fetched without signing in. That only proves the routes exist; to prove the files landed,
    list the live folder with Web Deploy's read-only dump (password from `site1.PublishSettings`,

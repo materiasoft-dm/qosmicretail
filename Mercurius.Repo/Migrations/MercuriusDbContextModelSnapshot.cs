@@ -698,6 +698,10 @@ namespace Mercurius.Repo.Migrations
                     b.Property<DateTime?>("UpdatedDate")
                         .HasColumnType("TEXT");
 
+                    b.Property<int>("Version")
+                        .IsConcurrencyToken()
+                        .HasColumnType("INTEGER");
+
                     b.HasKey("Id");
 
                     b.HasIndex("CustomerId");
@@ -1058,6 +1062,10 @@ namespace Mercurius.Repo.Migrations
                         .HasPrecision(18, 4)
                         .HasColumnType("TEXT");
 
+                    b.Property<int>("Version")
+                        .IsConcurrencyToken()
+                        .HasColumnType("INTEGER");
+
                     b.HasKey("Id");
 
                     b.HasIndex("BatchNumber");
@@ -1150,6 +1158,10 @@ namespace Mercurius.Repo.Migrations
 
                     b.Property<DateTime?>("UpdatedDate")
                         .HasColumnType("TEXT");
+
+                    b.Property<int>("Version")
+                        .IsConcurrencyToken()
+                        .HasColumnType("INTEGER");
 
                     b.Property<decimal?>("WholesalePrice")
                         .HasPrecision(18, 4)
@@ -1430,6 +1442,9 @@ namespace Mercurius.Repo.Migrations
                     b.Property<int?>("SupplierId")
                         .HasColumnType("INTEGER");
 
+                    b.Property<Guid?>("SyncId")
+                        .HasColumnType("TEXT");
+
                     b.Property<int>("TenantId")
                         .HasColumnType("INTEGER");
 
@@ -1450,6 +1465,9 @@ namespace Mercurius.Repo.Migrations
                     b.HasIndex("ShipmentArrivalStatusId");
 
                     b.HasIndex("SupplierId");
+
+                    b.HasIndex("SyncId")
+                        .IsUnique();
 
                     b.ToTable("ShipmentArrivals");
                 });

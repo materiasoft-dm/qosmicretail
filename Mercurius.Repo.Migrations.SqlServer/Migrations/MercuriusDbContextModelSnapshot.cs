@@ -729,6 +729,10 @@ namespace Mercurius.Repo.Migrations.SqlServer.Migrations
                     b.Property<DateTime?>("UpdatedDate")
                         .HasColumnType("datetime2");
 
+                    b.Property<int>("Version")
+                        .IsConcurrencyToken()
+                        .HasColumnType("int");
+
                     b.HasKey("Id");
 
                     b.HasIndex("CustomerId");
@@ -1107,6 +1111,10 @@ namespace Mercurius.Repo.Migrations.SqlServer.Migrations
                         .HasPrecision(18, 4)
                         .HasColumnType("decimal(18,4)");
 
+                    b.Property<int>("Version")
+                        .IsConcurrencyToken()
+                        .HasColumnType("int");
+
                     b.HasKey("Id");
 
                     b.HasIndex("BatchNumber");
@@ -1201,6 +1209,10 @@ namespace Mercurius.Repo.Migrations.SqlServer.Migrations
 
                     b.Property<DateTime?>("UpdatedDate")
                         .HasColumnType("datetime2");
+
+                    b.Property<int>("Version")
+                        .IsConcurrencyToken()
+                        .HasColumnType("int");
 
                     b.Property<decimal?>("WholesalePrice")
                         .HasPrecision(18, 4)
@@ -1495,6 +1507,9 @@ namespace Mercurius.Repo.Migrations.SqlServer.Migrations
                     b.Property<int?>("SupplierId")
                         .HasColumnType("int");
 
+                    b.Property<Guid?>("SyncId")
+                        .HasColumnType("uniqueidentifier");
+
                     b.Property<int>("TenantId")
                         .HasColumnType("int");
 
@@ -1515,6 +1530,10 @@ namespace Mercurius.Repo.Migrations.SqlServer.Migrations
                     b.HasIndex("ShipmentArrivalStatusId");
 
                     b.HasIndex("SupplierId");
+
+                    b.HasIndex("SyncId")
+                        .IsUnique()
+                        .HasFilter("[SyncId] IS NOT NULL");
 
                     b.ToTable("ShipmentArrivals");
                 });

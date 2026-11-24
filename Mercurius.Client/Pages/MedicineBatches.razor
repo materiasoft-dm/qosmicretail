@@ -45,7 +45,7 @@
         </HeaderContent>
         <RowTemplate>
             <MudTd DataLabel="Batch #">@context.BatchNumber</MudTd>
-            <MudTd DataLabel="Expiry">@context.ExpiryDate.ToString("yyyy-MM-dd")</MudTd>
+            <MudTd DataLabel="Expiry">@(context.ExpiryDate.Year >= 9000 ? "No expiry" : context.ExpiryDate.ToString("yyyy-MM-dd"))</MudTd>
             <MudTd DataLabel="Received">@context.ReceivedDate.ToString("yyyy-MM-dd")</MudTd>
             <MudTd DataLabel="Cost" Style="text-align:right;">@Money.Format(context.UnitCost)</MudTd>
             <MudTd DataLabel="Sale price" Style="text-align:right;">@Money.Format(context.UnitSalePrice)</MudTd>

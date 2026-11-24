@@ -182,7 +182,7 @@ if ($Deploy) {
         $deployPassword = $null
     }
 
-    $health = Invoke-WebRequest "http://darkmaster-002-site1.dtempurl.com/health" -UseBasicParsing -TimeoutSec 120
+    $health = Invoke-WebRequest "https://darkmaster-002-site1.dtempurl.com/health" -UseBasicParsing -TimeoutSec 120
     Write-Host "Live /health: $($health.Content)"
 }
 

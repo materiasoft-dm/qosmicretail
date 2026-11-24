@@ -35,12 +35,15 @@ namespace Mercurius.Controllers.Api
     public class AuthController : ControllerBase
     {
         private readonly UserManager<MercuriusUser> _userManager;
+        private readonly SignInManager<MercuriusUser> _signInManager;
         private readonly IConfiguration _configuration;
         private readonly Mercurius.Services.Auditing.IAuditLogger _auditLogger;
 
-        public AuthController(UserManager<MercuriusUser> userManager, IConfiguration configuration, Mercurius.Services.Auditing.IAuditLogger auditLogger)
+        public AuthController(UserManager<MercuriusUser> userManager, SignInManager<MercuriusUser> signInManager,
+            IConfiguration configuration, Mercurius.Services.Auditing.IAuditLogger auditLogger)
         {
             _userManager = userManager;
+            _signInManager = signInManager;
             _configuration = configuration;
             _auditLogger = auditLogger;
         }
@@ -66,19 +69,32 @@ namespace Mercurius.Controllers.Api
                 return BadRequest(new { error = "Email and password are required." });
             }
 
-            // Note: MercuriusUser.IsActive is not checked here — it's purely a display field in
-            // this codebase today (e.g. AccountController's user list), not enforced by the
-            // existing cookie-based sign-in either, so gating on it here would be an inconsistent,
-            // surprise restriction relative to how the rest of the app already behaves.
+            // Through the sign-in manager, like the web form, so the same rules apply: a wrong
+            // password counts towards the 5-attempt lockout (Program.cs), a locked-out account is
+            // refused, and so is a deactivated one (MercuriusSignInManager). This used to call
+            // UserManager.CheckPasswordAsync, which does none of that — unlimited guessing.
             var user = await _userManager.FindByEmailAsync(request.Email);
-            if (user == null || !await _userManager.CheckPasswordAsync(user, request.Password))
+            var result = user == null
+                ? Microsoft.AspNetCore.Identity.SignInResult.Failed
+                : await _signInManager.CheckPasswordSignInAsync(user, request.Password, lockoutOnFailure: true);
+            if (user == null || !result.Succeeded)
             {
-                await _auditLogger.LogAsync(Mercurius.Services.Auditing.AuditActions.LoginFailed,
-                    $"Failed mobile sign-in attempt for {request.Email}",
+                var (action, summary, error) = result.IsLockedOut
+                    ? (Mercurius.Services.Auditing.AuditActions.LockedOut,
+                        $"Mobile sign-in blocked — account locked out: {request.Email}",
+                        "Too many failed sign-in attempts. Try again in 15 minutes.")
+                    : result.IsNotAllowed
+                        ? (Mercurius.Services.Auditing.AuditActions.LoginFailed,
+                            $"Mobile sign-in refused — account deactivated: {request.Email}",
+                            "This account has been deactivated. Ask an administrator.")
+                        : (Mercurius.Services.Auditing.AuditActions.LoginFailed,
+                            $"Failed mobile sign-in attempt for {request.Email}",
+                            "Invalid credentials.");
+                await _auditLogger.LogAsync(action, summary,
                     new { email = request.Email, channel = "MobileApp" },
                     new Mercurius.Services.Auditing.AuditActor(user?.Id, user?.Email ?? request.Email, user?.TenantId),
                     entityType: user != null ? "MercuriusUser" : null, entityId: user?.Id);
-                return Unauthorized(new { error = "Invalid credentials." });
+                return Unauthorized(new { error });
             }
 
             await _auditLogger.LogAsync(Mercurius.Services.Auditing.AuditActions.LoginSucceeded,
@@ -100,7 +116,10 @@ namespace Mercurius.Controllers.Api
                 // The tenant boundary — read by ICurrentTenantContext to drive
                 // MercuriusDbContext's global query filter for every sync/API call this token
                 // authenticates. See MULTITENANCY_ARCHITECTURE.md.
-                new Claim(Mercurius.Common.Constants.MercuriusClaimTypes.TenantId, user.TenantId.ToString())
+                new Claim(Mercurius.Common.Constants.MercuriusClaimTypes.TenantId, user.TenantId.ToString()),
+                // Checked on every request (Program.cs): a password reset or deactivation changes
+                // the stamp, which ends this token instead of leaving it valid until it expires.
+                new Claim(Mercurius.Common.Constants.MercuriusClaimTypes.SecurityStamp, await _userManager.GetSecurityStampAsync(user))
             };
 
             var token = new JwtSecurityToken(

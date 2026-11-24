@@ -3,12 +3,19 @@ using System.ComponentModel.DataAnnotations;
 
 namespace Mercurius.Repo.Models;
 
-public class MedicineBatch : ITenantScoped
+public class MedicineBatch : ITenantScoped, IVersioned
 {
+    // ExpiryDate is required, but plenty of stock (baby care, beverages) doesn't expire. Such a batch
+    // is stored with this date, which no expiry alert ever reaches, and shown as "No expiry".
+    public static readonly DateTime NoExpiry = new(9999, 12, 31, 0, 0, 0, DateTimeKind.Utc);
+
     [Key]
     public int Id { get; set; }
 
     public int TenantId { get; set; }
+
+    // Concurrency token — see IVersioned.
+    public int Version { get; set; }
 
     [Required]
     public int ProductId { get; set; }

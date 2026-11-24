@@ -63,6 +63,16 @@ namespace Mercurius.Middleware
                 _logger.LogTrace($"Request: {context.Request.Method} {context.Request.Path}");
                 await _next(context);
             }
+            catch (Microsoft.EntityFrameworkCore.DbUpdateConcurrencyException ex) when (context.Request.Path.StartsWithSegments("/api") && !context.Response.HasStarted)
+            {
+                // Two requests changed the same stock, batch or order at once and this one lost (see
+                // IVersioned). Not a fault — nothing was saved — so say so and let the caller retry,
+                // rather than a logged 500. Anything that can simply run again already did
+                // (ConcurrencyRetry); what reaches here has used up its attempts.
+                _logger.LogWarning(ex, "Concurrent update on {Method} {Path}", context.Request.Method, context.Request.Path);
+                context.Response.StatusCode = StatusCodes.Status409Conflict;
+                await context.Response.WriteAsJsonAsync(new { error = "Someone else changed the same stock or order at the same moment, so nothing was saved. Please try again." });
+            }
             catch (Exception ex)
             {
                 await HandleExceptionAsync(context, ex);

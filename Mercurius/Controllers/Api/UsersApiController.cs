@@ -158,6 +158,11 @@ namespace Mercurius.Controllers.Api
 
             user.IsActive = request.Activate;
             await _userManager.UpdateAsync(user);
+            // Deactivating signs them out everywhere: the stamp is what browser sessions are
+            // re-checked against (Program.cs) and what mobile tokens carry. Reactivating changes
+            // it too, which is harmless — they just sign in again.
+            await _userManager.UpdateSecurityStampAsync(user);
+            // The audit trail records the IsActive change itself (AuditSaveChangesInterceptor).
             return Ok();
         }
 

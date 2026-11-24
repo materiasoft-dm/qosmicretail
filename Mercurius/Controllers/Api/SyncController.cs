@@ -215,7 +215,10 @@ namespace Mercurius.Controllers.Api
                 }
                 catch (Exception ex)
                 {
-                    results.Add(new SyncPushResultItem { SyncId = item.SyncId, Error = ex.Message });
+                    // A failed save leaves its entities tracked, and the next product's SaveChanges
+                    // would re-attempt them: one bad product made every later one fail too.
+                    _unitOfWork.DiscardChanges();
+                    results.Add(new SyncPushResultItem { SyncId = item.SyncId, Error = PushError(ex) });
                 }
             }
 
@@ -456,6 +459,16 @@ namespace Mercurius.Controllers.Api
 
                     var cashierId = await ResolveCashierAsync(item.CashierUserId, ct);
 
+                    // Like the location above: Query<Customer>() is tenant-filtered, so an id from another
+                    // pharmacy (or a typo) is simply not found. The sale is kept either way — the customer
+                    // is the optional part — rather than failing a sale the till has already taken.
+                    var customerId = item.CustomerId;
+                    if (customerId is int requestedCustomer
+                        && !await _unitOfWork.Query<Customer>().AnyAsync(c => c.Id == requestedCustomer, ct))
+                    {
+                        customerId = null;
+                    }
+
                     // All-or-nothing per sale. Previously the invoice header was committed before its
                     // lines; if a line then failed, the device retried, the server saw the SyncId
                     // already existed ("create-once, no-op"), and the lines were lost for good.
@@ -467,7 +480,7 @@ namespace Mercurius.Controllers.Api
                         SyncId = item.SyncId,
                         InvoiceDate = item.InvoiceDate,
                         InvoiceNumber = Mercurius.Services.SaleRecorder.NewInvoiceNumber(now, item.SyncId),
-                        CustomerId = item.CustomerId,
+                        CustomerId = customerId,
                         LocationId = resolvedLocationId,
                         StatusId = (int)StatusCollection.InvoiceStatus.Completed,
                         Notes = item.Notes,
@@ -523,12 +536,18 @@ namespace Mercurius.Controllers.Api
                         // so this sale's half-built rows aren't re-attempted by the next sale's save.
                         try { await _unitOfWork.RollbackTransactionAsync(CancellationToken.None); } catch { /* best-effort */ }
                     }
-                    results.Add(new SyncPushResultItem { SyncId = item.SyncId, Error = ex.Message });
+                    results.Add(new SyncPushResultItem { SyncId = item.SyncId, Error = PushError(ex) });
                 }
             }
 
             return Ok(results);
         }
+
+        // Two tills changing the same stock at the same moment isn't a fault: the device keeps the
+        // record queued and the next sync pass sends it again, so say that instead of EF's wording.
+        private static string PushError(Exception ex) => ex is Microsoft.EntityFrameworkCore.DbUpdateConcurrencyException
+            ? "Another sale changed the same stock at the same moment. It will be sent again automatically."
+            : ex.Message;
 
         // The device-reported cashier is only accepted if it's a real user in the SAME tenant as the
         // pushing user (users aren't tenant-filtered, so this is checked explicitly) — a device

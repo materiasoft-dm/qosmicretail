@@ -1,6 +1,8 @@
 using System.ComponentModel.DataAnnotations;
 using System.Linq;
 using System.Reflection;
+using System.Threading;
+using System.Threading.Tasks;
 using Microsoft.AspNetCore.Identity.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore;
 using Mercurius.Repo.IdentityModel;
@@ -58,6 +60,33 @@ namespace Mercurius.Repo.Repositories
         public DbSet<ZeroStockSaleAuditLog> ZeroStockSaleAuditLogs => Set<ZeroStockSaleAuditLog>();
         public DbSet<AuditLog> AuditLogs => Set<AuditLog>();
 
+        // Raises Version on every updated IVersioned row, so the UPDATE's "WHERE Version = <read>"
+        // check (IVersioned) fails if anything else changed the row in the meantime. Done here, not in
+        // an interceptor, so it applies to every context, tests included.
+        private void BumpVersions()
+        {
+            ChangeTracker.DetectChanges();
+            foreach (var entry in ChangeTracker.Entries<IVersioned>())
+            {
+                if (entry.State == EntityState.Modified)
+                {
+                    entry.Entity.Version = entry.Property(nameof(IVersioned.Version)).OriginalValue is int original ? original + 1 : 1;
+                }
+            }
+        }
+
+        public override int SaveChanges(bool acceptAllChangesOnSuccess)
+        {
+            BumpVersions();
+            return base.SaveChanges(acceptAllChangesOnSuccess);
+        }
+
+        public override Task<int> SaveChangesAsync(bool acceptAllChangesOnSuccess, CancellationToken cancellationToken = default)
+        {
+            BumpVersions();
+            return base.SaveChangesAsync(acceptAllChangesOnSuccess, cancellationToken);
+        }
+
         protected override void OnModelCreating(ModelBuilder builder)
         {
             base.OnModelCreating(builder);
@@ -79,6 +108,7 @@ namespace Mercurius.Repo.Repositories
             builder.Entity<Invoice>().HasIndex(i => i.StatusId);
             builder.Entity<Invoice>().HasIndex(i => i.InvoiceDate);
             builder.Entity<Invoice>().HasIndex(i => i.SyncId).IsUnique();
+            builder.Entity<ShipmentArrival>().HasIndex(s => s.SyncId).IsUnique();
 
             builder.Entity<Customer>().HasIndex(c => c.FirstName);
             builder.Entity<Customer>().HasIndex(c => c.LastName);
@@ -177,6 +207,15 @@ namespace Mercurius.Repo.Repositories
                 {
                     property.SetPrecision(18);
                     property.SetScale(4);
+                }
+            }
+
+            // Optimistic concurrency for the rows several requests change at once (IVersioned).
+            foreach (var entityType in builder.Model.GetEntityTypes())
+            {
+                if (typeof(IVersioned).IsAssignableFrom(entityType.ClrType))
+                {
+                    builder.Entity(entityType.ClrType).Property(nameof(IVersioned.Version)).IsConcurrencyToken();
                 }
             }
 
