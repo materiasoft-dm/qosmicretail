@@ -1,0 +1,43 @@
+# Kept out of the graphify knowledge graph: data, logs, build output, anything that may hold
+# secrets, and image assets (icons and artwork carry no knowledge worth an LLM pass).
+
+# Databases, logs and backups
+*.sqlite
+*.sqlite-*
+*.db
+*.log
+backups/
+logs/
+
+# Configuration that may hold connection strings, keys or deployment credentials
+appsettings*.json
+*.pubxml
+*.pubxml.user
+**/PublishProfiles/
+*.PublishSettings
+ADMIN_DATA_QUERY_ACCESS.md
+.env*
+*.pfx
+*.pem
+*.key
+**/App_Data/
+
+# Build output, test output and tooling folders
+bin/
+obj/
+.vs/
+node_modules/
+TestResults/
+graphify-out/
+Downloads/
+**/wwwroot/ProductImages/
+**/css/bootstrap/
+
+# Image assets
+*.png
+*.jpg
+*.jpeg
+*.gif
+*.ico
+*.svg
+*.webp
