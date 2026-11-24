@@ -1,0 +1,135 @@
+@page "/outbox"
+@attribute [Authorize]
+@implements IDisposable
+@inject Mercurius.Client.Services.SyncService Sync
+@inject IDialogService DialogService
+@inject ISnackbar Snackbar
+
+<PageTitle>Outbox</PageTitle>
+
+<div class="d-flex justify-space-between align-center flex-wrap gap-2 mb-2">
+    <MudText Typo="Typo.h4">Outbox</MudText>
+    <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Filled.Sync" Disabled="@Sync.Status.Syncing"
+               OnClick="SyncNowAsync" id="syncNowButton">Send now</MudButton>
+</div>
+<MudText Typo="Typo.body2" Class="mud-text-secondary mb-4">
+    Changes made on this computer that haven't reached the server yet. They're sent automatically, in order, whenever there's a connection.
+</MudText>
+
+<MudAlert Severity="@StatusSeverity" Class="mb-4" Dense="true" id="outboxStatus">@StatusText</MudAlert>
+
+@if (_entries == null)
+{
+    <MudProgressLinear Indeterminate="true" Color="Color.Primary" />
+}
+else if (_entries.Count == 0)
+{
+    <MudPaper Class="pa-6 text-center" Elevation="0">
+        <MudIcon Icon="@Icons.Material.Filled.CloudDone" Color="Color.Success" Size="Size.Large" />
+        <MudText Class="mt-2">Nothing waiting: everything made on this computer has reached the server.</MudText>
+    </MudPaper>
+}
+else
+{
+    <MudPaper Elevation="2">
+        <MudTable Items="_entries" Dense="true" Hover="true" Elevation="0">
+            <HeaderContent>
+                <MudTh>Change</MudTh>
+                <MudTh>Made</MudTh>
+                <MudTh>Status</MudTh>
+                <MudTh></MudTh>
+            </HeaderContent>
+            <RowTemplate>
+                <MudTd DataLabel="Change">@context.Label</MudTd>
+                <MudTd DataLabel="Made">@LocalTime.FromUtc(context.CreatedAtUtc).ToString("MMM d, HH:mm")</MudTd>
+                <MudTd DataLabel="Status">
+                    @if (context.Status == Mercurius.Client.Services.OutboxEntry.Pending)
+                    {
+                        <MudChip T="string" Size="Size.Small" Color="Color.Info">Waiting</MudChip>
+                    }
+                    else
+                    {
+                        <MudChip T="string" Size="Size.Small" Color="Color.Error">
+                            @(context.Status == Mercurius.Client.Services.OutboxEntry.Conflict ? "Changed elsewhere" : "Refused")
+                        </MudChip>
+                        <MudText Typo="Typo.caption" Class="d-block">@context.Error</MudText>
+                    }
+                </MudTd>
+                <MudTd Style="text-align:right; white-space:nowrap;">
+                    @if (context.Status == Mercurius.Client.Services.OutboxEntry.Conflict && context.ConflictVersion != null)
+                    {
+                        @* Someone else changed the record first. Keeping theirs = discarding this edit. *@
+                        <MudButton Size="Size.Small" Variant="Variant.Outlined" Color="Color.Primary" OnClick="@(() => OverwriteAsync(context))">Overwrite with mine</MudButton>
+                    }
+                    else if (context.Status != Mercurius.Client.Services.OutboxEntry.Pending)
+                    {
+                        <MudButton Size="Size.Small" Variant="Variant.Outlined" OnClick="@(() => RetryAsync(context))">Retry</MudButton>
+                    }
+                    <MudButton Size="Size.Small" Color="Color.Error" OnClick="@(() => DiscardAsync(context))">
+                        @(context.Status == Mercurius.Client.Services.OutboxEntry.Conflict ? "Keep theirs" : "Discard")
+                    </MudButton>
+                </MudTd>
+            </RowTemplate>
+        </MudTable>
+    </MudPaper>
+}
+
+@code {
+    private List<Mercurius.Client.Services.OutboxEntry>? _entries;
+
+    private Mercurius.Client.Services.SyncStatus S => Sync.Status;
+
+    private Severity StatusSeverity => S.AuthRequired || S.NeedsAttention > 0 ? Severity.Error : S.IsOffline ? Severity.Warning : Severity.Success;
+
+    private string StatusText => S switch
+    {
+        { AuthRequired: true } => "Your sign-in has expired. Sign in again (top bar) to send these.",
+        { IsOffline: true } => "Offline. These are saved on this computer and will be sent when the connection is back.",
+        { NeedsAttention: > 0 } => "Connected. The ones marked below were refused by the server and need you to retry or discard them.",
+        _ => S.LastSyncUtc is DateTime at ? $"Connected. Last synced {LocalTime.FromUtc(at):HH:mm}." : "Connected."
+    };
+
+    protected override async Task OnInitializedAsync()
+    {
+        if (!RendererInfo.IsInteractive) return; // prerendering: show the loading state; the browser loads the data
+        Sync.Changed += OnChanged;
+        await LoadAsync();
+    }
+
+    private async Task LoadAsync() => _entries = await Sync.GetOutboxAsync();
+
+    private void OnChanged() => InvokeAsync(async () => { await LoadAsync(); StateHasChanged(); });
+
+    private async Task SyncNowAsync()
+    {
+        var sent = await Sync.SyncNowAsync();
+        Snackbar.Add(sent > 0 ? $"Sent {sent} change{(sent == 1 ? "" : "s")}." : S.IsOffline ? "Still offline: nothing sent." : "Nothing more could be sent.",
+            sent > 0 ? Severity.Success : Severity.Info);
+    }
+
+    private Task RetryAsync(Mercurius.Client.Services.OutboxEntry entry) => Sync.RetryAsync(entry);
+
+    private async Task OverwriteAsync(Mercurius.Client.Services.OutboxEntry entry)
+    {
+        var confirmed = await DialogService.ShowMessageBoxAsync("Overwrite with your edit?",
+            "Someone changed this record after you opened it. Your edit will replace what's there now, including their changes.",
+            yesText: "Overwrite", cancelText: "Cancel");
+        if (confirmed == true) await Sync.OverwriteAsync(entry);
+    }
+
+    private async Task DiscardAsync(Mercurius.Client.Services.OutboxEntry entry)
+    {
+        var conflict = entry.Status == Mercurius.Client.Services.OutboxEntry.Conflict;
+        var confirmed = await DialogService.ShowMessageBoxAsync(conflict ? "Keep their version?" : "Discard this change?",
+            conflict
+                ? $"\"{entry.Label}\" will be dropped and what's on the server now stays. This can't be undone."
+                : $"\"{entry.Label}\" will be removed from this computer and never reach the server. This can't be undone."
+                    + (entry.Kind == "sale" ? " For a sale, the money taken will not be recorded anywhere." : ""),
+            yesText: conflict ? "Keep theirs" : "Discard", cancelText: "Cancel");
+        if (confirmed != true) return;
+        await Sync.DiscardAsync(entry);
+        Snackbar.Add("Discarded.", Severity.Info);
+    }
+
+    public void Dispose() => Sync.Changed -= OnChanged;
+}

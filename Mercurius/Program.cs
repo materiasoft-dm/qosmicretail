@@ -244,6 +244,10 @@ builder.Services.AddControllers(options =>
     // non-nullable reference as implicitly [Required], which made requests silently fail
     // validation when those fields weren't sent. Rely on explicit [Required] only.
     options.SuppressImplicitRequiredAttributeForNonNullableReferenceTypes = true;
+
+    // A change sent with an Idempotency-Key header (the device outbox does this for everything it
+    // queues) is applied once; a resend gets the first answer back. See Filters/IdempotencyFilter.cs.
+    options.Filters.Add<Mercurius.Filters.IdempotencyFilter>();
 });
 
 // The UI: Mercurius.Client's pages, prerendered here and then run in the browser on WebAssembly.

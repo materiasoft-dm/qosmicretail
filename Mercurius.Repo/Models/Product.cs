@@ -14,6 +14,13 @@ public partial class Product : ITenantScoped, IVersioned
     // Concurrency token — see IVersioned.
     public int Version { get; set; }
 
+    // Raised each time someone edits the product's DETAILS (name, prices, category, ...) — not by
+    // sales, adjustments or receiving, which change stock all day long (that's Version). An edit
+    // carries the DetailsVersion its author saw (BaseDetailsVersion); if it has moved on, the edit is
+    // refused with 409 and what's there now, instead of overwriting someone else's change. That is what
+    // makes editing a product offline safe: the queued edit is checked when it's finally sent.
+    public int DetailsVersion { get; set; }
+
     // Stable cross-device identity for offline-first sync with the future mobile app. Generated
     // client-side (or here, server-side) at creation time — independent of the int Id, which is
     // only ever meaningful to whichever database assigned it.

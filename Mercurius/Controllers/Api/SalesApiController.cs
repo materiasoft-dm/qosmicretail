@@ -142,7 +142,13 @@ namespace Mercurius.Controllers.Api
             if (request.CustomerId > 0)
             {
                 customer = (await _unitOfWork.Repository<Customer>().FindAsync(c => c.Id == request.CustomerId, ct)).FirstOrDefault();
-                if (customer == null) return BadRequest(new { error = "Selected customer not found." });
+                if (customer == null)
+                {
+                    // A sale replayed from a device's outbox was already paid for: record it without the
+                    // customer (removed since) rather than refuse it, as the mobile sync does.
+                    if (!keepTicketPrices) return BadRequest(new { error = "Selected customer not found." });
+                    request.CustomerId = 0;
+                }
             }
 
             var paymentMethod = PaymentMethods.Normalize(request.PaymentMethod);

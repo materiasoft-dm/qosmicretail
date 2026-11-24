@@ -145,6 +145,14 @@ pushes whose response was lost); unsynced rows are never overwritten, pruned, or
 Android Back on a top-level page backgrounds the app instead of finishing the activity (finishing crashed
 MAUI when a text field was focused, and closing a till on one stray press is wrong anyway).
 
+### `Mercurius.Mobile` (.NET MAUI) is PARKED (2026-11-24)
+
+No new features for the native app: the web app is now the installable, offline-capable client
+(see "Installable offline app" below). Terminals already running the native app keep working — its
+sync API (`AuthController`, `SyncController`) is unchanged and still maintained — and its downloads stay
+available under an "Older native apps (paused)" panel on the Install page (`/install`, also `/downloads`).
+The sections below describe it as it stands.
+
 ### Mobile selling flow (`SalesPage`, `PaymentPage`, `ReceiptsPage`)
 
 The mobile app's point-of-sale screen (`SalesPage`, the first Shell flyout item — the app now
@@ -540,6 +548,89 @@ not assumed — the fixes are in `Infrastructure/`, but the reasoning is worth k
 ### FIFO batch pricing (`BatchPricingService`)
 
 `MedicineBatch` rows (created via `MedicineBatchesApiController`, one per stock receipt) each carry their own `UnitCost`/`UnitSalePrice`. A new shipment at a different price is just a new batch queued behind older stock — web checkout (`SalesApiController`) and mobile invoice push (`SyncController.PushInvoices`) call `BatchPricingService.FindFulfillingBatchAsync` to pick, oldest first, the first batch whose `RemainingQuantity` alone covers the full line quantity; if the oldest batch falls short, the *whole* line is priced and drawn from the next batch that can cover it rather than splitting across two batches' ledgers (a deliberate simplification, confirmed with the product owner). Only when *no* single batch covers the line is it priced from the newest batch, which is emptied with the shortfall taken from the other batches oldest first (`BatchPricingService.DeductAsync`), so batches never go negative and still add up to the shelf stock. A refund with restock puts the units back on the line's batch. `InvoiceItem.MedicineBatchId` records which batch a line was actually priced/deducted from, for refund credit and lot-recall tracing. Products with no batches at all (most non-drug items) fall back to `Product.CurrentSalePrice`/`CurrentCostPrice` unchanged — this feature is purely additive. `BatchPricingService.RefreshActivePriceAsync` keeps those flat fields in sync with whichever batch is now the oldest non-depleted one, so every screen that reads them (the Products list, the Sell page, the mobile sync API) keeps working without knowing batches exist.
+
+### Installable offline app (PWA): `service-worker.js`, `SyncService`, the outbox
+
+The web app installs as a Windows (or Android) app from Edge/Chrome (`manifest.webmanifest`; the
+Install page `/install`) and keeps working without a connection. Pieces:
+
+- **`Mercurius.Client/wwwroot/service-worker.js`** (registered in `Components/App.razor` as
+  `service-worker.js?v=<build>`, the client assembly's module id, so each build installs a new worker).
+  There is no static `index.html` in this server-rendered app, so the worker does:
+  navigations **network-first** (8 s), falling back to the last saved copy of that page, else any saved
+  page (WebAssembly routes by URL, so any saved page boots the right screen), else `offline.html`;
+  app files (`_framework`, `_content`, css, js, images, Google Fonts/jsDelivr icons) **cache-first** in a
+  per-build cache; API GETs **network-first**, offline answered with the last saved response for that
+  exact URL plus an `X-Mercurius-Offline` header (`OfflineDataHandler` turns that into "saved data from
+  HH:mm" in the top bar). Never saved: sign-in pages, downloads, and `/api/admin`, `/api/platform`,
+  `/api/logs`, `/api/audit-trail`, `/api/downloads`, `/api/products/import`, `/api/auth`, `/api/sync`,
+  `/api/roles`, `/api/users`. A request with `X-Mercurius-Offline-Fallback: none` never gets a saved copy
+  (`SyncService`'s requests, the till's product search). The `POST /account/logout` clears saved pages
+  and data (not the outbox). The template `service-worker.published.js` / `<ServiceWorker>` item were
+  removed: they need a `service-worker-assets.js` this hosting model never generates, so live was
+  running the empty dev worker.
+- **Outbox** (`OfflineStoreService`, IndexedDB `mercurius-offline` v2, store `outbox`): every change made
+  offline, in order, each with an id sent as the `Idempotency-Key` header. Kinds so far: `sale`
+  (`POST api/sales/offline-sync`, idempotent by SyncId). Statuses: pending / failed (refused: 4xx) /
+  conflict (409). Never cleared by signing out. The old `pendingSales` store is moved into it at start.
+- **`SyncService`** (client): started by `MainLayout` after first render; sends the outbox in order and
+  keeps the till's catalog (`api/sales/offline-catalog`, store `products`) fresh every 10 min. Runs on
+  start, on the browser's `online` event, every 30 s while anything waits or the server is unreachable
+  (else every 2 min), and after each queued change. Its requests suppress `SessionExpiredHandler`'s
+  redirect: a 401 becomes "Sign in to send N changes" instead of throwing the cashier to the login page.
+  4xx → the entry is marked refused with the server's message and the queue moves on; network error,
+  timeout, 5xx or 429 → it stops and retries later. `Status` drives `Layout/SyncIndicator.razor` (top bar;
+  hidden when online with nothing waiting) and the Outbox page (`/outbox`: retry / discard with a
+  confirmation).
+- **Till**: a charge gives up after 15 s and saves to the outbox (safe: same SyncId); the product
+  search goes straight to the device catalog when the browser reports offline, and never uses the
+  worker's saved search results (the device catalog tracks stock taken by offline sales).
+- **Pages offline**: `MainLayout` wraps `@Body` in an `ErrorBoundary`; a page whose data can't be
+  loaded shows "This page needs a connection" (`#pageError`) instead of breaking the app, and clears on
+  navigation. `BlazorTestBase.AssertNoBlazorErrorAsync` checks `#pageError` too, so a throwing page still
+  fails a test.
+- **Sign-in**: "Keep me signed in" starts ticked (set on the empty GET form only — an unticked checkbox
+  posts nothing, so a model default would make it impossible to untick), so queued changes can be sent
+  later without signing in again.
+- **E2E**: `BlazorOfflineTests` uses `Context.SetOfflineAsync` (which also cuts the service worker off).
+  Wait on IndexedDB / Cache API with a polling `EvaluateAsync<bool>` loop — `WaitForFunctionAsync` takes an
+  async function's Promise as truthy and returns immediately.
+
+- **Offline writes** (`Services/OfflineWriteHandler.cs`, innermost handler of the page `HttpClient`): a
+  change a page makes to an allow-listed endpoint is sent with an `Idempotency-Key`; if the server can't
+  be reached (no connection, or no answer in 15 s) or the session expired (401), it is saved to the
+  outbox instead and the page gets `202 {"queued":true}` + `X-Mercurius-Queued`, so existing pages carry
+  on as if it had worked (`MainLayout` announces "saved on this computer"). Queueable now: refunds,
+  stock adjustments, received shipments, customers (create/update), suppliers, batches, wholesale
+  orders and payments, PO approve/mark-sent, **product edits**. NOT queueable (need the answer, or too
+  sensitive from a disconnected PC): creating a product or purchase order (the page opens the new id),
+  CSV import, photos, users, roles, settings, security, platform admin. A server refusal (4xx) is never
+  queued. `SyncService`'s own requests set `OfflineWriteHandler.Bypass`. A page that uses the id a create
+  returns must treat `Id == 0` as "queued" (done for wholesale order + payment).
+- **Server idempotency** (`Mercurius/Filters/IdempotencyFilter.cs`, global MVC filter, table
+  `IdempotencyRecords`, kept 30 days): a POST/PUT/PATCH/DELETE with an `Idempotency-Key` runs once. The
+  key is hashed with the user id. First request claims it (StatusCode 0) and stores its answer (any
+  status < 500); a repeat gets the stored answer + `Idempotent-Replayed: true`; a repeat while it's
+  running gets 503 + Retry-After; a 5xx/exception releases the key; a claim older than 2 min is treated
+  as abandoned. It uses its own DB scope so it can never save/roll back the controller's unit of work.
+  Because refusals are replayed too, **retrying a refused outbox entry mints a new key**
+  (`SyncService.RetryAsync`).
+- **Product edit conflicts**: `Product.DetailsVersion` (raised by `ProductsApiController.Update`, mobile
+  product push and CSV update-existing; NOT by sales/adjustments/receiving, which move `Version`).
+  `ProductDetailDto.DetailsVersion` is loaded into the edit page and sent back as
+  `UpdateProductRequest.BaseDetailsVersion`; a mismatch is `409 {error, currentDetailsVersion,
+  currentName, currentCostPrice, currentSalePrice}`. In the outbox that's a "Changed elsewhere" entry
+  with **Overwrite with mine** (retargets `baseDetailsVersion` to the current version, new key) or
+  **Keep theirs** (discard). An edit made online hits the same check.
+- **Offline reading** works for what this browser has already opened online (pages and API GETs are saved
+  by the service worker as they're used) and for the till (device catalog). A page or record never opened
+  online shows "This page needs a connection". The Outbox does not yet show pending changes inside the
+  lists/records they affect (e.g. an offline customer isn't in the customers list until sent).
+
+**Still to build:** warming the saved views in the background (recent invoices, customers, suppliers,
+purchase orders, so refunds/receiving work offline from a cold start), applying queued changes
+optimistically to the local views, and deploy: this adds two migrations' worth of schema
+(`AddOfflineSupport`: `Products.DetailsVersion`, `IdempotencyRecords`) plus the earlier unreleased ones.
 
 ### Receiving stock (`StockReceiving`, Shipments → Receive Shipment)
 

@@ -179,6 +179,7 @@ namespace Mercurius.Controllers.Api
                         existing.LowStockCount = item.LowStockCount;
                         existing.MarkUpPercentage = item.MarkUpPercentage;
                         existing.IsActive = item.IsActive;
+                        existing.DetailsVersion++;
                         existing.UpdatedDate = now;
                         existing.UpdatedBy = CurrentUserId;
 

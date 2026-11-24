@@ -59,6 +59,7 @@ namespace Mercurius.Repo.Repositories
         public DbSet<UserDashboardLayout> UserDashboardLayouts => Set<UserDashboardLayout>();
         public DbSet<ZeroStockSaleAuditLog> ZeroStockSaleAuditLogs => Set<ZeroStockSaleAuditLog>();
         public DbSet<AuditLog> AuditLogs => Set<AuditLog>();
+        public DbSet<IdempotencyRecord> IdempotencyRecords => Set<IdempotencyRecord>();
 
         // Raises Version on every updated IVersioned row, so the UPDATE's "WHERE Version = <read>"
         // check (IVersioned) fails if anything else changed the row in the meantime. Done here, not in
@@ -109,6 +110,8 @@ namespace Mercurius.Repo.Repositories
             builder.Entity<Invoice>().HasIndex(i => i.InvoiceDate);
             builder.Entity<Invoice>().HasIndex(i => i.SyncId).IsUnique();
             builder.Entity<ShipmentArrival>().HasIndex(s => s.SyncId).IsUnique();
+            builder.Entity<IdempotencyRecord>().HasIndex(r => r.Key).IsUnique();
+            builder.Entity<IdempotencyRecord>().HasIndex(r => r.CreatedUtc);
 
             builder.Entity<Customer>().HasIndex(c => c.FirstName);
             builder.Entity<Customer>().HasIndex(c => c.LastName);

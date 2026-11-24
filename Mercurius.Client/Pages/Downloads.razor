@@ -1,112 +1,197 @@
 @page "/downloads"
+@page "/install"
 @attribute [Authorize]
 @inject HttpClient Http
+@inject Mercurius.Client.Services.PwaService Pwa
 
-<PageTitle>Download Mobile App</PageTitle>
+<PageTitle>Install Mercurius</PageTitle>
 
-<div class="d-flex justify-space-between align-center flex-wrap gap-2 mb-4">
-    <MudText Typo="Typo.h4">Download Mobile App</MudText>
-    @if (_info?.Version != null)
-    {
-        <MudChip T="string" Color="Color.Primary" Variant="Variant.Outlined">
-            Version @_info.Version@(_info.Build.HasValue ? $" (build {_info.Build})" : "")
-        </MudChip>
-    }
-</div>
+<MudText Typo="Typo.h4" Class="mb-1">Install Mercurius</MudText>
+<MudText Typo="Typo.body2" Class="mud-text-secondary mb-4">
+    Install this web app on a counter PC, laptop or tablet. It then opens from the Start menu or taskbar in its own window,
+    keeps working when the internet drops, and sends everything to the server as soon as the connection is back.
+</MudText>
 
-<MudPaper Class="pa-4 mb-4" Elevation="2">
-    <MudText Typo="Typo.h6">Mercurius POS</MudText>
-    <MudText Typo="Typo.body2" Class="mud-text-secondary">
-        The point-of-sale app for the counter: sells offline and syncs automatically, works with USB/Bluetooth barcode
-        scanners (and the camera on Android), and shows every terminal's sales. Sign in with the same account you use here.
-    </MudText>
+<MudPaper Class="pa-6 mb-4" Elevation="2" id="installCard">
+    <div class="d-flex align-center gap-4 flex-wrap">
+        <img src="icon-192.png" alt="" width="56" height="56" style="border-radius:14px;" />
+        <div class="flex-grow-1">
+            @if (_installed)
+            {
+                <MudText Typo="Typo.h6">You're using the installed app</MudText>
+                <MudText Typo="Typo.body2" Class="mud-text-secondary">This window is Mercurius, installed on this computer.</MudText>
+            }
+            else if (_canPrompt)
+            {
+                <MudText Typo="Typo.h6">Install on this computer</MudText>
+                <MudText Typo="Typo.body2" Class="mud-text-secondary">One click: no download, no administrator rights, updates itself.</MudText>
+            }
+            else
+            {
+                <MudText Typo="Typo.h6">Install from your browser's menu</MudText>
+                <MudText Typo="Typo.body2" Class="mud-text-secondary">
+                    In <b>Microsoft Edge</b>: <b>⋯</b> menu → <b>Apps</b> → <b>Install Mercurius</b>.
+                    In <b>Google Chrome</b>: the install icon at the right of the address bar, or <b>⋮</b> menu → <b>Cast, save and share</b> → <b>Install page as app</b>.
+                    (Already installed? Open it from the Start menu.)
+                </MudText>
+            }
+        </div>
+        @if (!_installed && _canPrompt)
+        {
+            <MudButton Variant="Variant.Filled" Color="Color.Primary" Size="Size.Large" StartIcon="@Icons.Material.Filled.InstallDesktop"
+                       OnClick="InstallAsync" id="installAppButton">Install</MudButton>
+        }
+    </div>
 </MudPaper>
 
-@if (_info == null)
-{
-    <MudProgressLinear Indeterminate="true" Color="Color.Primary" />
-}
-else
-{
-    <MudGrid>
-        <MudItem xs="12" lg="6">
-            <MudPaper Class="pa-6" Elevation="2" Style="height:100%;">
-                <div class="d-flex align-center gap-4 mb-4">
-                    <MudIcon Icon="@Icons.Custom.Brands.MicrosoftWindows" Color="Color.Primary" Size="Size.Large" />
-                    <div>
-                        <MudText Typo="Typo.h5">Windows</MudText>
-                        <MudText Typo="Typo.body2" Class="mud-text-secondary">Counter PCs, laptops and Windows tablets · Windows 10 or 11 (64-bit)</MudText>
-                    </div>
-                </div>
-                @if (_info.Windows.Available)
-                {
-                    @* A server endpoint outside the app, so the browser downloads it rather than routing. *@
-                    <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Filled.Download"
-                               Href="/Downloads/Windows" Target="_self" id="downloadWindowsButton">Download for Windows</MudButton>
-                    <MudText Typo="Typo.caption" Class="d-block mt-2">@Describe(_info.Windows, "zip")</MudText>
-                }
-                else
-                {
-                    <MudAlert Severity="Severity.Warning">The Windows app hasn't been published to this server yet.</MudAlert>
-                }
+<MudGrid Class="mb-4">
+    <MudItem xs="12" md="4">
+        <MudPaper Class="pa-4" Elevation="0" Outlined="true" Style="height:100%;">
+            <MudText Typo="Typo.subtitle1"><b>Works offline</b></MudText>
+            <MudText Typo="Typo.body2" Class="mud-text-secondary">
+                With no connection the app still opens, sells from this computer's copy of the catalog and shows the last data it saw.
+                Changes wait in the <MudLink Href="outbox">Outbox</MudLink> and go to the server on their own.
+            </MudText>
+        </MudPaper>
+    </MudItem>
+    <MudItem xs="12" md="4">
+        <MudPaper Class="pa-4" Elevation="0" Outlined="true" Style="height:100%;">
+            <MudText Typo="Typo.subtitle1"><b>Sign in once</b></MudText>
+            <MudText Typo="Typo.body2" Class="mud-text-secondary">
+                Sign in with <b>Keep me signed in</b> ticked (it is by default), so sales made offline can be sent later without signing in again.
+                It needs a connection the very first time it opens.
+            </MudText>
+        </MudPaper>
+    </MudItem>
+    <MudItem xs="12" md="4">
+        <MudPaper Class="pa-4" Elevation="0" Outlined="true" Style="height:100%;">
+            <MudText Typo="Typo.subtitle1"><b>Open it automatically</b></MudText>
+            <MudText Typo="Typo.body2" Class="mud-text-secondary">
+                Right-click its taskbar icon → <b>Pin to taskbar</b>. To start it with Windows, open <code>edge://apps</code> in Edge,
+                choose Mercurius → <b>Start app when you sign in</b>.
+            </MudText>
+        </MudPaper>
+    </MudItem>
+</MudGrid>
 
-                <MudDivider Class="my-4" />
-                <MudText Typo="Typo.subtitle1" Class="mb-2"><b>Setting up a Windows terminal</b></MudText>
-                <ol class="ps-5 mb-0">
-                    <li class="mb-2">Right-click the downloaded zip → <b>Extract All...</b>, and extract it somewhere permanent (e.g. <code>C:\Mercurius POS</code>). Don't run it from inside the zip.</li>
-                    <li class="mb-2">Open the extracted folder and double-click <b>Mercurius.Mobile.exe</b>.</li>
-                    <li class="mb-2">If Windows says <em>"Windows protected your PC"</em> (the app isn't code-signed), click <b>More info</b> → <b>Run anyway</b>.</li>
-                    <li>Sign in, then open <b>Settings</b> in the app to pick this terminal's clinic and name it (e.g. "Front Counter").</li>
-                </ol>
-                <MudText Typo="Typo.caption" Class="d-block mt-3">
-                    Nothing else to install. To update: download again and extract over the old folder — sign-in and unsent sales are kept.
-                </MudText>
-            </MudPaper>
-        </MudItem>
+@* The native MAUI apps (Mercurius.Mobile) are paused: no new features, but terminals that already
+   run them keep working (their sync API is unchanged), so the downloads stay available. *@
+<MudExpansionPanels Elevation="0" Outlined="true">
+    <MudExpansionPanel Text="Older native apps (paused: no longer updated)" id="nativeAppsPanel">
+        <MudAlert Severity="Severity.Info" Dense="true" Class="mb-4">
+            The installable web app above replaces these. Terminals already running them keep working, but they won't get new features.
+        </MudAlert>
+        @if (_info == null)
+        {
+            <MudProgressLinear Indeterminate="true" Color="Color.Primary" />
+        }
+        else
+        {
+            <MudGrid>
+                <MudItem xs="12" lg="6">
+                    <MudPaper Class="pa-6" Elevation="2" Style="height:100%;">
+                        <div class="d-flex align-center gap-4 mb-4">
+                            <MudIcon Icon="@Icons.Custom.Brands.MicrosoftWindows" Color="Color.Primary" Size="Size.Large" />
+                            <div>
+                                <MudText Typo="Typo.h5">Windows</MudText>
+                                <MudText Typo="Typo.body2" Class="mud-text-secondary">Counter PCs, laptops and Windows tablets · Windows 10 or 11 (64-bit)</MudText>
+                            </div>
+                        </div>
+                        @if (_info.Windows.Available)
+                        {
+                            @* A server endpoint outside the app, so the browser downloads it rather than routing. *@
+                            <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Filled.Download"
+                                       Href="/Downloads/Windows" Target="_self" id="downloadWindowsButton">Download for Windows</MudButton>
+                            <MudText Typo="Typo.caption" Class="d-block mt-2">@Describe(_info.Windows, "zip")</MudText>
+                        }
+                        else
+                        {
+                            <MudAlert Severity="Severity.Warning">The Windows app hasn't been published to this server yet.</MudAlert>
+                        }
 
-        <MudItem xs="12" lg="6">
-            <MudPaper Class="pa-6" Elevation="2" Style="height:100%;">
-                <div class="d-flex align-center gap-4 mb-4">
-                    <MudIcon Icon="@Icons.Material.Filled.PhoneAndroid" Color="Color.Success" Size="Size.Large" />
-                    <div>
-                        <MudText Typo="Typo.h5">Android</MudText>
-                        <MudText Typo="Typo.body2" Class="mud-text-secondary">Tablets and phones · Android 5.0 or later</MudText>
-                    </div>
-                </div>
-                @if (_info.Android.Available)
-                {
-                    <MudButton Variant="Variant.Filled" Color="Color.Success" StartIcon="@Icons.Material.Filled.Download"
-                               Href="/Downloads/Android" Target="_self" id="downloadAndroidButton">Download APK</MudButton>
-                    <MudText Typo="Typo.caption" Class="d-block mt-2">@Describe(_info.Android, "APK")</MudText>
-                }
-                else
-                {
-                    <MudAlert Severity="Severity.Warning">The Android app hasn't been published to this server yet.</MudAlert>
-                }
+                        <MudDivider Class="my-4" />
+                        <MudText Typo="Typo.subtitle1" Class="mb-2"><b>Setting up a Windows terminal</b></MudText>
+                        <ol class="ps-5 mb-0">
+                            <li class="mb-2">Right-click the downloaded zip → <b>Extract All...</b>, and extract it somewhere permanent (e.g. <code>C:\Mercurius POS</code>). Don't run it from inside the zip.</li>
+                            <li class="mb-2">Open the extracted folder and double-click <b>Mercurius.Mobile.exe</b>.</li>
+                            <li class="mb-2">If Windows says <em>"Windows protected your PC"</em> (the app isn't code-signed), click <b>More info</b> → <b>Run anyway</b>.</li>
+                            <li>Sign in, then open <b>Settings</b> in the app to pick this terminal's clinic and name it (e.g. "Front Counter").</li>
+                        </ol>
+                        <MudText Typo="Typo.caption" Class="d-block mt-3">
+                            Nothing else to install. To update: download again and extract over the old folder — sign-in and unsent sales are kept.
+                        </MudText>
+                    </MudPaper>
+                </MudItem>
 
-                <MudDivider Class="my-4" />
-                <MudText Typo="Typo.subtitle1" Class="mb-2"><b>Setting up an Android device</b></MudText>
-                <ol class="ps-5 mb-0">
-                    <li class="mb-2">On the tablet itself, sign in to this website and tap <b>Download APK</b> (or copy the file over from a PC).</li>
-                    <li class="mb-2">Open the downloaded file. If Android asks, allow your browser (or Files app) to <b>install unknown apps</b>, then go back and tap <b>Install</b>.</li>
-                    <li class="mb-2">If Play Protect warns about an unrecognized app, tap <b>More details</b> → <b>Install anyway</b>.</li>
-                    <li>Open <b>Mercurius.Mobile</b>, sign in, then set this device's clinic and name in <b>Settings</b>.</li>
-                </ol>
-                <MudText Typo="Typo.caption" Class="d-block mt-3">
-                    To update: download and install the new APK over the old one — sign-in and unsent sales are kept.
-                </MudText>
-            </MudPaper>
-        </MudItem>
-    </MudGrid>
-}
+                <MudItem xs="12" lg="6">
+                    <MudPaper Class="pa-6" Elevation="2" Style="height:100%;">
+                        <div class="d-flex align-center gap-4 mb-4">
+                            <MudIcon Icon="@Icons.Material.Filled.PhoneAndroid" Color="Color.Success" Size="Size.Large" />
+                            <div>
+                                <MudText Typo="Typo.h5">Android</MudText>
+                                <MudText Typo="Typo.body2" Class="mud-text-secondary">Tablets and phones · Android 5.0 or later</MudText>
+                            </div>
+                        </div>
+                        @if (_info.Android.Available)
+                        {
+                            <MudButton Variant="Variant.Filled" Color="Color.Success" StartIcon="@Icons.Material.Filled.Download"
+                                       Href="/Downloads/Android" Target="_self" id="downloadAndroidButton">Download APK</MudButton>
+                            <MudText Typo="Typo.caption" Class="d-block mt-2">@Describe(_info.Android, "APK")</MudText>
+                        }
+                        else
+                        {
+                            <MudAlert Severity="Severity.Warning">The Android app hasn't been published to this server yet.</MudAlert>
+                        }
+
+                        <MudDivider Class="my-4" />
+                        <MudText Typo="Typo.subtitle1" Class="mb-2"><b>Setting up an Android device</b></MudText>
+                        <ol class="ps-5 mb-0">
+                            <li class="mb-2">On the tablet itself, sign in to this website and tap <b>Download APK</b> (or copy the file over from a PC).</li>
+                            <li class="mb-2">Open the downloaded file. If Android asks, allow your browser (or Files app) to <b>install unknown apps</b>, then go back and tap <b>Install</b>.</li>
+                            <li class="mb-2">If Play Protect warns about an unrecognized app, tap <b>More details</b> → <b>Install anyway</b>.</li>
+                            <li>Open <b>Mercurius.Mobile</b>, sign in, then set this device's clinic and name in <b>Settings</b>.</li>
+                        </ol>
+                        <MudText Typo="Typo.caption" Class="d-block mt-3">
+                            To update: download and install the new APK over the old one — sign-in and unsent sales are kept.
+                        </MudText>
+                    </MudPaper>
+                </MudItem>
+            </MudGrid>
+        }
+    </MudExpansionPanel>
+</MudExpansionPanels>
 
 @code {
     private MobileAppDownloadsDto? _info;
+    private bool _installed;
+    private bool _canPrompt;
 
     protected override async Task OnInitializedAsync()
     {
         if (!RendererInfo.IsInteractive) return; // prerendering: show the loading state; the browser loads the data
-        _info = await Http.GetFromJsonAsync<MobileAppDownloadsDto>("api/downloads") ?? new MobileAppDownloadsDto();
+        try
+        {
+            _installed = await Pwa.IsInstalledAsync();
+            _canPrompt = !_installed && await Pwa.CanPromptInstallAsync();
+        }
+        catch (JSException)
+        {
+        }
+        try
+        {
+            _info = await Http.GetFromJsonAsync<MobileAppDownloadsDto>("api/downloads") ?? new MobileAppDownloadsDto();
+        }
+        catch (HttpRequestException)
+        {
+            _info = new MobileAppDownloadsDto();
+        }
+    }
+
+    private async Task InstallAsync()
+    {
+        var outcome = await Pwa.PromptInstallAsync();
+        _canPrompt = outcome == "unavailable" ? false : _canPrompt && outcome != "accepted";
+        _installed = outcome == "accepted";
     }
 
     private static string Describe(DownloadFileDto file, string kind) =>

@@ -2,7 +2,10 @@
 @inject Mercurius.Client.Services.CurrentUserState CurrentUser
 @inject Mercurius.Client.Services.ICurrentUserProfileSource ProfileSource
 @inject Mercurius.Client.Services.PwaService Pwa
+@inject Mercurius.Client.Services.SyncService Sync
+@inject ISnackbar Snackbar
 @inject NavigationManager Nav
+@implements IDisposable
 
 <MudThemeProvider Theme="MercuriusMudTheme.Theme" />
 <MudPopoverProvider />
@@ -29,6 +32,7 @@
                 }
             </div>
             <div class="topbar-actions">
+                <SyncIndicator />
                 <AuthorizeView Policy="@ModuleRegistry.Pages.NEWSALE_CREATE">
                     <MudButton Href="sell" Variant="Variant.Filled" Color="Color.Primary" Size="Size.Small"
                                StartIcon="@Icons.Material.Filled.PointOfSale" Class="d-none d-sm-inline-flex">New sale</MudButton>
@@ -67,7 +71,30 @@
         </header>
 
         <article class="content px-4">
-            @Body
+            @* A page that throws (most often: its data can't be loaded because there's no connection
+               and this computer hasn't saved it yet) shows a message here instead of breaking the
+               whole app. Moving to another page clears it. *@
+            <ErrorBoundary @ref="_errorBoundary">
+                <ChildContent>@Body</ChildContent>
+                <ErrorContent Context="error">
+                    <div class="page-error" role="alert" id="pageError">
+                        @if (Sync.Status.IsOffline || error is HttpRequestException)
+                        {
+                            <i class="bi bi-wifi-off page-error-icon"></i>
+                            <h2>This page needs a connection</h2>
+                            <p>You're offline, and this page hasn't been saved on this computer yet. Selling keeps working: sales are saved here and sent automatically when the connection is back.</p>
+                            <MudButton Href="sell" Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Filled.PointOfSale">Go to Sell</MudButton>
+                        }
+                        else
+                        {
+                            <i class="bi bi-exclamation-triangle page-error-icon"></i>
+                            <h2>Something went wrong on this page</h2>
+                            <p>Reload to try again. If it keeps happening, an administrator can find the details under Settings → Logs.</p>
+                            <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="@(() => Nav.NavigateTo(Nav.Uri, forceLoad: true))">Reload</MudButton>
+                        }
+                    </div>
+                </ErrorContent>
+            </ErrorBoundary>
         </article>
     </main>
 </div>
@@ -99,6 +126,9 @@
         CurrentUser.Set(Profile);
     }
 
+    [CascadingParameter] private Task<AuthenticationState>? AuthState { get; set; }
+
+    private ErrorBoundary? _errorBoundary;
     private bool _interactive;
     private bool _accountOpen;
 
@@ -109,16 +139,29 @@
     {
         if (!firstRender) return;
         _interactive = true;
+        Nav.LocationChanged += OnLocationChanged;
+        Sync.ChangeQueued += OnChangeQueued;
         StateHasChanged();
-        try
-        {
-            // Best-effort: reduces (doesn't eliminate) the chance a browser evicts the offline
-            // product cache / pending-sales queue during a period of inactivity.
-            await Pwa.RequestPersistentStorageAsync();
-        }
-        catch (JSException)
-        {
-            // Storage API unavailable (e.g. private browsing) — offline caching still works for now.
-        }
+
+        // Offline support: send anything waiting, keep the till's catalog, and save the pages a
+        // cashier needs to open this app with no connection.
+        var user = AuthState != null ? (await AuthState).User : new System.Security.Claims.ClaimsPrincipal();
+        var sells = user.Can(ModuleRegistry.Pages.NEWSALE_CREATE);
+        await Sync.StartAsync(keepCatalog: sells, pagesToSave: sells ? new[] { "/sell", "/" } : new[] { "/" });
+    }
+
+    private void OnLocationChanged(object? sender, Microsoft.AspNetCore.Components.Routing.LocationChangedEventArgs e) =>
+        _errorBoundary?.Recover();
+
+    // A change the server couldn't be reached for was saved on this computer instead (OfflineWriteHandler).
+    private void OnChangeQueued(string label, bool signInNeeded) => InvokeAsync(() =>
+        Snackbar.Add(signInNeeded
+            ? $"{label}: your sign-in has expired. It's saved on this computer and will be sent once you sign in again."
+            : $"{label}: saved on this computer. It will be sent when the connection is back.", Severity.Warning));
+
+    public void Dispose()
+    {
+        Nav.LocationChanged -= OnLocationChanged;
+        Sync.ChangeQueued -= OnChangeQueued;
     }
 }

@@ -121,6 +121,11 @@ public abstract class BlazorTestBase : MercuriusTestBase
     }
 
     /// <summary>Blazor shows #blazor-error-ui whenever a component throws an unhandled exception.</summary>
-    protected Task AssertNoBlazorErrorAsync() =>
-        Assertions.Expect(Page.Locator("#blazor-error-ui")).ToBeHiddenAsync();
+    // Also the layout's page-error message: MainLayout's ErrorBoundary now catches what used to
+    // surface as #blazor-error-ui, so a page that throws must still fail the test.
+    protected async Task AssertNoBlazorErrorAsync()
+    {
+        await Assertions.Expect(Page.Locator("#blazor-error-ui")).ToBeHiddenAsync();
+        await Assertions.Expect(Page.Locator("#pageError")).ToHaveCountAsync(0);
+    }
 }

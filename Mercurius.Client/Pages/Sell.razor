@@ -8,7 +8,8 @@
 @inject IDialogService DialogService
 @inject ISnackbar Snackbar
 @inject OfflineStoreService OfflineStore
-@inject OfflineSyncService OfflineSync
+@inject SyncService Sync
+@implements IDisposable
 
 <PageTitle>Sell</PageTitle>
 
@@ -19,16 +20,16 @@
             <span>
                 @if (_usingOfflineCatalog)
                 {
-                    <text>Offline — showing the last synced catalog. Sales made now will be saved on this device.</text>
+                    <text>Offline: showing this computer's copy of the catalog. Sales made now are saved here and sent automatically when the connection is back.</text>
                 }
                 @if (_pendingSaleCount > 0)
                 {
-                    <text> @_pendingSaleCount sale(s) waiting to sync.</text>
+                    <text> @_pendingSaleCount sale@(_pendingSaleCount == 1 ? "" : "s") waiting to be sent.</text>
                 }
             </span>
             @if (_pendingSaleCount > 0)
             {
-                <MudButton Size="Size.Small" Variant="Variant.Outlined" OnClick="SyncNow">Sync now</MudButton>
+                <MudButton Size="Size.Small" Variant="Variant.Outlined" OnClick="SyncNow">Send now</MudButton>
             }
         </div>
     </MudAlert>
@@ -198,44 +199,40 @@
             // Categories are a convenience (filtering) — selling still works without them, so
             // don't block the page on a failed fetch while offline.
         }
+        Sync.Changed += OnSyncChanged;
+        _pendingSaleCount = Sync.Status.Pending;
         await LoadProductsAsync();
-        await RefreshPendingCountAsync();
-
-        // Best-effort, non-blocking: refresh the offline catalog and flush anything queued from
-        // a previous offline session, in case connectivity is back.
-        _ = BackgroundSyncAsync();
     }
 
-    private async Task BackgroundSyncAsync()
+    // SyncService sends queued sales in the background (on reconnect, every 30 s while any wait).
+    private void OnSyncChanged() => InvokeAsync(async () =>
     {
-        var synced = await OfflineSync.PushPendingSalesAsync();
-        await OfflineSync.PullProductCatalogAsync();
-        await RefreshPendingCountAsync();
-        if (synced > 0)
+        var before = _pendingSaleCount;
+        _pendingSaleCount = Sync.Status.Pending;
+        if (before > _pendingSaleCount && !Sync.Status.IsOffline)
         {
-            Snackbar.Add($"Synced {synced} offline sale(s).", Severity.Success);
+            Snackbar.Add($"Sent {before - _pendingSaleCount} offline sale{(before - _pendingSaleCount == 1 ? "" : "s")} to the server.", Severity.Success);
+            // Back online: the catalog's live again, so leave the offline view.
+            if (_usingOfflineCatalog) await LoadProductsAsync();
         }
-        await InvokeAsync(StateHasChanged);
-    }
-
-    private async Task RefreshPendingCountAsync()
-    {
-        _pendingSaleCount = (await OfflineStore.GetPendingSalesAsync()).Count;
-    }
+        StateHasChanged();
+    });
 
     private async Task SyncNow()
     {
-        var synced = await OfflineSync.PushPendingSalesAsync();
-        await RefreshPendingCountAsync();
-        Snackbar.Add(synced > 0 ? $"Synced {synced} offline sale(s)." : "Still offline — nothing synced.", synced > 0 ? Severity.Success : Severity.Warning);
+        var synced = await Sync.SyncNowAsync();
+        if (synced == 0) Snackbar.Add(Sync.Status.IsOffline ? "Still offline: nothing sent." : "Nothing more could be sent. See the Outbox.", Severity.Warning);
     }
+
+    public void Dispose() => Sync.Changed -= OnSyncChanged;
 
     private async Task LoadProductsAsync()
     {
         _loading = true;
         try
         {
-            var result = await ProductsApi.GetAsync(_search, 1, 100, _categoryId);
+            if (!Sync.Status.BrowserOnline) throw new HttpRequestException("offline");
+            var result = await ProductsApi.GetForTillAsync(_search, 100, _categoryId);
             _products = result.Items;
             _usingOfflineCatalog = false;
         }
@@ -389,8 +386,8 @@
             var outcome = result.Data as SaleOutcome;
             if (outcome is { SavedOffline: true })
             {
-                Snackbar.Add("Saved offline — will sync when back online.", Severity.Warning);
-                await RefreshPendingCountAsync();
+                Snackbar.Add("Saved on this computer: it will be sent when the connection is back.", Severity.Warning);
+                _pendingSaleCount = Sync.Status.Pending;
             }
             else
             {

@@ -229,3 +229,32 @@ main {
         display: none !important;
     }
 }
+
+/* A page that couldn't load (see the ErrorBoundary in MainLayout.razor). */
+.page-error {
+    max-width: 34rem;
+    margin: 3rem auto;
+    padding: 2rem;
+    text-align: center;
+    background: var(--mc-card);
+    border: 1px solid var(--mc-border);
+    border-radius: var(--mc-radius);
+    box-shadow: var(--mc-shadow);
+}
+
+    .page-error h2 {
+        margin: 0.5rem 0;
+        font-size: 1.25rem;
+        font-weight: 600;
+    }
+
+    .page-error p {
+        margin: 0 0 1.25rem;
+        color: var(--mc-text-secondary);
+        line-height: 1.55;
+    }
+
+.page-error-icon {
+    font-size: 2rem;
+    color: var(--mc-text-muted);
+}

@@ -57,7 +57,7 @@ namespace Mercurius.Client
             services.AddScoped<WholesaleApiClient>();
             services.AddScoped<AccountApiClient>();
             services.AddScoped<OfflineStoreService>();
-            services.AddScoped<OfflineSyncService>();
+            services.AddScoped<SyncService>();
             services.AddScoped<PwaService>();
             return services;
         }

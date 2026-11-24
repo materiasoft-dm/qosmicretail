@@ -180,6 +180,7 @@ namespace Mercurius.Services
                             existingProduct.ProductCategoryId = category?.Id ?? existingProduct.ProductCategoryId;
                             existingProduct.Barcode = barcode ?? existingProduct.Barcode;
                             existingProduct.LowStockCount = record.LowStock ?? existingProduct.LowStockCount;
+                            existingProduct.DetailsVersion++;
                             existingProduct.UpdatedDate = DateTime.UtcNow;
 
                             await unitOfWork.Repository<Product>().UpdateAsync(existingProduct, ct);

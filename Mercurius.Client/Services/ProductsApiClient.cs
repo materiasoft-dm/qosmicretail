@@ -28,6 +28,21 @@ namespace Mercurius.Client.Services
             return result ?? new ProductListResultDto();
         }
 
+        // The till's search. Waits at most 6 seconds, and never takes the service worker's saved copy of
+        // a search: offline, the Sell page searches this device's own catalog instead, which also knows
+        // the stock taken by sales made offline.
+        public async Task<ProductListResultDto> GetForTillAsync(string? search, int pageSize, int? categoryId)
+        {
+            var url = $"api/products?search={Uri.EscapeDataString(search ?? string.Empty)}&page=1&pageSize={pageSize}";
+            if (categoryId is > 0) url += $"&categoryId={categoryId.Value}";
+            using var request = new HttpRequestMessage(HttpMethod.Get, url);
+            request.Headers.Add("X-Mercurius-Offline-Fallback", "none");
+            using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(6));
+            using var response = await _http.SendAsync(request, timeout.Token);
+            response.EnsureSuccessStatusCode();
+            return await response.Content.ReadFromJsonAsync<ProductListResultDto>(timeout.Token) ?? new ProductListResultDto();
+        }
+
         public async Task<ProductDetailDto?> GetDetailAsync(int id)
         {
             var response = await _http.GetAsync($"api/products/{id}");

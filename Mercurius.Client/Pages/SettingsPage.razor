@@ -86,7 +86,7 @@
                 Page(ModuleRegistry.Pages.ADMIN_DATA_QUERY)),
             new("Tenants", "Create and manage the pharmacies on this deployment.", "platform-admin", "bi-buildings",
                 (user, _) => user.IsPlatformAdmin()),
-            new("Mobile app", "Download the Android and Windows point-of-sale app.", "downloads", "bi-phone",
+            new("Install app", "Install Mercurius on this computer. Works offline and syncs when the connection is back.", "install", "bi-download",
                 (_, _) => true),
         }),
     };

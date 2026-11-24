@@ -68,7 +68,11 @@ public class BlazorAdminTests : BlazorTestBase
     {
         await LoginAsAdminAsync();
 
+        await GotoAppAsync("install");
+        await Assertions.Expect(Page.Locator("#installCard")).ToBeVisibleAsync(new LocatorAssertionsToBeVisibleOptions { Timeout = UiTimeoutMs });
+        // The paused native apps are still downloadable, under their own panel (the old /downloads address too).
         await GotoAppAsync("downloads");
+        await Page.GetByText("Older native apps").ClickAsync();
         await Assertions.Expect(Page.Locator("article.content")).ToContainTextAsync("Setting up a Windows terminal", new LocatorAssertionsToContainTextOptions { Timeout = UiTimeoutMs });
         await Assertions.Expect(Page.Locator("article.content")).ToContainTextAsync("Setting up an Android device");
 

@@ -38,7 +38,9 @@ namespace Mercurius.Repo.Repositories.Auditing
         private static readonly HashSet<Type> SkippedTypes = new()
         {
             typeof(AuditLog),
-            typeof(IdentityUserToken<string>)
+            typeof(IdentityUserToken<string>),
+            // Technical bookkeeping for retried requests, not a business change.
+            typeof(IdempotencyRecord)
         };
 
         private readonly IAuditContextProvider _contextProvider;

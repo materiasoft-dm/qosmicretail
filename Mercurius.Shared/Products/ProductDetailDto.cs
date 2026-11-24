@@ -20,6 +20,8 @@ namespace Mercurius.Shared.Products
         public string? Model { get; set; }
         public string? CustomWarning { get; set; }
         public bool IsActive { get; set; }
+        // Which edit of the details this is (Product.DetailsVersion); sent back with an edit so a clash is caught.
+        public int DetailsVersion { get; set; }
         // Site-relative URL of the product photo, or null if none was uploaded.
         public string? ImageUrl { get; set; }
         public DateTime CreateDate { get; set; }
@@ -75,6 +77,8 @@ namespace Mercurius.Shared.Products
         public decimal LowStockCount { get; set; }
         public string? Note { get; set; }
         public bool IsActive { get; set; }
+        // The DetailsVersion this edit started from. Null: no check (older callers).
+        public int? BaseDetailsVersion { get; set; }
         public Dictionary<int, string?> CustomFieldValues { get; set; } = new();
     }
 

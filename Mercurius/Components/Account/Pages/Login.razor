@@ -54,6 +54,11 @@
         Input ??= new LoginInput();
         if (HttpMethods.IsGet(HttpContext.Request.Method))
         {
+            // "Keep me signed in" starts ticked: Mercurius is usually installed as an app on a counter
+            // PC, and keeping the sign-in is what lets sales made offline be sent later without someone
+            // signing in again. Set only on the empty form — an unticked box posts nothing, so a
+            // default on the model would make it impossible to untick.
+            Input.RememberMe = true;
             // Clear any half-finished external sign-in so this one starts clean.
             await HttpContext.SignOutAsync(IdentityConstants.ExternalScheme);
         }

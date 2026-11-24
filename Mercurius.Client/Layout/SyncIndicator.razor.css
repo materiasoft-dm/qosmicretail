@@ -1,0 +1,58 @@
+.sync-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+    height: 32px;
+    padding: 0 0.75rem;
+    border-radius: 999px;
+    border: 1px solid transparent;
+    font: inherit;
+    font-size: 0.8rem;
+    font-weight: 600;
+    white-space: nowrap;
+    cursor: pointer;
+    transition: filter var(--mc-transition);
+}
+
+    .sync-chip:hover {
+        filter: brightness(0.97);
+    }
+
+    .sync-chip:focus-visible {
+        outline: none;
+        box-shadow: var(--mc-ring);
+    }
+
+.sync-info {
+    background: #eff6ff;
+    border-color: #bfdbfe;
+    color: #1d4ed8;
+}
+
+.sync-warning {
+    background: #fffbeb;
+    border-color: #fde68a;
+    color: #b45309;
+}
+
+.sync-danger {
+    background: #fef2f2;
+    border-color: #fecaca;
+    color: #b91c1c;
+}
+
+.sync-spin {
+    display: inline-block;
+    animation: sync-spin 0.9s linear infinite;
+}
+
+@keyframes sync-spin {
+    to { transform: rotate(360deg); }
+}
+
+@media (max-width: 575.98px) {
+    /* Phones: icon only, the page banner and Outbox page carry the detail. */
+    .sync-chip span {
+        display: none;
+    }
+}

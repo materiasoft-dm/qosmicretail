@@ -185,6 +185,7 @@ namespace Mercurius.Controllers.Api
                 Model = product.Model,
                 CustomWarning = product.CustomWarning,
                 IsActive = product.IsActive,
+                DetailsVersion = product.DetailsVersion,
                 ImageUrl = string.IsNullOrWhiteSpace(product.ImageFilename) ? null : $"/ProductImages/{product.ImageFilename}",
                 CreateDate = product.CreateDate,
                 UpdatedDate = product.UpdatedDate,
@@ -206,6 +207,20 @@ namespace Mercurius.Controllers.Api
                 return BadRequest(new { error = "Name and SKU are required." });
             }
 
+            // Someone else edited the details after this edit's author opened the product (very likely a
+            // change queued offline, sent much later): don't overwrite theirs without them being told.
+            if (request.BaseDetailsVersion is int seen && seen != product.DetailsVersion)
+            {
+                return Conflict(new
+                {
+                    error = $"\"{product.Name}\" was changed by someone else after you opened it (now: cost {product.CurrentCostPrice:N2}, price {product.CurrentSalePrice:N2}).",
+                    currentDetailsVersion = product.DetailsVersion,
+                    currentName = product.Name,
+                    currentCostPrice = product.CurrentCostPrice,
+                    currentSalePrice = product.CurrentSalePrice
+                });
+            }
+
             product.ProductCode = request.ProductCode.Trim();
             product.Barcode = NormalizeBarcode(request.Barcode);
             product.Name = request.Name.Trim();
@@ -221,6 +236,7 @@ namespace Mercurius.Controllers.Api
             // IsActive=false is this app's "delete" (soft) — the MVC Delete hard-deleted, which
             // fails once any invoice/batch references the product anyway (FKs are Restrict).
             product.IsActive = request.IsActive;
+            product.DetailsVersion++;
             product.UpdatedDate = DateTime.UtcNow;
             product.UpdatedBy = CurrentUserId;
 

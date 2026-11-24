@@ -1,0 +1,69 @@
+@* Connection and unsent-changes status in the top bar (SyncService). Hidden while everything is
+   online and sent; otherwise one chip that says what's going on and leads to the Outbox page. *@
+@implements IDisposable
+@inject Mercurius.Client.Services.SyncService Sync
+@inject NavigationManager Nav
+
+@if (Visible)
+{
+    <button type="button" class="sync-chip @Tone" id="syncIndicator" title="@Tooltip" @onclick="OnClick">
+        <i class="bi @Icon @(S.Syncing ? "sync-spin" : "")"></i>
+        <span>@Text</span>
+    </button>
+}
+
+@code {
+    private Mercurius.Client.Services.SyncStatus S => Sync.Status;
+
+    private bool Visible => S.IsOffline || S.AuthRequired || S.Pending > 0 || S.NeedsAttention > 0;
+
+    private string Changes(int n) => $"{n} change{(n == 1 ? "" : "s")}";
+
+    private string Text => S switch
+    {
+        { AuthRequired: true } => $"Sign in to send {Changes(S.Pending)}",
+        { NeedsAttention: > 0 } when !S.IsOffline => $"{S.NeedsAttention} need{(S.NeedsAttention == 1 ? "s" : "")} attention",
+        { IsOffline: true } => "Offline" + (S.Pending > 0 ? $" · {S.Pending} waiting" : "")
+            + (S.ShowingSavedDataFromUtc is DateTime at ? $" · saved data from {LocalTime.FromUtc(at):HH:mm}" : ""),
+        { Syncing: true } => $"Sending {Changes(S.Pending)}…",
+        _ => $"{Changes(S.Pending)} waiting"
+    };
+
+    private string Tone => S switch
+    {
+        { AuthRequired: true } => "sync-danger",
+        { NeedsAttention: > 0 } when !S.IsOffline => "sync-danger",
+        { IsOffline: true } => "sync-warning",
+        _ => "sync-info"
+    };
+
+    private string Icon => S switch
+    {
+        { AuthRequired: true } => "bi-person-lock",
+        { NeedsAttention: > 0 } when !S.IsOffline => "bi-exclamation-triangle",
+        { IsOffline: true } => "bi-wifi-off",
+        _ => "bi-arrow-repeat"
+    };
+
+    private string Tooltip => S.IsOffline
+        ? "No connection. Changes are saved on this computer and sent automatically when it's back."
+        : "Changes made on this computer that haven't reached the server yet.";
+
+    protected override void OnInitialized() => Sync.Changed += OnChanged;
+
+    private void OnChanged() => InvokeAsync(StateHasChanged);
+
+    private void OnClick()
+    {
+        if (S.AuthRequired)
+        {
+            // A full page load: sign-in is a server page. Unsent changes stay on this computer.
+            var back = "/" + Nav.ToBaseRelativePath(Nav.Uri);
+            Nav.NavigateTo($"account/login?ReturnUrl={Uri.EscapeDataString(back)}", forceLoad: true);
+            return;
+        }
+        Nav.NavigateTo("outbox");
+    }
+
+    public void Dispose() => Sync.Changed -= OnChanged;
+}

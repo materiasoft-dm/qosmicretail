@@ -42,8 +42,10 @@
     <script>
         // Service workers only exist in a secure context (HTTPS, or localhost) — the object is
         // simply undefined elsewhere (e.g. a plain-HTTP host) and would otherwise throw on load.
+        // The ?v= is this build (see service-worker.js): a new build installs a new worker, which
+        // swaps in the new build's app files for offline use.
         if ('serviceWorker' in navigator) {
-            navigator.serviceWorker.register('service-worker.js');
+            navigator.serviceWorker.register('service-worker.js?v=@BuildVersion');
         }
     </script>
 </body>
@@ -52,6 +54,11 @@
 
 @code {
     [CascadingParameter] private HttpContext HttpContext { get; set; } = default!;
+
+    // Changes with every build of the browser app (its assembly's module id), so the offline service
+    // worker knows when to swap its saved app files.
+    private static readonly string BuildVersion =
+        typeof(Mercurius.Client._Imports).Assembly.ManifestModule.ModuleVersionId.ToString("N")[..12];
 
     // Account pages opt out of interactivity ([ExcludeFromInteractiveRouting]) — they're plain
     // server-rendered forms that set the sign-in cookie. Everything else runs on WebAssembly.

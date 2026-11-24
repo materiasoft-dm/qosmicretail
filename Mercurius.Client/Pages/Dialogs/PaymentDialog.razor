@@ -1,5 +1,6 @@
 @inject SalesApiClient SalesApi
 @inject OfflineStoreService OfflineStore
+@inject SyncService Sync
 
 <MudDialog>
     <DialogContent>
@@ -129,9 +130,9 @@
             }
             catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException)
             {
-                // Couldn't reach the server at all — assume offline rather than surface a scary
-                // network error. Queue the sale locally; OfflineSyncService replays it once a
-                // connection comes back (see Sell.razor's manual "Sync now" and startup pull).
+                // Couldn't reach the server (or it took over 15 s) — assume offline rather than surface
+                // a scary network error. The sale goes into this device's outbox; SyncService sends it
+                // as soon as there's a connection (see Services/SyncService.cs).
                 await QueueOfflineAsync(request);
                 MudDialog.Close(DialogResult.Ok(new SaleOutcome { SavedOffline = true }));
                 return;
@@ -169,7 +170,7 @@
             AmountReceived = request.AmountReceived,
             Items = request.Items
         };
-        await OfflineStore.QueueSaleAsync(offlineSale);
+        await Sync.QueueSaleAsync(offlineSale, Total);
         foreach (var line in request.Items)
         {
             await OfflineStore.DecrementProductStockAsync(line.ProductId, line.Quantity);

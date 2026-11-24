@@ -167,6 +167,12 @@
                 _error = error;
                 return;
             }
+            if (order.Id == 0)
+            {
+                // Saved on this computer (no connection): there's no order to open yet. The layout has said so.
+                Nav.NavigateTo("wholesale");
+                return;
+            }
             Snackbar.Add($"Wholesale order {order.OrderNumber} created.", Severity.Success);
             Nav.NavigateTo($"wholesale/{order.Id}");
         }
