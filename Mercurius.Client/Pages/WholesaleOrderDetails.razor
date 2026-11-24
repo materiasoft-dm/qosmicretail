@@ -69,8 +69,8 @@ else
                     <div class="d-flex align-center gap-2">
                         <MudNumericField T="decimal" @bind-Value="_payment" Label="Amount received" Min="0" Format="N2" Variant="Variant.Outlined"
                                          HideSpinButtons="true" Margin="Margin.Dense" Style="max-width:200px;" />
-                        <MudButton Variant="Variant.Text" Size="Size.Small" OnClick="@(() => _payment = _order.Balance)">Full balance</MudButton>
-                        <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="RecordPaymentAsync" Disabled="_busy || _payment <= 0">Record payment</MudButton>
+                        <BusyButton Variant="Variant.Text" Size="Size.Small" OnClick="@(() => _payment = _order.Balance)">Full balance</BusyButton>
+                        <BusyButton Variant="Variant.Filled" Color="Color.Primary" OnClick="RecordPaymentAsync" Disabled="_busy || _payment <= 0">Record payment</BusyButton>
                     </div>
                     @if (_error != null)
                     {

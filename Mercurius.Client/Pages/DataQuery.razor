@@ -19,9 +19,9 @@
     <MudTextField @bind-Value="_sql" Label="SQL" Variant="Variant.Outlined" Lines="8" Placeholder="SELECT * FROM Products"
                   Style="font-family:monospace;" />
     <div class="d-flex justify-end mt-3">
-        <MudButton Variant="Variant.Filled" Color="Color.Error" StartIcon="@Icons.Material.Filled.PlayArrow" Disabled="_running" OnClick="RunAsync">
+        <BusyButton Variant="Variant.Filled" Color="Color.Error" StartIcon="@Icons.Material.Filled.PlayArrow" Busy="_running" OnClick="RunAsync">
             @(_running ? "Running..." : "Execute")
-        </MudButton>
+        </BusyButton>
     </div>
 </MudPaper>
 

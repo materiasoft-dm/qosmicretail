@@ -11,7 +11,7 @@
     <MudText Typo="Typo.h4">Tenants</MudText>
     @if (!_showCreate)
     {
-        <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Filled.Add" OnClick="ShowCreate">New tenant</MudButton>
+        <BusyButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Filled.Add" OnClick="ShowCreate">New tenant</BusyButton>
     }
 </div>
 
@@ -41,8 +41,8 @@
             <MudAlert Severity="Severity.Error" Class="mt-3">@_error</MudAlert>
         }
         <div class="d-flex justify-end gap-2 mt-4">
-            <MudButton OnClick="@(() => _showCreate = false)" Disabled="_busy">Cancel</MudButton>
-            <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="CreateAsync" Disabled="_busy">Create tenant</MudButton>
+            <BusyButton OnClick="@(() => _showCreate = false)" Disabled="_busy">Cancel</BusyButton>
+            <BusyButton Variant="Variant.Filled" Color="Color.Primary" OnClick="CreateAsync" Busy="_busy">Create tenant</BusyButton>
         </div>
     </MudPaper>
 }

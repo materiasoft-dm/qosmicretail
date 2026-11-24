@@ -9,7 +9,7 @@
 
 <div class="d-flex justify-content-between align-items-center mb-4">
     <MudText Typo="Typo.h4">Users</MudText>
-    <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Filled.PersonAdd" OnClick="AddUserAsync">Add user</MudButton>
+    <BusyButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Filled.PersonAdd" OnClick="AddUserAsync">Add user</BusyButton>
 </div>
 
 <MudSwitch T="bool" Value="_showDeactivated" ValueChanged="OnShowDeactivatedChanged" Color="Color.Primary" Label="Show deactivated users" Class="mb-3" />
@@ -46,14 +46,14 @@
                 }
             </MudTd>
             <MudTd DataLabel="Actions">
-                <MudButton Size="Size.Small" Variant="Variant.Outlined" Class="me-1" OnClick="@(() => EditRolesAsync(context))">Roles</MudButton>
-                <MudButton Size="Size.Small" Variant="Variant.Outlined" Class="me-1" OnClick="@(() => ResetPasswordAsync(context))">Reset password</MudButton>
+                <BusyButton Size="Size.Small" Variant="Variant.Outlined" Class="me-1" OnClick="@(() => EditRolesAsync(context))">Roles</BusyButton>
+                <BusyButton Size="Size.Small" Variant="Variant.Outlined" Class="me-1" OnClick="@(() => ResetPasswordAsync(context))">Reset password</BusyButton>
                 @if (!context.IsCurrentUser)
                 {
-                    <MudButton Size="Size.Small" Variant="Variant.Filled" Color="@(context.IsActive ? Color.Warning : Color.Success)"
+                    <BusyButton Size="Size.Small" Variant="Variant.Filled" Color="@(context.IsActive ? Color.Warning : Color.Success)"
                                OnClick="@(() => ToggleActiveAsync(context))">
                         @(context.IsActive ? "Deactivate" : "Activate")
-                    </MudButton>
+                    </BusyButton>
                 }
             </MudTd>
         </RowTemplate>

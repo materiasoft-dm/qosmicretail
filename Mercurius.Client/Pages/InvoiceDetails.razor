@@ -50,7 +50,7 @@ else
                 <MudTd DataLabel="Actions">
                     @if (context.QuantityRemaining > 0)
                     {
-                        <MudButton Size="Size.Small" Color="Color.Error" Variant="Variant.Filled" OnClick="@(() => OpenRefund(context))">Refund</MudButton>
+                        <BusyButton Size="Size.Small" Color="Color.Error" Variant="Variant.Filled" OnClick="@(() => OpenRefund(context))">Refund</BusyButton>
                     }
                 </MudTd>
             </RowTemplate>

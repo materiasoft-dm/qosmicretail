@@ -29,7 +29,7 @@
             </span>
             @if (_pendingSaleCount > 0)
             {
-                <MudButton Size="Size.Small" Variant="Variant.Outlined" OnClick="SyncNow">Send now</MudButton>
+                <BusyButton Size="Size.Small" Variant="Variant.Outlined" OnClick="SyncNow">Send now</BusyButton>
             }
         </div>
     </MudAlert>
@@ -43,8 +43,8 @@
                           Adornment="Adornment.Start" AdornmentIcon="@Icons.Material.Filled.QrCodeScanner" Style="min-width:300px; max-width:420px" Margin="Margin.Dense"
                           UserAttributes="@(new Dictionary<string, object> { ["id"] = "sellSearch" })" />
             <MudButtonGroup Variant="Variant.Filled" Size="Size.Small">
-                <MudButton Color="@(_isGridView ? Color.Primary : Color.Default)" OnClick="@(() => SetViewMode(true))">Grid</MudButton>
-                <MudButton Color="@(!_isGridView ? Color.Primary : Color.Default)" OnClick="@(() => SetViewMode(false))">List</MudButton>
+                <BusyButton Color="@(_isGridView ? Color.Primary : Color.Default)" OnClick="@(() => SetViewMode(true))">Grid</BusyButton>
+                <BusyButton Color="@(!_isGridView ? Color.Primary : Color.Default)" OnClick="@(() => SetViewMode(false))">List</BusyButton>
             </MudButtonGroup>
         </div>
 
@@ -133,7 +133,7 @@
                                 <MudText Class="fw-bold text-truncate">@line.Name</MudText>
                                 <div class="d-flex align-items-center gap-2 mt-1">
                                     <MudIconButton Icon="@Icons.Material.Filled.Remove" Size="Size.Small" Variant="Variant.Filled" aria-label="Decrease quantity" OnClick="@(() => Decrement(line.ProductId))" />
-                                    <MudButton Size="Size.Small" Variant="Variant.Outlined" Style="min-width:48px;" aria-label="Edit quantity" OnClick="@(() => EditQuantityAsync(line))">@line.Quantity</MudButton>
+                                    <BusyButton Size="Size.Small" Variant="Variant.Outlined" Style="min-width:48px;" aria-label="Edit quantity" OnClick="@(() => EditQuantityAsync(line))">@line.Quantity</BusyButton>
                                     <MudIconButton Icon="@Icons.Material.Filled.Add" Size="Size.Small" Variant="Variant.Filled" aria-label="Increase quantity" OnClick="@(() => Increment(line.ProductId))" />
                                     <MudText Typo="Typo.caption" Color="Color.Secondary" Class="ms-2">@Money.Format(line.Price) ea</MudText>
                                 </div>
@@ -153,10 +153,10 @@
                 <MudText Typo="Typo.h5" Color="Color.Primary" Class="fw-bold">@Money.Format(CartTotal())</MudText>
             </div>
             <div class="d-flex gap-2">
-                <MudButton Variant="Variant.Outlined" FullWidth="true" OnClick="ClearCart">Clear</MudButton>
-                <MudButton Variant="Variant.Filled" Color="Color.Primary" FullWidth="true" Disabled="@(_cart.Count == 0)" OnClick="OpenPayment">
+                <BusyButton Variant="Variant.Outlined" FullWidth="true" OnClick="ClearCart">Clear</BusyButton>
+                <BusyButton Variant="Variant.Filled" Color="Color.Primary" FullWidth="true" Disabled="@(_cart.Count == 0)" OnClick="OpenPayment">
                     @(_cart.Count == 0 ? "Charge" : $"Charge {Money.Format(CartTotal())}")
-                </MudButton>
+                </BusyButton>
             </div>
         </MudPaper>
     </MudItem>

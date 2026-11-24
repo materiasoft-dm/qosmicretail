@@ -23,15 +23,15 @@
         <div class="d-flex flex-wrap gap-2">
             @if (_editing)
             {
-                <MudButton Variant="Variant.Text" OnClick="ResetLayout">Reset to default</MudButton>
-                <MudButton Variant="Variant.Outlined" OnClick="CancelEditing">Cancel</MudButton>
-                <MudButton Variant="Variant.Filled" Color="Color.Primary" Disabled="_saving" OnClick="SaveLayoutAsync"
-                           StartIcon="@Icons.Material.Filled.Check">Save layout</MudButton>
+                <BusyButton Variant="Variant.Text" OnClick="ResetLayout">Reset to default</BusyButton>
+                <BusyButton Variant="Variant.Outlined" OnClick="CancelEditing">Cancel</BusyButton>
+                <BusyButton Variant="Variant.Filled" Color="Color.Primary" Busy="_saving" OnClick="SaveLayoutAsync"
+                           StartIcon="@Icons.Material.Filled.Check">Save layout</BusyButton>
             }
             else
             {
-                <MudButton Variant="Variant.Outlined" StartIcon="@Icons.Material.Filled.Tune" OnClick="StartEditing"
-                           UserAttributes="@(new Dictionary<string, object> { ["id"] = "customizeDashboard" })">Customize</MudButton>
+                <BusyButton Variant="Variant.Outlined" StartIcon="@Icons.Material.Filled.Tune" OnClick="StartEditing"
+                           id="customizeDashboard">Customize</BusyButton>
             }
         </div>
     }

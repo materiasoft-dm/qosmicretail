@@ -20,18 +20,18 @@
             @foreach (var amount in _quickAmounts)
             {
                 <MudItem xs="6">
-                    <MudButton Variant="Variant.Outlined" FullWidth="true" OnClick="@(() => SetCashReceived(amount))">@Money.Format(amount)</MudButton>
+                    <BusyButton Variant="Variant.Outlined" FullWidth="true" OnClick="@(() => SetCashReceived(amount))">@Money.Format(amount)</BusyButton>
                 </MudItem>
             }
         </MudGrid>
 
-        <MudButton Color="Color.Primary" Variant="Variant.Filled" FullWidth="true" Class="mb-3" Disabled="@(!_changeIsValid || _busy)" OnClick="ChargeCash">
+        <BusyButton Color="Color.Primary" Variant="Variant.Filled" FullWidth="true" Class="mb-3" Disabled="@(!_changeIsValid || _busy)" Busy="_busy" OnClick="ChargeCash">
             Charge Cash
-        </MudButton>
+        </BusyButton>
         <MudDivider Class="mb-3" />
-        <MudButton Color="Color.Secondary" Variant="Variant.Filled" FullWidth="true" Disabled="_busy" OnClick="ChargeCard">
+        <BusyButton Color="Color.Secondary" Variant="Variant.Filled" FullWidth="true" Busy="_busy" OnClick="ChargeCard">
             Charge Card
-        </MudButton>
+        </BusyButton>
     </DialogContent>
 </MudDialog>
 

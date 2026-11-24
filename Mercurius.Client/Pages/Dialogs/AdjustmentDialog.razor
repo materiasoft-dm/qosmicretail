@@ -31,8 +31,8 @@
         }
     </DialogContent>
     <DialogActions>
-        <MudButton OnClick="Cancel">Cancel</MudButton>
-        <MudButton Color="Color.Primary" Variant="Variant.Filled" Disabled="_busy" OnClick="SaveAsync">Save</MudButton>
+        <BusyButton OnClick="Cancel">Cancel</BusyButton>
+        <BusyButton Color="Color.Primary" Variant="Variant.Filled" Busy="_busy" OnClick="SaveAsync">Save</BusyButton>
     </DialogActions>
 </MudDialog>
 

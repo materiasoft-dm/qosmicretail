@@ -11,9 +11,9 @@
     <MudText Typo="Typo.h4">Customers</MudText>
     @if (_user.Can(ModuleRegistry.Pages.CUSTOMER_ADD))
     {
-        <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Filled.PersonAdd" OnClick="@(() => OpenAsync(null))">
+        <BusyButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Filled.PersonAdd" OnClick="@(() => OpenAsync(null))">
             Add Customer
-        </MudButton>
+        </BusyButton>
     }
 </div>
 

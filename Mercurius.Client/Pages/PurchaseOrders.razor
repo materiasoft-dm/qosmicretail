@@ -46,13 +46,13 @@
                     }
                     @if (context.Status == PurchaseOrderStatus.PendingApproval && _canApprove)
                     {
-                        <MudButton Size="Size.Small" Color="Color.Success" Variant="Variant.Filled" Disabled="_busy"
-                                   OnClick="@(() => RunAsync(() => Api.ApproveAsync(context.Id), "Purchase order approved."))">Approve</MudButton>
+                        <BusyButton Size="Size.Small" Color="Color.Success" Variant="Variant.Filled" Busy="_busy"
+                                   OnClick="@(() => RunAsync(() => Api.ApproveAsync(context.Id), "Purchase order approved."))">Approve</BusyButton>
                     }
                     else if (context.Status == PurchaseOrderStatus.Approved && _canEdit)
                     {
-                        <MudButton Size="Size.Small" Color="Color.Primary" Variant="Variant.Filled" Disabled="_busy"
-                                   OnClick="@(() => RunAsync(() => Api.MarkSentAsync(context.Id), "Marked as sent to the supplier."))">Mark sent</MudButton>
+                        <BusyButton Size="Size.Small" Color="Color.Primary" Variant="Variant.Filled" Busy="_busy"
+                                   OnClick="@(() => RunAsync(() => Api.MarkSentAsync(context.Id), "Marked as sent to the supplier."))">Mark sent</BusyButton>
                     }
                 </div>
             </MudTd>

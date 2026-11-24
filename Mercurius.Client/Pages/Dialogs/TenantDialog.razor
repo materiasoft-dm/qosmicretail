@@ -54,13 +54,13 @@
     <DialogActions>
         @if (!_editing)
         {
-            <MudButton OnClick="Close">Close</MudButton>
-            <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Filled.Edit" OnClick="StartEditing">Edit</MudButton>
+            <BusyButton OnClick="Close">Close</BusyButton>
+            <BusyButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Filled.Edit" OnClick="StartEditing">Edit</BusyButton>
         }
         else
         {
-            <MudButton OnClick="CancelEditing" Disabled="_busy">Cancel</MudButton>
-            <MudButton Variant="Variant.Filled" Color="Color.Primary" Disabled="_busy" OnClick="SaveAsync">Save changes</MudButton>
+            <BusyButton OnClick="CancelEditing" Disabled="_busy">Cancel</BusyButton>
+            <BusyButton Variant="Variant.Filled" Color="Color.Primary" Busy="_busy" OnClick="SaveAsync">Save changes</BusyButton>
         }
     </DialogActions>
 </MudDialog>

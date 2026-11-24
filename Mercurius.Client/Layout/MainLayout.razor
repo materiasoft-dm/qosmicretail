@@ -90,7 +90,7 @@
                             <i class="bi bi-exclamation-triangle page-error-icon"></i>
                             <h2>Something went wrong on this page</h2>
                             <p>Reload to try again. If it keeps happening, an administrator can find the details under Settings → Logs.</p>
-                            <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="@(() => Nav.NavigateTo(Nav.Uri, forceLoad: true))">Reload</MudButton>
+                            <BusyButton Variant="Variant.Filled" Color="Color.Primary" OnClick="@(() => Nav.NavigateTo(Nav.Uri, forceLoad: true))">Reload</BusyButton>
                         }
                     </div>
                 </ErrorContent>

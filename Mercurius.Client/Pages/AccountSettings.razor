@@ -26,7 +26,7 @@ else
                     <MudAlert Severity="Severity.Error" Class="mb-3">@_profileError</MudAlert>
                 }
                 <div class="d-flex justify-end">
-                    <MudButton Variant="Variant.Filled" Color="Color.Primary" Disabled="_busy" OnClick="SaveProfileAsync">Save details</MudButton>
+                    <BusyButton Variant="Variant.Filled" Color="Color.Primary" Busy="_busy" OnClick="SaveProfileAsync">Save details</BusyButton>
                 </div>
             </MudPaper>
         </MudItem>
@@ -42,7 +42,7 @@ else
                     <MudAlert Severity="Severity.Error" Class="mb-3">@_passwordError</MudAlert>
                 }
                 <div class="d-flex justify-end">
-                    <MudButton Variant="Variant.Filled" Color="Color.Primary" Disabled="_busy" OnClick="ChangePasswordAsync">Change password</MudButton>
+                    <BusyButton Variant="Variant.Filled" Color="Color.Primary" Busy="_busy" OnClick="ChangePasswordAsync">Change password</BusyButton>
                 </div>
             </MudPaper>
         </MudItem>

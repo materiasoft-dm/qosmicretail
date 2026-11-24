@@ -9,8 +9,8 @@
 
 <div class="d-flex justify-space-between align-center flex-wrap gap-2 mb-2">
     <MudText Typo="Typo.h4">Outbox</MudText>
-    <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Filled.Sync" Disabled="@Sync.Status.Syncing"
-               OnClick="SyncNowAsync" id="syncNowButton">Send now</MudButton>
+    <BusyButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Filled.Sync" Disabled="@Sync.Status.Syncing"
+               OnClick="SyncNowAsync" id="syncNowButton">Send now</BusyButton>
 </div>
 <MudText Typo="Typo.body2" Class="mud-text-secondary mb-4">
     Changes made on this computer that haven't reached the server yet. They're sent automatically, in order, whenever there's a connection.
@@ -59,15 +59,15 @@ else
                     @if (context.Status == Mercurius.Client.Services.OutboxEntry.Conflict && context.ConflictVersion != null)
                     {
                         @* Someone else changed the record first. Keeping theirs = discarding this edit. *@
-                        <MudButton Size="Size.Small" Variant="Variant.Outlined" Color="Color.Primary" OnClick="@(() => OverwriteAsync(context))">Overwrite with mine</MudButton>
+                        <BusyButton Size="Size.Small" Variant="Variant.Outlined" Color="Color.Primary" OnClick="@(() => OverwriteAsync(context))">Overwrite with mine</BusyButton>
                     }
                     else if (context.Status != Mercurius.Client.Services.OutboxEntry.Pending)
                     {
-                        <MudButton Size="Size.Small" Variant="Variant.Outlined" OnClick="@(() => RetryAsync(context))">Retry</MudButton>
+                        <BusyButton Size="Size.Small" Variant="Variant.Outlined" OnClick="@(() => RetryAsync(context))">Retry</BusyButton>
                     }
-                    <MudButton Size="Size.Small" Color="Color.Error" OnClick="@(() => DiscardAsync(context))">
+                    <BusyButton Size="Size.Small" Color="Color.Error" OnClick="@(() => DiscardAsync(context))">
                         @(context.Status == Mercurius.Client.Services.OutboxEntry.Conflict ? "Keep theirs" : "Discard")
-                    </MudButton>
+                    </BusyButton>
                 </MudTd>
             </RowTemplate>
         </MudTable>

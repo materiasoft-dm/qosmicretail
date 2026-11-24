@@ -1,4 +1,6 @@
 @inject InvoicesApiClient Api
+@inject RefundReasonsApiClient ReasonsApi
+@inject AuthenticationStateProvider AuthProvider
 
 <MudDialog>
     <DialogContent>
@@ -11,6 +13,38 @@
                 <MudSelectItem T="int" Value="@reason.Id">@reason.Name</MudSelectItem>
             }
         </MudSelect>
+        @if (_canAddReason)
+        {
+            @if (Reasons.Count == 0 || _addingReason)
+            {
+                <div class="d-flex align-center mb-3" style="gap:8px;">
+                    <MudTextField @bind-Value="_newReason" Label="@(Reasons.Count == 0 ? "No refund reasons yet: add one" : "New reason")"
+                                  Variant="Variant.Outlined" Margin="Margin.Dense" Immediate="true" MaxLength="100"
+                                  Disabled="_savingReason" OnKeyDown="OnNewReasonKey" data-testid="new-reason" />
+                    <BusyButton Variant="Variant.Outlined" Color="Color.Primary" OnClick="AddReason"
+                               Disabled="_savingReason || string.IsNullOrWhiteSpace(_newReason)" data-testid="add-reason">Add</BusyButton>
+                    @if (Reasons.Count > 0)
+                    {
+                        <BusyButton OnClick="CancelAddReason" Disabled="_savingReason">Cancel</BusyButton>
+                    }
+                </div>
+            }
+            else
+            {
+                <BusyButton Variant="Variant.Text" Color="Color.Primary" Size="Size.Small" Class="mb-3"
+                           StartIcon="@Icons.Material.Filled.Add" OnClick="@(() => _addingReason = true)" data-testid="show-add-reason">New reason</BusyButton>
+            }
+            @if (_reasonError != null)
+            {
+                <MudAlert Severity="Severity.Warning" Dense="true" Class="mb-3">@_reasonError</MudAlert>
+            }
+        }
+        else if (Reasons.Count == 0)
+        {
+            <MudAlert Severity="Severity.Info" Dense="true" Class="mb-3">
+                There are no refund reasons yet. Ask an administrator to add one (Settings → Refund reasons).
+            </MudAlert>
+        }
         <MudTextField @bind-Value="_notes" Label="Notes" Variant="Variant.Outlined" Class="mb-3" />
         <MudSwitch @bind-Value="_restock" Color="Color.Primary" Label="Put stock back into inventory" />
         @if (_error != null)
@@ -19,8 +53,8 @@
         }
     </DialogContent>
     <DialogActions>
-        <MudButton OnClick="Cancel">Cancel</MudButton>
-        <MudButton Color="Color.Error" Variant="Variant.Filled" OnClick="Submit">Refund</MudButton>
+        <BusyButton OnClick="Cancel">Cancel</BusyButton>
+        <BusyButton Color="Color.Error" Variant="Variant.Filled" OnClick="Submit">Refund</BusyButton>
     </DialogActions>
 </MudDialog>
 
@@ -34,8 +68,71 @@
     private string _notes = string.Empty;
     private bool _restock = true;
     private string? _error;
+    private bool _canAddReason;
+    private bool _addingReason;
+    private bool _savingReason;
+    private string _newReason = string.Empty;
+    private string? _reasonError;
 
-    protected override void OnInitialized() => _quantity = Item.QuantityRemaining;
+    protected override async Task OnInitializedAsync()
+    {
+        _quantity = Item.QuantityRemaining;
+        // Adding a reason is a settings change, so only a user who may manage refund reasons sees it.
+        // The server checks the same permission on the call itself.
+        var user = (await AuthProvider.GetAuthenticationStateAsync()).User;
+        _canAddReason = user.Can(ModuleRegistry.Pages.CONFIG_REFUND_REASONS);
+    }
+
+    private async Task OnNewReasonKey(KeyboardEventArgs e)
+    {
+        if (e.Key == "Enter") await AddReason();
+    }
+
+    private void CancelAddReason()
+    {
+        _addingReason = false;
+        _newReason = string.Empty;
+        _reasonError = null;
+    }
+
+    private async Task AddReason()
+    {
+        var name = _newReason.Trim();
+        if (name.Length == 0 || _savingReason) return;
+        _reasonError = null;
+
+        // The same reason typed again just selects the one that exists.
+        var existing = Reasons.FirstOrDefault(r => string.Equals(r.Name, name, StringComparison.OrdinalIgnoreCase));
+        if (existing != null)
+        {
+            _reasonId = existing.Id;
+            CancelAddReason();
+            return;
+        }
+
+        _savingReason = true;
+        try
+        {
+            var created = await ReasonsApi.CreateAsync(new CreateRefundReasonRequest { Name = name });
+            if (created == null)
+            {
+                _reasonError = "The reason could not be added. You may not have permission, or it may already exist.";
+                return;
+            }
+            Reasons.Add(new RefundReasonOptionDto { Id = created.Id, Name = created.Name });
+            _reasonId = created.Id;
+            CancelAddReason();
+        }
+        catch (HttpRequestException)
+        {
+            // Creating a reason hands back a new id, so it can't be saved for later like the refund itself.
+            _reasonError = "No connection: a new reason can only be added online. You can still refund with an existing reason.";
+        }
+        finally
+        {
+            _savingReason = false;
+        }
+    }
 
     private async Task Submit()
     {

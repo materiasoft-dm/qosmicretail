@@ -83,9 +83,9 @@
     <DialogActions>
         @if (!string.IsNullOrEmpty(_entry?.CorrelationId))
         {
-            <MudButton Variant="Variant.Outlined" Color="Color.Primary" OnClick="ShowSameRequest">Show everything from this request</MudButton>
+            <BusyButton Variant="Variant.Outlined" Color="Color.Primary" OnClick="ShowSameRequest">Show everything from this request</BusyButton>
         }
-        <MudButton OnClick="Close">Close</MudButton>
+        <BusyButton OnClick="Close">Close</BusyButton>
     </DialogActions>
 </MudDialog>
 

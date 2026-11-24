@@ -8,17 +8,17 @@
 
 <div class="d-flex justify-content-between align-items-center mb-4">
     <MudText Typo="Typo.h4">Logs</MudText>
-    <MudButton Variant="Variant.Filled" Color="Color.Error" StartIcon="@Icons.Material.Filled.DeleteForever" OnClick="ClearAll">
+    <BusyButton Variant="Variant.Filled" Color="Color.Error" StartIcon="@Icons.Material.Filled.DeleteForever" OnClick="ClearAll">
         Clear all logs
-    </MudButton>
+    </BusyButton>
 </div>
 
 @if (_selectedFile != null)
 {
     <div class="d-flex gap-2 mb-3">
-        <MudButton Variant="Variant.Outlined" StartIcon="@Icons.Material.Filled.ArrowBack" OnClick="@(() => _selectedFile = null)">
+        <BusyButton Variant="Variant.Outlined" StartIcon="@Icons.Material.Filled.ArrowBack" OnClick="@(() => _selectedFile = null)">
             Back to file list
-        </MudButton>
+        </BusyButton>
         <MudButton Variant="Variant.Outlined" StartIcon="@Icons.Material.Filled.Download" Href="@DownloadUrl(_selectedFile)" Target="_self">
             Download
         </MudButton>

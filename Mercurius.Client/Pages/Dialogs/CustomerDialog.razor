@@ -46,10 +46,10 @@
         }
     </DialogContent>
     <DialogActions>
-        <MudButton OnClick="Cancel">Cancel</MudButton>
-        <MudButton Color="Color.Primary" Variant="Variant.Filled" Disabled="_busy || _loading" OnClick="SaveAsync">
+        <BusyButton OnClick="Cancel">Cancel</BusyButton>
+        <BusyButton Color="Color.Primary" Variant="Variant.Filled" Disabled="_loading" Busy="_busy" OnClick="SaveAsync">
             @(CustomerId.HasValue ? "Save changes" : "Add customer")
-        </MudButton>
+        </BusyButton>
     </DialogActions>
 </MudDialog>
 

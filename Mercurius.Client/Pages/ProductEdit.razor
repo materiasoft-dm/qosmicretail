@@ -44,10 +44,10 @@ else
                     <div>
                         <MudFileUpload T="IBrowserFile" FilesChanged="OnPhotoSelected" Accept=".png,.jpg,.jpeg">
                             <CustomContent>
-                                <MudButton Variant="Variant.Outlined" Size="Size.Small" StartIcon="@Icons.Material.Filled.PhotoCamera"
+                                <BusyButton Variant="Variant.Outlined" Size="Size.Small" StartIcon="@Icons.Material.Filled.PhotoCamera"
                                            Disabled="_busy" OnClick="@context.OpenFilePickerAsync">
                                     @(PhotoSrc == null ? "Choose photo" : "Change photo")
-                                </MudButton>
+                                </BusyButton>
                             </CustomContent>
                             <SelectedTemplate></SelectedTemplate>
                         </MudFileUpload>
@@ -64,7 +64,7 @@ else
                     <MudText Typo="Typo.subtitle2" Class="mb-2">QR code</MudText>
                     <div class="d-flex align-center gap-4">
                         <img src="@QrUrl" alt="QR code" style="width:125px;height:125px;" />
-                        <MudButton Variant="Variant.Outlined" Size="Size.Small" StartIcon="@Icons.Material.Filled.Print" OnClick="PrintQrAsync">Print</MudButton>
+                        <BusyButton Variant="Variant.Outlined" Size="Size.Small" StartIcon="@Icons.Material.Filled.Print" OnClick="PrintQrAsync">Print</BusyButton>
                     </div>
                 </MudItem>
             }
@@ -179,14 +179,10 @@ else
         }
 
         <div class="d-flex justify-space-between mt-6">
-            <MudButton OnClick="Cancel" Disabled="_busy">Cancel</MudButton>
-            <MudButton Color="Color.Primary" Variant="Variant.Filled" OnClick="SaveAsync" Disabled="_busy">
-                @if (_busy)
-                {
-                    <MudProgressCircular Size="Size.Small" Indeterminate="true" Class="me-2" />
-                }
+            <BusyButton OnClick="Cancel" Disabled="_busy">Cancel</BusyButton>
+            <BusyButton Color="Color.Primary" Variant="Variant.Filled" OnClick="SaveAsync" Busy="_busy">
                 @(IsNew ? "Create product" : "Save changes")
-            </MudButton>
+            </BusyButton>
         </div>
     </MudPaper>
 }

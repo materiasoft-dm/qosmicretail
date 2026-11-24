@@ -788,6 +788,15 @@ pages; add a rule there if you rename a route.
   Anything served by the server itself (images, QR codes, file downloads such as `/Downloads/Windows`,
   `/api/admin/backups/...`, `/api/logs/.../download`) must be an absolute `/...` path with a full
   page load, so the browser fetches it instead of the Blazor router.
+- **Buttons show they are working** (`Layout/BusyButton.razor`): use `<BusyButton>` instead of `<MudButton>` for
+  any button with an `OnClick`. While the handler runs it shows a spinner and ignores further clicks (so a slow
+  save, or a change waiting on the offline timeout, never looks like a dead button, and a double click can't
+  send it twice). A page that already tracks `_busy`/`_saving` passes `Busy="_busy"`. Link buttons (`Href`)
+  stay `MudButton`. Don't add new `MudButton`s with `OnClick`.
+- **Refund dialog** (`RefundDialog.razor`): a user with the `CONFIG_REFUND_REASONS` permission can add a reason
+  from the dialog ("New reason", or straight away when there are none); others see a note to ask an
+  administrator. Adding a reason needs the server's id, so it is online-only (the dialog says so offline); the
+  refund itself still queues offline with an existing reason. Covered by `RefundReasonInlineTests`.
 - **Branch switcher** (top of the sidebar): `POST api/account/branch` updates
   `UserCurrentLocation` (only to a branch in the caller's tenant), then the page force-reloads so
   everything re-queries for the new branch.

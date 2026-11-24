@@ -79,7 +79,7 @@ else
             </MudGrid>
         }
         <div class="d-flex justify-space-between align-center mt-2">
-            <MudButton Variant="Variant.Outlined" Size="Size.Small" StartIcon="@Icons.Material.Filled.Add" OnClick="@(() => _lines.Add(new LineModel()))">Add product</MudButton>
+            <BusyButton Variant="Variant.Outlined" Size="Size.Small" StartIcon="@Icons.Material.Filled.Add" OnClick="@(() => _lines.Add(new LineModel()))">Add product</BusyButton>
             <MudText><b>Estimated total:</b> @Money.Format(EstimatedTotal)</MudText>
         </div>
 
@@ -89,10 +89,10 @@ else
         }
 
         <div class="d-flex justify-space-between mt-6">
-            <MudButton OnClick="Cancel" Disabled="_busy">Cancel</MudButton>
-            <MudButton Color="Color.Primary" Variant="Variant.Filled" OnClick="SaveAsync" Disabled="_busy">
+            <BusyButton OnClick="Cancel" Disabled="_busy">Cancel</BusyButton>
+            <BusyButton Color="Color.Primary" Variant="Variant.Filled" OnClick="SaveAsync" Busy="_busy">
                 @(IsNew ? "Create purchase order" : "Save changes")
-            </MudButton>
+            </BusyButton>
         </div>
     </MudPaper>
 }

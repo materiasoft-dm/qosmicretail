@@ -43,8 +43,8 @@
         }
     </DialogContent>
     <DialogActions>
-        <MudButton OnClick="Cancel">Cancel</MudButton>
-        <MudButton Color="Color.Primary" Variant="Variant.Filled" Disabled="_busy" OnClick="Save">@(Existing == null ? "Add branch" : "Save")</MudButton>
+        <BusyButton OnClick="Cancel">Cancel</BusyButton>
+        <BusyButton Color="Color.Primary" Variant="Variant.Filled" Busy="_busy" OnClick="Save">@(Existing == null ? "Add branch" : "Save")</BusyButton>
     </DialogActions>
 </MudDialog>
 

@@ -9,9 +9,9 @@
     <MudText Typo="Typo.h4">Shipments</MudText>
     @if (_canCreate)
     {
-        <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Filled.Add" OnClick="@(() => ShowCreateAsync(null))">
+        <BusyButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Filled.Add" OnClick="@(() => ShowCreateAsync(null))">
             Receive Shipment
-        </MudButton>
+        </BusyButton>
     }
 </div>
 
@@ -104,8 +104,8 @@
             <MudAlert Severity="Severity.Error" Class="mt-3">@_error</MudAlert>
         }
         <div class="d-flex justify-end gap-2 mt-3">
-            <MudButton OnClick="@(() => _showCreate = false)">Cancel</MudButton>
-            <MudButton Color="Color.Primary" Variant="Variant.Filled" Disabled="_busy" OnClick="Submit">Save</MudButton>
+            <BusyButton OnClick="@(() => _showCreate = false)">Cancel</BusyButton>
+            <BusyButton Color="Color.Primary" Variant="Variant.Filled" Busy="_busy" OnClick="Submit">Save</BusyButton>
         </div>
     </MudPaper>
 }

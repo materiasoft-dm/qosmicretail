@@ -9,9 +9,9 @@
 
 <div class="d-flex justify-content-between align-items-center mb-4">
     <MudText Typo="Typo.h4">Suppliers</MudText>
-    <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Filled.Add" OnClick="@(() => OpenAsync(null))">
+    <BusyButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Filled.Add" OnClick="@(() => OpenAsync(null))">
         Add Supplier
-    </MudButton>
+    </BusyButton>
 </div>
 
 <MudTextField T="string" Value="_search" ValueChanged="OnSearchChanged" Label="Search suppliers..." Variant="Variant.Outlined"

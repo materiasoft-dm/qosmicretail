@@ -38,8 +38,8 @@
         </div>
         @if (!_installed && _canPrompt)
         {
-            <MudButton Variant="Variant.Filled" Color="Color.Primary" Size="Size.Large" StartIcon="@Icons.Material.Filled.InstallDesktop"
-                       OnClick="InstallAsync" id="installAppButton">Install</MudButton>
+            <BusyButton Variant="Variant.Filled" Color="Color.Primary" Size="Size.Large" StartIcon="@Icons.Material.Filled.InstallDesktop"
+                       OnClick="InstallAsync" id="installAppButton">Install</BusyButton>
         }
     </div>
 </MudPaper>
